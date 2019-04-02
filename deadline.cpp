@@ -18,6 +18,12 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include <sys/socket.h> 
+#include <netinet/in.h> 
+#include <arpa/inet.h>
+
+#define PORT 8080 
+
 #define gettid() syscall(__NR_gettid)
 
 #define SCHED_DEADLINE	6
@@ -106,22 +112,19 @@ class CStack {
 };
 
 char * j1_dev_path;
+int sock;
+bool send_tcp = false;
 class Task {
  public:
     Task(CStack<Data> &cstack) : cstack_(cstack) {
-		// fid_ = fopen("/dev/skel0", "r");
-		// fid_out_ = fopen("/dev/skel1", "w");
 		std::cout << "open: " << j1_dev_path << std::endl;
 		fid_ = open(j1_dev_path, O_RDWR);
 		fid_flags_ = fcntl(fid_, F_GETFL);
-		//fid_out_ = open("/dev/skel1", O_WRONLY);
-		//std::cout << "fidout" << fid_out_;
+
 	}
 	~Task() {
-		// fclose(fid_);
-		// fclose(fid_out_);
+
 		close(fid_);
-		//close(fid_out_);
 	}
 	void run() { done_ = 0;
 		start_time_ = std::chrono::steady_clock::now();
@@ -164,7 +167,7 @@ class Task {
 
 			//int read_error = fread(&data_.buffer,1 ,sizeof(data_.buffer), fid_);
 			int fcntl_error = fcntl(fid_, F_SETFL, fid_flags_ | O_NONBLOCK);
-			int read_error = read(fid_, &data_.buffer, sizeof(data_.buffer)); // expect errno EAGAIN
+			ssize_t read_error = read(fid_, &data_.buffer, sizeof(data_.buffer)); // expect errno EAGAIN
 			if (read_error < 0) {
 	//			std::cout << "read error: " << errno << std::endl;
 			} else {
@@ -186,11 +189,14 @@ class Task {
 			if (data_.delay > 1) {
 				std::cout << "Delay > 1: " << data_.delay << std::endl;
 			}
-			int write_error = write(fid_, &data_.command, 4);
+			ssize_t write_error = write(fid_, &data_.command, 4);
 			if (write_error < 0) {
 				std::cout << "write error: " << strerror(-write_error) << std::endl;
 			}
-			//fflush(fid_out_);
+
+			if (send_tcp) {
+				send(sock , &data_ , 20 , 0 ); 
+			}
 
 			cstack_.push(data_);
 			data_.last_time_end = std::chrono::steady_clock::now();
@@ -210,8 +216,7 @@ class Task {
 	Data data_;
 	std::chrono::steady_clock::time_point start_time_, next_time_;
 	long period_ns_ =   500 * 1000;
-	// FILE *fid_, *fid_out_;
-	int fid_, fid_out_;
+	int fid_;
 	int fid_flags_;
 };
 
@@ -301,9 +306,45 @@ int udev (void)
 	return 0;       
 }
 
+int setup_socket() {
+    struct sockaddr_in address; 
+    int valread; 
+    struct sockaddr_in serv_addr; 
+    char hello[] = "Hello from client"; 
+    char buffer[1024] = {0}; 
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+    { 
+        printf("\n Socket creation error \n"); 
+        return -1; 
+    } 
+   
+    memset(&serv_addr, '0', sizeof(serv_addr)); 
+   
+    serv_addr.sin_family = AF_INET; 
+    serv_addr.sin_port = htons(PORT); 
+       
+    // Convert IPv4 and IPv6 addresses from text to binary form 
+    if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0)  
+    { 
+        printf("\nInvalid address/ Address not supported \n"); 
+        return -1; 
+    } 
+   
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
+    { 
+        printf("\nConnection Failed a\n"); 
+		send_tcp = false;
+    } else {
+		send_tcp = true;
+	}
+
+    return 0; 
+}
+
 int main (int argc, char **argv)
 {
 	udev();
+	setup_socket();
 	printf("main thread [%ld]\n", gettid());
 	CStack<Data> cstack;
 	Task task(cstack);
