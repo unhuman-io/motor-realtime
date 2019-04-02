@@ -477,6 +477,15 @@ static const struct file_operations skel_fops = {
 	.llseek =	noop_llseek,
 };
 
+static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)		
+{									
+	struct usb_interface *intf = to_usb_interface(dev);		
+	struct usb_skel *skel = usb_get_intfdata(intf);	
+	usb_string(skel->udev, 5, buf, PAGE_SIZE-1);
+	return sprintf(buf, "%s\n", buf);			
+}
+struct device_attribute dev_attr_name = __ATTR_RO(name);
+
 /*
  * usb class driver info in order to get a minor number from the usb core,
  * and to have the device registered with the driver core
@@ -547,6 +556,10 @@ static int skel_probe(struct usb_interface *interface,
 		goto error;
 	}
 
+	retval = device_create_file(&interface->dev, &dev_attr_name);
+	if (retval)
+		goto error;
+
 	/* let the user know what node this device is now attached to */
 	dev_info(&interface->dev,
 		 "USB Skeleton device now attached to USBSkel-%d",
@@ -566,6 +579,8 @@ static void skel_disconnect(struct usb_interface *interface)
 	int minor = interface->minor;
 
 	dev = usb_get_intfdata(interface);
+	device_remove_file(&interface->dev, &dev_attr_name);
+
 	usb_set_intfdata(interface, NULL);
 
 	/* give back our minor */
