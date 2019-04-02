@@ -15,6 +15,8 @@
 #include <chrono>
 #include <fcntl.h>
 #include <libudev.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #define gettid() syscall(__NR_gettid)
 
@@ -111,6 +113,7 @@ class Task {
 		// fid_out_ = fopen("/dev/skel1", "w");
 		std::cout << "open: " << j1_dev_path << std::endl;
 		fid_ = open(j1_dev_path, O_RDWR);
+		fid_flags_ = fcntl(fid_, F_GETFL);
 		//fid_out_ = open("/dev/skel1", O_WRONLY);
 		//std::cout << "fidout" << fid_out_;
 	}
@@ -160,11 +163,22 @@ class Task {
 			data_.time_start = std::chrono::steady_clock::now();
 
 			//int read_error = fread(&data_.buffer,1 ,sizeof(data_.buffer), fid_);
-			int read_error = read(fid_, &data_.buffer, sizeof(data_.buffer));
+			int fcntl_error = fcntl(fid_, F_SETFL, fid_flags_ | O_NONBLOCK);
+			int read_error = read(fid_, &data_.buffer, sizeof(data_.buffer)); // expect errno EAGAIN
 			if (read_error < 0) {
-				std::cout << "read error: " << read_error << " " << strerror(-read_error) << std::endl;
+	//			std::cout << "read error: " << errno << std::endl;
 			} else {
-	//			std::cout << "read success: " << read_error << std::endl;
+				// actually read some data even though async
+				// should skip subsequent read
+			}
+			fcntl_error = fcntl(fid_, F_SETFL, fid_flags_);
+
+			// blocking io to get the data alread set up and wait if not ready yet
+			read_error = read(fid_, &data_.buffer, sizeof(data_.buffer));
+			if (read_error < 0) {
+				std::cout << "read error: " << errno << std::endl;
+			} else {
+		//		std::cout << "read success: " << read_error << std::endl;
 			}
 
 			data_.command.count = x;
@@ -198,6 +212,7 @@ class Task {
 	long period_ns_ =   500 * 1000;
 	// FILE *fid_, *fid_out_;
 	int fid_, fid_out_;
+	int fid_flags_;
 };
 
 int udev (void)
