@@ -3,7 +3,7 @@ project(realtime)
 
 
 add_executable(deadline deadline.cpp)
-target_link_libraries(deadline pthread)
+target_link_libraries(deadline pthread udev)
 
 add_executable(main main.cpp)
 target_include_directories(main PUBLIC ${CMAKE_SOURCE_DIR}/../libusb/libusb)
