@@ -255,7 +255,7 @@ int udev (void)
 
 		/* usb_device_get_devnode() returns the path to the device node
 		   itself in /dev. */
-		printf("Device Node Path: %s, %s, %s\n", udev_device_get_devnode(dev), path, udev_device_get_sysname(dev));
+		printf("Device Node Path: %s\n", udev_device_get_devnode(dev));
 		printf("  name: %s\n",
 		         udev_device_get_sysattr_value(dev, "device/interface"));
 		if (strncmp("J1", udev_device_get_sysattr_value(dev, "device/interface"), 2) == 0) {
@@ -294,8 +294,6 @@ int udev (void)
 		        udev_device_get_sysattr_value(dev,"product"));
 		printf("  serial: %s\n",
 		         udev_device_get_sysattr_value(dev, "serial"));
-		printf("  name: %s\n",
-		         udev_device_get_sysattr_value(dev, "name"));
 		udev_device_unref(dev);
 	}
 	/* Free the enumerator object */
