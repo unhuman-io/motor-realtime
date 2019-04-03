@@ -258,7 +258,7 @@ int udev (void)
 		printf("Device Node Path: %s, %s, %s\n", udev_device_get_devnode(dev), path, udev_device_get_sysname(dev));
 		printf("  name: %s\n",
 		         udev_device_get_sysattr_value(dev, "device/interface"));
-		if (strcmp("J1",udev_device_get_sysattr_value(dev, "device/interface")) == 0) {
+		if (strncmp("J1", udev_device_get_sysattr_value(dev, "device/interface"), 2) == 0) {
 			std::cout << "strcmp J1 **********" << std::endl;
 			const char * devpath = udev_device_get_devnode(dev);
 			j1_dev_path = new char[std::strlen(devpath)];
