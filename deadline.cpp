@@ -15,12 +15,16 @@
 #include <chrono>
 #include <fcntl.h>
 #include <libudev.h>
-#include <fcntl.h>
 #include <errno.h>
 
 #include <sys/socket.h> 
 #include <netinet/in.h> 
 #include <arpa/inet.h>
+
+#include <string>
+#include <vector>
+#include <algorithm>
+#include "motor.h"
 
 #define PORT 8080 
 
@@ -89,7 +93,7 @@ struct Data {
 		int32_t count;
 	} command;
 	int32_t delay;
-	std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end;
+	std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end, aread_time, read_time, write_time;
 };
 
 template <class T>
@@ -114,13 +118,19 @@ class CStack {
 char * j1_dev_path;
 int sock;
 bool send_tcp = false;
+std::vector<std::string> motor_names = {"J1", "J2", "J3", "J4", "J5"};
+std::vector<char *> dev_paths;
+
 class Task {
  public:
     Task(CStack<Data> &cstack) : cstack_(cstack) {
-		std::cout << "open: " << j1_dev_path << std::endl;
-		fid_ = open(j1_dev_path, O_RDWR);
-		fid_flags_ = fcntl(fid_, F_GETFL);
 
+		for (auto path : dev_paths) {
+			auto m = std::shared_ptr<Motor>(new Motor());
+			motors_.push_back(m);
+			motors_.back()->open(path);
+			std::cout << "open: " << path << std::endl;
+		}
 	}
 	~Task() {
 
@@ -148,8 +158,8 @@ class Task {
 		attr.sched_priority = 0;
 
 		attr.sched_policy = SCHED_DEADLINE;
-		attr.sched_runtime =  150 * 1000;
-		attr.sched_deadline = 200 * 1000;
+		attr.sched_runtime =  300 * 1000;
+		attr.sched_deadline = period_ns_*3/5;
 		attr.sched_period =  period_ns_;
 
 		int not_root = 0;
@@ -165,34 +175,39 @@ class Task {
 			data_.last_time_start = data_.time_start;
 			data_.time_start = std::chrono::steady_clock::now();
 
-			//int read_error = fread(&data_.buffer,1 ,sizeof(data_.buffer), fid_);
-			int fcntl_error = fcntl(fid_, F_SETFL, fid_flags_ | O_NONBLOCK);
-			ssize_t read_error = read(fid_, &data_.buffer, sizeof(data_.buffer)); // expect errno EAGAIN
-			if (read_error < 0) {
-	//			std::cout << "read error: " << errno << std::endl;
-			} else {
-				// actually read some data even though async
-				// should skip subsequent read
+			// start a read on all motors
+			for(auto m : motors_) {
+				m->aread(&data_.buffer, sizeof(data_.buffer));
 			}
-			fcntl_error = fcntl(fid_, F_SETFL, fid_flags_);
+			data_.aread_time = std::chrono::steady_clock::now();
 
 			// blocking io to get the data alread set up and wait if not ready yet
-			read_error = read(fid_, &data_.buffer, sizeof(data_.buffer));
-			if (read_error < 0) {
-				std::cout << "read error: " << errno << std::endl;
-			} else {
-		//		std::cout << "read success: " << read_error << std::endl;
+			for(auto m : motors_) {
+				m->read(&data_.buffer, sizeof(data_.buffer));
 			}
+			data_.read_time = std::chrono::steady_clock::now();
+
+
+		// 	if (read_error < 0) {
+		// 		std::cout << "read error: " << errno << std::endl;
+		// 	} else {
+		// //		std::cout << "read success: " << read_error << std::endl;
+		// 	}
 
 			data_.command.count = x;
 			data_.delay = x - data_.buffer.count_received;
 			if (data_.delay > 1) {
 				std::cout << "Delay > 1: " << data_.delay << std::endl;
 			}
-			ssize_t write_error = write(fid_, &data_.command, 4);
-			if (write_error < 0) {
-				std::cout << "write error: " << strerror(-write_error) << std::endl;
+		//	ssize_t write_error = write(fid_, &data_.command, 4);
+			for(auto m : motors_) {
+				m->write(&data_.command, sizeof(data_.command));
 			}
+			data_.write_time = std::chrono::steady_clock::now();
+
+			// if (write_error < 0) {
+			// 	std::cout << "write error: " << strerror(-write_error) << std::endl;
+			// }
 
 			if (send_tcp) {
 				send(sock , &data_ , 20 , 0 ); 
@@ -218,6 +233,7 @@ class Task {
 	long period_ns_ =   500 * 1000;
 	int fid_;
 	int fid_flags_;
+	std::vector<std::shared_ptr<Motor>> motors_;
 };
 
 int udev (void)
@@ -263,7 +279,18 @@ int udev (void)
 			const char * devpath = udev_device_get_devnode(dev);
 			j1_dev_path = new char[std::strlen(devpath)];
 			std::strcpy(j1_dev_path, devpath);
+		//	dev_paths.push_back(j1_dev_path);
 		}
+
+		const char * name = udev_device_get_sysattr_value(dev, "device/interface");
+		if (std::find(motor_names.begin(), motor_names.end(), 
+					name) != motor_names.end()) {
+			const char * devpath = udev_device_get_devnode(dev);
+			char *dev_path = new char[std::strlen(devpath)];
+			std::strcpy(dev_path, devpath);
+			dev_paths.push_back(dev_path);
+		}
+
 		/* The device pointed to by dev contains information about
 		   the hidraw device. In order to get information about the
 		   USB device, get the parent device with the
@@ -349,13 +376,17 @@ int main (int argc, char **argv)
 	task.run();
 	std::chrono::steady_clock::time_point system_start = std::chrono::steady_clock::now();
 
-	for(int i=0; i<10; i++) {
+	for(int i=0; i<100; i++) {
 		Data data = cstack.top();
 		auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(data.last_time_end - data.last_time_start).count();
 		auto last_period =  std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - data.last_time_start).count();
 		auto start = std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - system_start).count();
-		std::cout << "last_period: " << last_period << " last_exec: " << last_exec \
-				<< " count_received: " << data.buffer.count_received << "current_count: " << data.command.count << std::endl;
+		std::cout << "last_period: " << last_period << " last_exec: " << last_exec 
+				<< " count_received: " << data.buffer.count_received << "current_count: " << data.command.count 
+				<< " aread_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.aread_time - data.time_start).count()
+				<< " read_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.read_time - data.time_start).count()
+				<< " write_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.write_time - data.time_start).count()
+				<< std::endl;
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 	}
 	task.done();
