@@ -14,7 +14,12 @@ class Motor {
     Motor(std::string dev_path) { dev_path_ = dev_path; 
         struct udev *udev = udev_new();
         struct udev_device *dev = udev_device_new_from_subsystem_sysname(udev, "usbmisc", basename(const_cast<char *>(dev_path.c_str())));
-        name_ = udev_device_get_sysattr_value(dev, "device/interface");
+        const char * name = udev_device_get_sysattr_value(dev, "device/interface");
+        if (name != NULL) {
+            name_ = name;
+        } else {
+            name_ = "";
+        }
 
         dev = udev_device_get_parent_with_subsystem_devtype(
 		       dev,
