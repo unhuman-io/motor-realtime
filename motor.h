@@ -21,6 +21,7 @@ class Motor {
 		       "usb",
 		       "usb_device");
         serial_number_ = udev_device_get_sysattr_value(dev, "serial"); 
+        base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev)));
 
         udev_device_unref(dev);
         udev_unref(udev);  }
@@ -41,10 +42,11 @@ class Motor {
             return read_error; }
     std::string name() const { return name_; }
     std::string serial_number() const { return serial_number_; }
+    std::string base_path() const {return base_path_; }
  private:
     int fid_ = 0;
     int fid_flags_;
-    std::string serial_number_, name_, dev_path_;
+    std::string serial_number_, name_, dev_path_, base_path_;
 };
 
 #endif
