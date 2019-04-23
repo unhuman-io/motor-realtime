@@ -273,7 +273,7 @@ int setup_socket() {
 int main (int argc, char **argv)
 {
 	MotorManager motor_manager;
-	auto motors = motor_manager.get_connected_motors();
+	auto motors = motor_manager.get_motors_by_name({"J1", "J2"});
 	setup_socket();
 	printf("main thread [%ld]\n", gettid());
 	CStack<Data> cstack;

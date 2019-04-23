@@ -4,10 +4,11 @@
 #include <libudev.h>
 
 #include <cstring>
+#include <algorithm>
 
 // Returns a vector of strings that contain the dev file locations,
 // e.g. /dev/skel0
-std::vector<std::string> udev (void)
+static std::vector<std::string> udev (void)
 {
 	struct udev_enumerate *enumerate;
 	struct udev_list_entry *devices, *dev_list_entry;
@@ -55,5 +56,22 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors() {
         m.push_back(std::make_shared<Motor>(dev_path));
     }
     
-    return m;
+    motors_ = m;
+    return motors_;
+}
+
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name(std::vector<std::string> names) {
+    auto connected_motors = get_connected_motors();
+    std::vector<std::shared_ptr<Motor>> m(names.size());
+    for (int i=0; i<names.size(); i++) {
+        std::vector<std::shared_ptr<Motor>> found_motors;
+        std::copy_if(connected_motors.begin(), connected_motors.end(), std::back_inserter(found_motors), [&names, &i](std::shared_ptr<Motor> m){ return names[i] == m->name(); });
+        if (found_motors.size() == 1) {
+            m[i] = found_motors[1];
+        } else {
+            std::cout << "Error: found " << found_motors.size() << " motors matching \"" << names[i] << "\"" << std::endl;
+        }
+    }
+    motors_ = m;
+    return motors_;
 }
