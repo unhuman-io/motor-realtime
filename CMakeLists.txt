@@ -1,12 +1,17 @@
 cmake_minimum_required(VERSION 3.12)
 project(realtime)
 
+SET(CPACK_GENERATOR "DEB")
+set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS libudev1)
+INCLUDE(CPack)
 
 add_library(motor_manager motor_manager.cpp)
 target_link_libraries(motor_manager udev)
 
-add_executable(motor_util motor_util.cpp)
-target_link_libraries(motor_util motor_manager)
+add_executable(motor-util motor_util.cpp)
+target_link_libraries(motor-util motor_manager)
+install(TARGETS motor-util DESTINATION bin)
 
 add_executable(deadline deadline.cpp)
 target_link_libraries(deadline pthread motor_manager udev)
