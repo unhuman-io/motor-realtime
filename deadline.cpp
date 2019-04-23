@@ -14,7 +14,6 @@
 #include <cstring>
 #include <chrono>
 #include <fcntl.h>
-#include <libudev.h>
 #include <errno.h>
 
 #include <sys/socket.h> 
@@ -25,6 +24,7 @@
 #include <vector>
 #include <algorithm>
 #include "motor.h"
+#include "motor_manager.h"
 
 #define PORT 8080 
 
@@ -115,21 +115,18 @@ class CStack {
 	int pos_ = 0;
 };
 
-char * j1_dev_path;
 int sock;
 bool send_tcp = false;
 std::vector<std::string> motor_names = {"J1", "J2", "J3", "J4", "J5"};
-std::vector<char *> dev_paths;
+
 
 class Task {
  public:
-    Task(CStack<Data> &cstack) : cstack_(cstack) {
+    Task(CStack<Data> &cstack, std::vector<std::shared_ptr<Motor>> motors) : cstack_(cstack), motors_(motors) {
 
-		for (auto path : dev_paths) {
-			auto m = std::shared_ptr<Motor>(new Motor());
-			motors_.push_back(m);
-			motors_.back()->open(path);
-			std::cout << "open: " << path << std::endl;
+		for (auto motor : motors_) {
+			motor->open();
+			std::cout << "open: " << motor->name() << std::endl;
 		}
 	}
 	~Task() {
@@ -236,100 +233,7 @@ class Task {
 	std::vector<std::shared_ptr<Motor>> motors_;
 };
 
-int udev (void)
-{
-	struct udev *udev;
-	struct udev_enumerate *enumerate;
-	struct udev_list_entry *devices, *dev_list_entry;
-	struct udev_device *dev;
-	
-	/* Create the udev object */
-	udev = udev_new();
-	if (!udev) {
-		printf("Can't create udev\n");
-		exit(1);
-	}
-	
-	/* Create a list of the devices in the 'hidraw' subsystem. */
-	enumerate = udev_enumerate_new(udev);
-	udev_enumerate_add_match_sysname(enumerate, "skel*");
-	udev_enumerate_scan_devices(enumerate);
-	devices = udev_enumerate_get_list_entry(enumerate);
-	/* For each item enumerated, print out its information.
-	   udev_list_entry_foreach is a macro which expands to
-	   a loop. The loop will be executed for each member in
-	   devices, setting dev_list_entry to a list entry
-	   which contains the device's path in /sys. */
-	udev_list_entry_foreach(dev_list_entry, devices) {
-		const char *path;
-		
-		/* Get the filename of the /sys entry for the device
-		   and create a udev_device object (dev) representing it */
-		path = udev_list_entry_get_name(dev_list_entry);
-		const char * val = udev_list_entry_get_value(dev_list_entry);
-		dev = udev_device_new_from_syspath(udev, path);
 
-		/* usb_device_get_devnode() returns the path to the device node
-		   itself in /dev. */
-		printf("Device Node Path: %s\n", udev_device_get_devnode(dev));
-		printf("  name: %s\n",
-		         udev_device_get_sysattr_value(dev, "device/interface"));
-		if (strncmp("J1", udev_device_get_sysattr_value(dev, "device/interface"), 2) == 0) {
-			std::cout << "strcmp J1 **********" << std::endl;
-			const char * devpath = udev_device_get_devnode(dev);
-			j1_dev_path = new char[std::strlen(devpath)];
-			std::strcpy(j1_dev_path, devpath);
-		//	dev_paths.push_back(j1_dev_path);
-		}
-
-		const char * name = udev_device_get_sysattr_value(dev, "device/interface");
-		if (std::find(motor_names.begin(), motor_names.end(), 
-					name) != motor_names.end()) {
-			const char * devpath = udev_device_get_devnode(dev);
-			char *dev_path = new char[std::strlen(devpath)];
-			std::strcpy(dev_path, devpath);
-			dev_paths.push_back(dev_path);
-		}
-
-		/* The device pointed to by dev contains information about
-		   the hidraw device. In order to get information about the
-		   USB device, get the parent device with the
-		   subsystem/devtype pair of "usb"/"usb_device". This will
-		   be several levels up the tree, but the function will find
-		   it.*/
-		dev = udev_device_get_parent_with_subsystem_devtype(
-		       dev,
-		       "usb",
-		       "usb_device");
-		if (!dev) {
-			printf("Unable to find parent usb device.");
-			exit(1);
-		}
-	
-		/* From here, we can call get_sysattr_value() for each file
-		   in the device's /sys entry. The strings passed into these
-		   functions (idProduct, idVendor, serial, etc.) correspond
-		   directly to the files in the directory which represents
-		   the USB device. Note that USB strings are Unicode, UCS2
-		   encoded, but the strings returned from
-		   udev_device_get_sysattr_value() are UTF-8 encoded. */
-		printf("  VID/PID: %s %s\n",
-		        udev_device_get_sysattr_value(dev,"idVendor"),
-		        udev_device_get_sysattr_value(dev, "idProduct"));
-		printf("  %s\n  %s\n",
-		        udev_device_get_sysattr_value(dev,"manufacturer"),
-		        udev_device_get_sysattr_value(dev,"product"));
-		printf("  serial: %s\n",
-		         udev_device_get_sysattr_value(dev, "serial"));
-		udev_device_unref(dev);
-	}
-	/* Free the enumerator object */
-	udev_enumerate_unref(enumerate);
-
-	udev_unref(udev);
-
-	return 0;       
-}
 
 int setup_socket() {
     struct sockaddr_in address; 
@@ -368,11 +272,12 @@ int setup_socket() {
 
 int main (int argc, char **argv)
 {
-	udev();
+	MotorManager motor_manager;
+	auto motors = motor_manager.get_connected_motors();
 	setup_socket();
 	printf("main thread [%ld]\n", gettid());
 	CStack<Data> cstack;
-	Task task(cstack);
+	Task task(cstack, motors);
 	task.run();
 	std::chrono::steady_clock::time_point system_start = std::chrono::steady_clock::now();
 
