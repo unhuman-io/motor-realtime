@@ -8,6 +8,18 @@
 #include <libgen.h>
 #include <libudev.h>
 
+struct Status {
+	int32_t count;
+	int32_t count_received;
+	float res[3];
+};
+
+struct Command {
+	int32_t count;
+	uint8_t mode;
+	float current_desired;
+	float position_desired;
+};
 
 class Motor {
  public:
@@ -30,12 +42,12 @@ class Motor {
 
         udev_device_unref(dev);
         udev_unref(udev);  }
-    ~Motor() { ::close(fid_); }
+    ~Motor() { close(); }
     int open() { fid_ = ::open(dev_path_.c_str(), O_RDWR); fid_flags_ = fcntl(fid_, F_GETFL); };
-    ssize_t read(void *buf, size_t count) { return ::read(fid_, buf, count); };
-    ssize_t write(const void *buf, size_t count) { return ::write(fid_, buf, count); };
-    ssize_t aread(void *buf, size_t count) { int fcntl_error = fcntl(fid_, F_SETFL, fid_flags_ | O_NONBLOCK);
-			ssize_t read_error = read(buf, count); 
+    ssize_t read() { return ::read(fid_, &status_, sizeof(status_)); };
+    ssize_t write() { return ::write(fid_, &command_, sizeof(command_)); };
+    ssize_t aread() { int fcntl_error = fcntl(fid_, F_SETFL, fid_flags_ | O_NONBLOCK);
+			ssize_t read_error = read(); 
             fcntl_error = fcntl(fid_, F_SETFL, fid_flags_);
             if (read_error != -1) {
                 std::cout << "Nonzero aread" << std::endl;
@@ -48,10 +60,16 @@ class Motor {
     std::string name() const { return name_; }
     std::string serial_number() const { return serial_number_; }
     std::string base_path() const {return base_path_; }
+    int close() { return ::close(fid_); }
+
+    const Status *const status() const { return &status_; }
+    Command *const command() { return &command_; }
  private:
     int fid_ = 0;
     int fid_flags_;
     std::string serial_number_, name_, dev_path_, base_path_;
+    Status status_ = {};
+    Command command_ = {};
 };
 
 #endif

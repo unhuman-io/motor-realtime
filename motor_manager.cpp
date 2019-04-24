@@ -75,3 +75,37 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name(std::vector
     motors_ = m;
     return motors_;
 }
+
+void MotorManager::open() {
+    for (auto m : motors_) {
+        m->open();
+    }
+}
+
+std::vector<Status> MotorManager::read() {
+    std::vector<Status> statuses(motors_.size());
+    for (int i=0; i<motors_.size(); i++) {
+        motors_[i]->read();
+        statuses[i] = *motors_[i]->status();
+    }
+    return statuses;
+}
+
+void MotorManager::write(std::vector<Command> commands) {
+    for (int i=0; i<motors_.size(); i++) {
+        *motors_[i]->command() = commands[i];
+        motors_[i]->write();
+    }
+}
+
+void MotorManager::aread() {
+    for (int i=0; i<motors_.size(); i++) {
+        motors_[i]->aread();
+    }
+}
+
+void MotorManager::close() {
+    for (auto m : motors_) {
+        m->close();
+    }
+}

@@ -84,15 +84,9 @@ return syscall(__NR_sched_getattr, pid, attr, size, flags);
 }
 
 struct Data {
-	struct D {
-		int32_t count;
-		int32_t count_received;
-		float res[3];
-	} buffer;
-	struct C {
-		int32_t count;
-	} command;
-	int32_t delay;
+  std::vector<Status> statuses;
+	std::vector<Command> commands;
+	std::vector<int32_t> delay;
 	std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end, aread_time, read_time, write_time;
 };
 
@@ -122,16 +116,18 @@ std::vector<std::string> motor_names = {"J1", "J2", "J3", "J4", "J5"};
 
 class Task {
  public:
-    Task(CStack<Data> &cstack, std::vector<std::shared_ptr<Motor>> motors) : cstack_(cstack), motors_(motors) {
-
-		for (auto motor : motors_) {
-			motor->open();
-			std::cout << "open: " << motor->name() << std::endl;
+  Task(CStack<Data> &cstack, MotorManager &motors) : cstack_(cstack), motors_(motors) {
+		motors_.open();
+		std::cout << "Connecting to motors:" << std::endl;
+		for (auto m : motors_.motors()) {
+			std:: cout << m->name() << std::endl;
 		}
+		data_.commands.resize(motors_.motors().size());
+		data_.statuses.resize(motors_.motors().size());
+		data_.delay.resize(motors_.motors().size());
 	}
 	~Task() {
-
-		close(fid_);
+		motors_.close();
 	}
 	void run() { done_ = 0;
 		start_time_ = std::chrono::steady_clock::now();
@@ -173,38 +169,25 @@ class Task {
 			data_.time_start = std::chrono::steady_clock::now();
 
 			// start a read on all motors
-			for(auto m : motors_) {
-				m->aread(&data_.buffer, sizeof(data_.buffer));
-			}
+			motors_.aread();
 			data_.aread_time = std::chrono::steady_clock::now();
 
 			// blocking io to get the data alread set up and wait if not ready yet
-			for(auto m : motors_) {
-				m->read(&data_.buffer, sizeof(data_.buffer));
-			}
+			data_.statuses = motors_.read();
 			data_.read_time = std::chrono::steady_clock::now();
 
 
-		// 	if (read_error < 0) {
-		// 		std::cout << "read error: " << errno << std::endl;
-		// 	} else {
-		// //		std::cout << "read success: " << read_error << std::endl;
-		// 	}
+			for (int i=0; i<motors_.motors().size(); i++) {
+				data_.commands[i].count = x;
+				data_.delay[i] = x - data_.statuses[i].count_received;
+				if (data_.delay[i] > 1) {
+					//std::cout << "Delay > 1: " << data_.delay[i] << std::endl;
+				}	
+			}
 
-			data_.command.count = x;
-			data_.delay = x - data_.buffer.count_received;
-			if (data_.delay > 1) {
-				std::cout << "Delay > 1: " << data_.delay << std::endl;
-			}
-		//	ssize_t write_error = write(fid_, &data_.command, 4);
-			for(auto m : motors_) {
-				m->write(&data_.command, sizeof(data_.command));
-			}
+			motors_.write(data_.commands);
 			data_.write_time = std::chrono::steady_clock::now();
 
-			// if (write_error < 0) {
-			// 	std::cout << "write error: " << strerror(-write_error) << std::endl;
-			// }
 
 			if (send_tcp) {
 				send(sock , &data_ , 20 , 0 ); 
@@ -226,11 +209,14 @@ class Task {
 	int done_;
 	CStack<Data> &cstack_;
 	Data data_;
+	
 	std::chrono::steady_clock::time_point start_time_, next_time_;
 	long period_ns_ =   500 * 1000;
 	int fid_;
 	int fid_flags_;
-	std::vector<std::shared_ptr<Motor>> motors_;
+	MotorManager &motors_;
+	std::vector<void *> statuses_;
+	std::vector<void *> commands_;
 };
 
 
@@ -273,21 +259,29 @@ int setup_socket() {
 int main (int argc, char **argv)
 {
 	MotorManager motor_manager;
-	auto motors = motor_manager.get_motors_by_name({"J1", "J2"});
+	auto motors = motor_manager.get_connected_motors();
 	setup_socket();
 	printf("main thread [%ld]\n", gettid());
 	CStack<Data> cstack;
-	Task task(cstack, motors);
+	Task task(cstack, motor_manager);
 	task.run();
 	std::chrono::steady_clock::time_point system_start = std::chrono::steady_clock::now();
 
 	for(int i=0; i<100; i++) {
 		Data data = cstack.top();
+		int32_t count = 0;
+		int32_t count_received = 0;
+		if(data.commands.size()) {
+			count = data.commands[1].count;
+		}
+		if(data.statuses.size()) {
+			count_received = data.statuses[1].count_received;
+		}
 		auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(data.last_time_end - data.last_time_start).count();
 		auto last_period =  std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - data.last_time_start).count();
 		auto start = std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - system_start).count();
 		std::cout << "last_period: " << last_period << " last_exec: " << last_exec 
-				<< " count_received: " << data.buffer.count_received << "current_count: " << data.command.count 
+				<< " count_received: " << count_received << "current_count: " << count 
 				<< " aread_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.aread_time - data.time_start).count()
 				<< " read_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.read_time - data.time_start).count()
 				<< " write_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.write_time - data.time_start).count()
