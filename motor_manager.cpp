@@ -67,7 +67,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name(std::vector
         std::vector<std::shared_ptr<Motor>> found_motors;
         std::copy_if(connected_motors.begin(), connected_motors.end(), std::back_inserter(found_motors), [&names, &i](std::shared_ptr<Motor> m){ return names[i] == m->name(); });
         if (found_motors.size() == 1) {
-            m[i] = found_motors[1];
+            m[i] = found_motors[0];
         } else {
             std::cout << "Error: found " << found_motors.size() << " motors matching \"" << names[i] << "\"" << std::endl;
         }
