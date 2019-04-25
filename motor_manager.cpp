@@ -57,6 +57,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors() {
     }
     
     motors_ = m;
+    commands_.resize(m.size());
     return motors_;
 }
 
@@ -73,6 +74,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name(std::vector
         }
     }
     motors_ = m;
+    commands_.resize(m.size());
     return motors_;
 }
 
@@ -108,4 +110,32 @@ void MotorManager::close() {
     for (auto m : motors_) {
         m->close();
     }
+}
+
+void MotorManager::set_command_count(int32_t count) {
+    for (auto &c : commands_) {
+        c.count = count;
+    }
+}
+
+void MotorManager::set_command_mode(uint8_t mode) {
+    for (auto &c : commands_) {
+        c.mode = mode;
+    }
+}
+    
+void MotorManager::set_command_current(std::vector<float> current) {
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].current_desired = current[i];
+    }
+}
+
+void MotorManager::set_command_position(std::vector<float> position) {
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].position_desired = position[i];
+    }
+}
+
+void MotorManager::write_saved_commands() {
+    write(commands_);
 }

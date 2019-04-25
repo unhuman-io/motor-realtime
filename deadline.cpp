@@ -176,15 +176,22 @@ class Task {
 			data_.read_time = std::chrono::steady_clock::now();
 
 
+			motors_.set_command_count(x);
+			motors_.set_command_mode(2);
+			motors_.set_command_current({1, 2, 3, 4, 5, 6});
+			motors_.set_command_position({7, 8, 9, 10, 11, 12});
+
+			data_.commands = motors_.commands();
+	//		std::cout << data_.commands[0].count;
+
 			for (int i=0; i<motors_.motors().size(); i++) {
-				data_.commands[i].count = x;
 				data_.delay[i] = x - data_.statuses[i].count_received;
 				if (data_.delay[i] > 1) {
 					//std::cout << "Delay > 1: " << data_.delay[i] << std::endl;
 				}	
 			}
 
-			motors_.write(data_.commands);
+			motors_.write_saved_commands();
 			data_.write_time = std::chrono::steady_clock::now();
 
 
@@ -214,8 +221,8 @@ class Task {
 	int fid_;
 	int fid_flags_;
 	MotorManager &motors_;
-	std::vector<void *> statuses_;
-	std::vector<void *> commands_;
+	//std::vector<void *> statuses_;
+	//std::vector<void *> commands_;
 };
 
 
@@ -271,10 +278,10 @@ int main (int argc, char **argv)
 		int32_t count = 0;
 		int32_t count_received = 0;
 		if(data.commands.size()) {
-			count = data.commands[1].count;
+			count = data.commands[0].count;
 		}
 		if(data.statuses.size()) {
-			count_received = data.statuses[1].count_received;
+			count_received = data.statuses[0].count_received;
 		}
 		auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(data.last_time_end - data.last_time_start).count();
 		auto last_period =  std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - data.last_time_start).count();
