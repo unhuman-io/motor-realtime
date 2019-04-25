@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <ostream>
 class Motor;
 
 #include "motor.h"
@@ -29,5 +30,43 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> command)
+{
+   for (auto c : command) {
+      os << c.count << ", ";
+   }
+   for (auto c : command) {
+      os << +c.mode << ", ";
+   }
+   for (auto c : command) {
+      os << c.current_desired << ", ";
+   }
+   for (auto c : command) {
+      os << c.position_desired << ", ";
+   }
+
+   return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
+{
+   for (auto s : status) {
+      os << s.count << ", ";
+   }
+   for (auto s : status) {
+      os << s.count_received << ", ";
+   }
+   for (auto s : status) {
+      os << s.res[0] << ", ";
+   }
+   for (auto s : status) {
+      os << s.res[1] << ", ";
+   }
+   for (auto s : status) {
+      os << s.res[2] << ", ";
+   }
+    return os;
+}
 
 #endif

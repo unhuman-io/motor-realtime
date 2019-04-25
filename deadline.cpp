@@ -25,6 +25,7 @@
 #include <algorithm>
 #include "motor.h"
 #include "motor_manager.h"
+#include <fstream>
 
 #define PORT 8080 
 
@@ -272,6 +273,9 @@ int main (int argc, char **argv)
 	Task task(cstack, motor_manager);
 	task.run();
 	std::chrono::steady_clock::time_point system_start = std::chrono::steady_clock::now();
+	std::ofstream file;
+	file.open("data.csv");
+	file << "timestamp, " << std::endl;
 
 	for(int i=0; i<100; i++) {
 		Data data = cstack.top();
@@ -292,7 +296,12 @@ int main (int argc, char **argv)
 				<< " read_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.read_time - data.time_start).count()
 				<< " write_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.write_time - data.time_start).count()
 				<< std::endl;
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			
+		for (int j=0; j<500; j++) {
+			data = cstack.top();
+			file << data.time_start.time_since_epoch().count() << ", " << data.commands << data.statuses << std::endl;
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
 	}
 	task.done();
 	task.join();
