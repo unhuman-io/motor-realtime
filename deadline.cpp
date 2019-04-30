@@ -88,7 +88,7 @@ struct Data {
   std::vector<Status> statuses;
 	std::vector<Command> commands;
 	std::vector<int32_t> delay;
-	std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end, aread_time, read_time, write_time;
+	std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end, aread_time, read_time, control_time, write_time;
 };
 
 template <class T>
@@ -191,6 +191,7 @@ class Task {
 					//std::cout << "Delay > 1: " << data_.delay[i] << std::endl;
 				}	
 			}
+			data_.control_time = std::chrono::steady_clock::now();
 
 			motors_.write_saved_commands();
 			data_.write_time = std::chrono::steady_clock::now();
@@ -294,6 +295,7 @@ int main (int argc, char **argv)
 				<< " count_received: " << count_received << "current_count: " << count 
 				<< " aread_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.aread_time - data.time_start).count()
 				<< " read_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.read_time - data.time_start).count()
+				<< " control_exec: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.control_time - data.read_time).count()
 				<< " write_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.write_time - data.time_start).count()
 				<< std::endl;
 			
