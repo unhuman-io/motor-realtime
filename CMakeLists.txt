@@ -1,10 +1,13 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.0)
 project(realtime)
 
 SET(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS libudev1)
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA postinst)
 INCLUDE(CPack)
+
+set (CMAKE_CXX_STANDARD 11)
 
 add_library(motor_manager motor_manager.cpp)
 target_link_libraries(motor_manager udev)
@@ -27,3 +30,4 @@ add_custom_command(OUTPUT usb_skeleton.ko
                     DEPENDS usb-skeleton.c Kbuild
                     COMMENT "Building usb_skeleton.ko")
 add_custom_target(usb_skeleton ALL DEPENDS usb_skeleton.ko)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/usb-skeleton.ko DESTINATION /lib/modules/${os_version})
