@@ -16,7 +16,7 @@ add_executable(motor-util motor_util.cpp)
 target_link_libraries(motor-util motor_manager)
 install(TARGETS motor-util DESTINATION bin)
 
-add_executable(deadline deadline.cpp)
+add_executable(deadline deadline.cpp controller.cpp)
 target_link_libraries(deadline pthread motor_manager udev)
 
 execute_process(COMMAND uname -r

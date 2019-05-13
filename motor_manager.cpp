@@ -112,6 +112,12 @@ void MotorManager::close() {
     }
 }
 
+void MotorManager::set_commands(std::vector<Command> commands) {
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i] = commands[i];
+    }
+}
+
 void MotorManager::set_command_count(int32_t count) {
     for (auto &c : commands_) {
         c.count = count;

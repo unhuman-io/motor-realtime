@@ -22,6 +22,7 @@ class MotorManager {
     void aread();
     void close();
 
+    void set_commands(std::vector<Command> commands);
     void set_command_count(int32_t count);
     void set_command_mode(uint8_t mode);
     void set_command_current(std::vector<float> current);

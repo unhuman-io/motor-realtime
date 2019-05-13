@@ -26,6 +26,7 @@
 #include "motor.h"
 #include "motor_manager.h"
 #include <fstream>
+#include "controller.h"
 
 #define PORT 8080 
 
@@ -176,14 +177,13 @@ class Task {
 			data_.statuses = motors_.read();
 			data_.read_time = std::chrono::steady_clock::now();
 
-
 			motors_.set_command_count(x);
 			motors_.set_command_mode(2);
-			motors_.set_command_current({1, 2, 3, 4, 5, 6});
-			motors_.set_command_position({7, 8, 9, 10, 11, 12});
-
 			data_.commands = motors_.commands();
-	//		std::cout << data_.commands[0].count;
+
+			controller_.update(data_.statuses, data_.commands);
+
+			motors_.set_commands(data_.commands);
 
 			for (int i=0; i<motors_.motors().size(); i++) {
 				data_.delay[i] = x - data_.statuses[i].count_received;
@@ -225,6 +225,7 @@ class Task {
 	MotorManager &motors_;
 	//std::vector<void *> statuses_;
 	//std::vector<void *> commands_;
+	Controller controller_;
 };
 
 
