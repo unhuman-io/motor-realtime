@@ -11,7 +11,9 @@
 struct Status {
 	int32_t count;
 	int32_t count_received;
-	float res[3];
+    float position_measured;
+    float current_measured;
+	float res[1];
 };
 
 struct Command {
@@ -19,6 +21,7 @@ struct Command {
 	uint8_t mode;
 	float current_desired;
 	float position_desired;
+    float position_deadband;
 };
 
 class Motor {
