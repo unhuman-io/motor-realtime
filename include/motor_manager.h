@@ -59,13 +59,13 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
       os << s.count_received << ", ";
    }
    for (auto s : status) {
+      os << s.current_measured << ", ";
+   }
+   for (auto s : status) {
+      os << s.position_measured << ", ";
+   }
+   for (auto s : status) {
       os << s.res[0] << ", ";
-   }
-   for (auto s : status) {
-      os << s.res[1] << ", ";
-   }
-   for (auto s : status) {
-      os << s.res[2] << ", ";
    }
     return os;
 }
