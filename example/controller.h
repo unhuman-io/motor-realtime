@@ -10,6 +10,9 @@ class PositionController {
  private:
     int32_t last_count_;
     double position_last_;
+
+    double kp = .1;
+    double kd = 0.00001;
 };
 
 class Controller {
@@ -20,11 +23,12 @@ class Controller {
     enum Mode{OPEN, BRAKE, CURRENT, POSITION};
     void set_mode(Mode);
     void set_mode(std::vector<Mode> modes);
+    std::vector<Mode> get_mode() const { return mode_desired_; }
     void set_position(double position);
     void set_position(std::vector<double> position);
     void set_current(double current);
     void set_current(std::vector<double> current);
-    void update(std::vector<Status> statuses, std::vector<Command> commands);
+    void update(std::vector<Status> statuses, std::vector<Command> &commands);
  private:
     std::vector<double> position_desired_;
     std::vector<double> current_desired_;

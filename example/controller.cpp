@@ -27,20 +27,30 @@ void Controller::set_current(std::vector<double> current) {
     current_desired_ = current;
 }
 
-void Controller::update(std::vector<Status> statuses, std::vector<Command> commands) {
-    for (int i; i<statuses.size(); i++) {
-        commands[i].mode = mode_desired_[i];
-        commands[i].current_desired = current_desired_[i];
-        commands[i].position_desired = position_controllers_[i].update(position_desired_[i], 
-                                        statuses[i].position_measured, statuses[i].count);
+void Controller::update(std::vector<Status> statuses, std::vector<Command> &commands) {
+    for (int i=0; i<statuses.size(); i++) {
+        switch (mode_desired_[i]) {
+            case OPEN:
+            default:
+                commands[i].mode = 0;
+                break;
+            case BRAKE:
+                commands[i].mode = 1;
+                break;
+            case CURRENT:
+                commands[i].mode = 2;
+                commands[i].current_desired = current_desired_[i];
+                break;
+            case POSITION:
+                commands[i].mode = 2;
+                commands[i].current_desired = current_desired_[i] + position_controllers_[i].update(position_desired_[i], 
+                                    statuses[i].position_measured, statuses[i].count);
+                break;
+        }
     }
 }
 
 double PositionController::update(double position_desired, double position_measured, int32_t count) {
-
-    double kp = 1;
-    double kd = 0.01;
-
     double velocity_measured = (position_measured - position_last_)/(count - last_count_);
     position_last_ = position_measured;
     last_count_ = count;
