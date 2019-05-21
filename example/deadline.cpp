@@ -117,7 +117,8 @@ bool send_tcp = false;
 
 class Task {
  public:
-  Task(CStack<Data> &cstack, MotorManager &motors) : cstack_(cstack), motors_(motors) {
+  Task(CStack<Data> &cstack, MotorManager &motors) : cstack_(cstack), motors_(motors), 
+			controller_(motors.motors().size()) {
 		motors_.open();
 		std::cout << "Connecting to motors:" << std::endl;
 		for (auto m : motors_.motors()) {
@@ -126,6 +127,10 @@ class Task {
 		data_.commands.resize(motors_.motors().size());
 		data_.statuses.resize(motors_.motors().size());
 		data_.delay.resize(motors_.motors().size());
+
+		controller_.set_current(1);
+		controller_.set_position(0);
+		controller_.set_mode(Controller::CURRENT);
 	}
 	~Task() {
 		motors_.close();
@@ -181,6 +186,12 @@ class Task {
 			motors_.set_command_mode(2);
 			data_.commands = motors_.commands();
 
+			// switch from current to position at 10 seconds
+			if (std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() >= 10) {
+				controller_.set_current(0);
+				controller_.set_mode(Controller::POSITION);
+			}
+
 			controller_.update(data_.statuses, data_.commands);
 
 			motors_.set_commands(data_.commands);
@@ -223,8 +234,6 @@ class Task {
 	int fid_;
 	int fid_flags_;
 	MotorManager &motors_;
-	//std::vector<void *> statuses_;
-	//std::vector<void *> commands_;
 	Controller controller_;
 };
 
