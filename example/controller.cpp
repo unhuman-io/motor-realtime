@@ -51,7 +51,8 @@ void Controller::update(std::vector<Status> statuses, std::vector<Command> &comm
 }
 
 double PositionController::update(double position_desired, double position_measured, int32_t count) {
-    double velocity_measured = (position_measured - position_last_)/(count - last_count_);
+    double dt = (count - last_count_)/180e6;
+    double velocity_measured = (position_measured - position_last_)/dt;
     position_last_ = position_measured;
     last_count_ = count;
 

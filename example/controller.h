@@ -11,8 +11,8 @@ class PositionController {
     int32_t last_count_;
     double position_last_;
 
-    double kp = .1;
-    double kd = 0.00001;
+    double kp = 1;
+    double kd = .01;
 };
 
 class Controller {

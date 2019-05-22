@@ -198,7 +198,7 @@ class Task {
 
 			// a square wave in position
 			double position = std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() % 2;
-			controller_.set_position(position);
+			controller_.set_position(10*position);
 
 			controller_.update(data_.statuses, data_.commands);
 
