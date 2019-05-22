@@ -22,6 +22,7 @@ class MotorManager {
     void aread();
     void close();
 
+    void set_commands(std::vector<Command> commands);
     void set_command_count(int32_t count);
     void set_command_mode(uint8_t mode);
     void set_command_current(std::vector<float> current);
@@ -58,13 +59,13 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
       os << s.count_received << ", ";
    }
    for (auto s : status) {
+      os << s.current_measured << ", ";
+   }
+   for (auto s : status) {
+      os << s.position_measured << ", ";
+   }
+   for (auto s : status) {
       os << s.res[0] << ", ";
-   }
-   for (auto s : status) {
-      os << s.res[1] << ", ";
-   }
-   for (auto s : status) {
-      os << s.res[2] << ", ";
    }
     return os;
 }
