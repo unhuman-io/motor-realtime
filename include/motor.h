@@ -42,6 +42,12 @@ class Motor {
 		       "usb_device");
         serial_number_ = udev_device_get_sysattr_value(dev, "serial"); 
         base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev)));
+        const char * version = udev_device_get_sysattr_value(dev, "configuration");
+        if (version != NULL) {
+            version_ = version;
+        } else {
+            version_ = "";
+        }
 
         udev_device_unref(dev);
         udev_unref(udev);  }
@@ -63,6 +69,7 @@ class Motor {
     std::string name() const { return name_; }
     std::string serial_number() const { return serial_number_; }
     std::string base_path() const {return base_path_; }
+    std::string version() const { return version_; }
     int close() { return ::close(fid_); }
 
     const Status *const status() const { return &status_; }
@@ -70,7 +77,7 @@ class Motor {
  private:
     int fid_ = 0;
     int fid_flags_;
-    std::string serial_number_, name_, dev_path_, base_path_;
+    std::string serial_number_, name_, dev_path_, base_path_, version_;
     Status status_ = {};
     Command command_ = {};
 };
