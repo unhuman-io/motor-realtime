@@ -159,7 +159,7 @@ class Task {
 		attr.sched_priority = 0;
 
 		attr.sched_policy = SCHED_DEADLINE;
-		attr.sched_runtime =  300 * 1000;
+		attr.sched_runtime =  200 * 1000;
 		attr.sched_deadline = period_ns_*3/5;
 		attr.sched_period =  period_ns_;
 
@@ -189,7 +189,7 @@ class Task {
 			data_.commands = motors_.commands();
 
 			// switch from current to position at 10 seconds
-			if (std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() >= 1 &&
+			if (std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() >= 0 &&
 					first_switch_) {
 				first_switch_ = 0;
 				controller_.set_current(0);
@@ -198,9 +198,22 @@ class Task {
 
 			// a square wave in position
 			double position = std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() % 2;
-			controller_.set_position(10*position);
+		//	controller_.set_position(3*position);
+			// double current = (std::chrono::duration_cast<std::chrono::milliseconds>(data_.time_start - start_time_).count() % 20) > 10;
+			// controller_.set_current(current-.5);
+
 
 			controller_.update(data_.statuses, data_.commands);
+
+			// float current_desired = data_.commands[0].current_desired;
+			// float bias = 1;
+			// if (current_desired >= 0) {
+			// 	data_.commands[0].current_desired += bias;
+			// 	data_.commands[1].current_desired = -bias;
+			// } else {
+			// 	data_.commands[0].current_desired = bias;
+			// 	data_.commands[1].current_desired -= bias;
+			// }
 
 			motors_.set_commands(data_.commands);
 
@@ -305,7 +318,7 @@ int main (int argc, char **argv)
 
 	signal(SIGINT, [] (int signum) {running = 0;});
 
-	for(int i=0; i<100; i++) {
+	for(int i=0; i<1000000; i++) {
 		if (!running) {
 			break;
 		}
@@ -329,7 +342,7 @@ int main (int argc, char **argv)
 				<< " write_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.write_time - data.time_start).count()
 				<< std::endl;
 			
-		for (int j=0; j<500; j++) {
+		for (int j=0; j<5; j++) {
 			data = cstack.top();
 			file << data.time_start.time_since_epoch().count() << ", " << data.commands << data.statuses << std::endl;
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));

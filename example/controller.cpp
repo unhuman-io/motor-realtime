@@ -1,4 +1,5 @@
 #include "controller.h"
+#include <cmath>
 
 void Controller::set_mode(Mode mode) {
     std::vector<Mode> modes(n_, mode);
@@ -43,8 +44,9 @@ void Controller::update(std::vector<Status> statuses, std::vector<Command> &comm
                 break;
             case POSITION:
                 commands[i].mode = 2;
-                commands[i].current_desired = current_desired_[i] + position_controllers_[i].update(position_desired_[i], 
+                float current_desired = current_desired_[i] + position_controllers_[i].update(position_desired_[i], 
                                     statuses[i].position_measured, statuses[i].count);
+                commands[i].current_desired = current_desired;
                 break;
         }
     }
@@ -57,5 +59,6 @@ double PositionController::update(double position_desired, double position_measu
     last_count_ = count;
 
     double current_desired = kp*(position_desired - position_measured) - kd*velocity_measured;
+    current_desired = fmax(fmin(current_desired, max_current), -max_current);
     return current_desired;
 }

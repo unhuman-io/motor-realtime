@@ -14,6 +14,7 @@ struct Status {
     float position_measured;
     float current_measured;
 	float res[1];
+    float res1[3];
 };
 
 struct Command {
