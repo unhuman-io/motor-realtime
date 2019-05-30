@@ -1,9 +1,3 @@
-CMake build process. For example from the root directory
-$ mkdir build
-$ cd build
-$ cmake ..
-$ make
-
 It's recommended to make and install the dpkg
 $ make package
 $ sudo dpkg -i realtime-*.deb
