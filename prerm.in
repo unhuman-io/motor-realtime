@@ -1,0 +1,3 @@
+#!/bin/bash
+
+dkms remove -m usb_skeleton -v ${VERSION} --all

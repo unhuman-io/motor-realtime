@@ -9,4 +9,5 @@ add_custom_command(OUTPUT usb_skeleton.ko
                     DEPENDS usb-skeleton.c Kbuild
                     COMMENT "Building usb_skeleton.ko")
 add_custom_target(usb_skeleton ALL DEPENDS usb_skeleton.ko)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/usb-skeleton.ko DESTINATION /lib/modules/${os_version})
+configure_file(dkms.conf.in dkms.conf)
+install(FILES usb-skeleton.c Kbuild ${CMAKE_CURRENT_BINARY_DIR}/dkms.conf DESTINATION /usr/src/usb_skeleton-${VERSION})
