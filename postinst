@@ -1,5 +1,0 @@
-#!/bin/bash
-
-echo "Post install depmod and udev reload rules"
-depmod
-udevadm control --reload-rules
