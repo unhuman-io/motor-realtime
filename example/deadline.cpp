@@ -117,7 +117,8 @@ bool send_tcp = false;
 
 class Task {
  public:
-  Task(CStack<Data> &cstack, MotorManager &motors) : cstack_(cstack), motors_(motors) {
+  Task(CStack<Data> &cstack, MotorManager &motors) : cstack_(cstack), motors_(motors), 
+			controller_(motors.motors().size()) {
 		motors_.open();
 		std::cout << "Connecting to motors:" << std::endl;
 		for (auto m : motors_.motors()) {
@@ -126,6 +127,10 @@ class Task {
 		data_.commands.resize(motors_.motors().size());
 		data_.statuses.resize(motors_.motors().size());
 		data_.delay.resize(motors_.motors().size());
+
+		controller_.set_current(1);
+		controller_.set_position(0);
+		controller_.set_mode(Controller::CURRENT);
 	}
 	~Task() {
 		motors_.close();
@@ -134,7 +139,9 @@ class Task {
 		start_time_ = std::chrono::steady_clock::now();
 		next_time_ = start_time_;
 		thread_ = new std::thread([=]{run_deadline();}); }
-	void done() { done_ = 1; }
+	void done() { controller_.set_mode(Controller::OPEN);
+		std::this_thread::sleep_for(std::chrono::milliseconds(2));
+		done_ = 1; }
 	void join() { thread_->join(); }
  private:
 	void run_deadline()
@@ -181,6 +188,18 @@ class Task {
 			motors_.set_command_mode(2);
 			data_.commands = motors_.commands();
 
+			// switch from current to position at 10 seconds
+			if (std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() >= 1 &&
+					first_switch_) {
+				first_switch_ = 0;
+				controller_.set_current(0);
+				controller_.set_mode(Controller::POSITION);
+			}
+
+			// a square wave in position
+			double position = std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() % 2;
+			controller_.set_position(10*position);
+
 			controller_.update(data_.statuses, data_.commands);
 
 			motors_.set_commands(data_.commands);
@@ -223,9 +242,8 @@ class Task {
 	int fid_;
 	int fid_flags_;
 	MotorManager &motors_;
-	//std::vector<void *> statuses_;
-	//std::vector<void *> commands_;
 	Controller controller_;
+	int first_switch_ = 1;
 };
 
 
@@ -265,10 +283,15 @@ int setup_socket() {
     return 0; 
 }
 
+#include <csignal>
+sig_atomic_t volatile running = 1;
+
 int main (int argc, char **argv)
 {
 	MotorManager motor_manager;
-	auto motors = motor_manager.get_motors_by_name({"J1", "J2", "J3", "J4", "J5", "J6"});
+	//auto motors = motor_manager.get_motors_by_name({"J1", "J2", "J3", "J4", "J5", "J6"});
+	// or just get all the motors
+	auto motors = motor_manager.get_connected_motors();
 	setup_socket();
 	printf("main thread [%ld]\n", gettid());
 	CStack<Data> cstack;
@@ -279,7 +302,13 @@ int main (int argc, char **argv)
 	file.open("data.csv");
 	file << "timestamp, " << std::endl;
 
+
+	signal(SIGINT, [] (int signum) {running = 0;});
+
 	for(int i=0; i<100; i++) {
+		if (!running) {
+			break;
+		}
 		Data data = cstack.top();
 		int32_t count = 0;
 		int32_t count_received = 0;
@@ -293,7 +322,7 @@ int main (int argc, char **argv)
 		auto last_period =  std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - data.last_time_start).count();
 		auto start = std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - system_start).count();
 		std::cout << "last_period: " << last_period << " last_exec: " << last_exec 
-				<< " count_received: " << count_received << "current_count: " << count 
+				<< " count_received: " << count_received << " current_count: " << count 
 				<< " aread_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.aread_time - data.time_start).count()
 				<< " read_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.read_time - data.time_start).count()
 				<< " control_exec: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.control_time - data.read_time).count()
