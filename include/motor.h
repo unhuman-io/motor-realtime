@@ -9,19 +9,19 @@
 #include <libudev.h>
 
 struct Status {
-	int32_t count;
-	int32_t count_received;
-    float position_measured;
-    float current_measured;
-	float res[1];
+	uint32_t count;             // dsp counter, likely a timestamp at 180 MHz
+	int32_t count_received;     // Returns last Command::count received
+    float position_measured;    // position measured in motor radians
+    float current_measured;     // current measured in A (line-line convention)
+	float res[1];               // reserved
 };
 
 struct Command {
-	int32_t count;
-	uint8_t mode;
-	float current_desired;
-	float position_desired;
-    float position_deadband;
+	int32_t count;              // Recommend sending incrementing counter
+	uint8_t mode;               // 0: open, 1: brake, 2: current
+	float current_desired;      // current desired in A (line-line convention)
+	float position_desired;     // reserved
+    float position_deadband;    // reserved
 };
 
 class Motor {
