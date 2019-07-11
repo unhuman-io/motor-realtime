@@ -14,6 +14,7 @@ struct Status {
     float position_measured;    // position measured in motor radians
     float current_measured;     // current measured in A (line-line convention)
 	float res[1];               // reserved
+    float res1[3];
 };
 
 struct Command {

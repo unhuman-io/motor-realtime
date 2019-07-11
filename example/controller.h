@@ -11,8 +11,9 @@ class PositionController {
     int32_t last_count_;
     double position_last_;
 
-    double kp = .5;
-    double kd = .005;
+    double kp = 5;  // 20 at 5 kHz
+    double kd = .02;  // .1 at 5 kHz
+    double max_current = 1;
 };
 
 class Controller {
