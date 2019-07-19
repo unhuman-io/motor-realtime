@@ -510,18 +510,13 @@ static int skel_probe(struct usb_interface *interface,
 	dev->interface = interface;
 
 	/* set up the endpoint information */
-	/* use only the first bulk-in and bulk-out endpoints */
-	// Below supported only in 4.12 kernel and up
-	// retval = usb_find_common_endpoints(interface->cur_altsetting,
-	// 		&bulk_in, &bulk_out, NULL, NULL);
+	/* use only the first bulk-in and bulk-out endpoints, specific to this device */
 
 	retval = 0;
 	if (interface->cur_altsetting->desc.bInterfaceNumber == 0 &&
 		interface->cur_altsetting->desc.bNumEndpoints == 2 &&
-		usb_endpoint_dir_in(&interface->cur_altsetting->endpoint[0].desc) &&
-		usb_endpoint_dir_out(&interface->cur_altsetting->endpoint[1].desc) &&
-		usb_endpoint_xfer_bulk(&interface->cur_altsetting->endpoint[0].desc) &&
-		usb_endpoint_xfer_bulk(&interface->cur_altsetting->endpoint[1].desc)) {
+		usb_endpoint_is_bulk_in(&interface->cur_altsetting->endpoint[0].desc) &&
+		usb_endpoint_is_bulk_out(&interface->cur_altsetting->endpoint[1].desc)) {
 		bulk_in = &interface->cur_altsetting->endpoint[0].desc;
 		bulk_out = &interface->cur_altsetting->endpoint[1].desc;
 	} else {
