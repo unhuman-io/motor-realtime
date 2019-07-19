@@ -491,7 +491,7 @@ static int skel_probe(struct usb_interface *interface,
 		      const struct usb_device_id *id)
 {
 	struct usb_skel *dev;
-	struct usb_endpoint_descriptor *bulk_in, *bulk_out;
+	struct usb_endpoint_descriptor *bulk_in=NULL, *bulk_out=NULL;
 	int retval;
 
 	/* allocate memory for our device state and initialize it */
@@ -510,9 +510,18 @@ static int skel_probe(struct usb_interface *interface,
 	dev->interface = interface;
 
 	/* set up the endpoint information */
-	/* use only the first bulk-in and bulk-out endpoints */
-	retval = usb_find_common_endpoints(interface->cur_altsetting,
-			&bulk_in, &bulk_out, NULL, NULL);
+	/* use only the first bulk-in and bulk-out endpoints, specific to this device */
+
+	retval = 0;
+	if (interface->cur_altsetting->desc.bInterfaceNumber == 0 &&
+		interface->cur_altsetting->desc.bNumEndpoints == 2 &&
+		usb_endpoint_is_bulk_in(&interface->cur_altsetting->endpoint[0].desc) &&
+		usb_endpoint_is_bulk_out(&interface->cur_altsetting->endpoint[1].desc)) {
+		bulk_in = &interface->cur_altsetting->endpoint[0].desc;
+		bulk_out = &interface->cur_altsetting->endpoint[1].desc;
+	} else {
+		retval = 1;
+	}
 	if (retval) {
 		dev_err(&interface->dev,
 			"Could not find both bulk-in and bulk-out endpoints\n");
