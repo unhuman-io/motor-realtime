@@ -13,7 +13,7 @@ struct Status {
 	int32_t count_received;     // Returns last Command::count received
     float position_measured;    // position measured in motor radians
     float current_measured;     // current measured in A (line-line convention)
-	float res[1];               // reserved
+	int32_t res[1];               // reserved
     float res1[3];
 };
 
