@@ -93,7 +93,7 @@ struct Data {
 	std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end, aread_time, read_time, control_time, write_time;
 };
 
-#define CSTACK_SIZE 100
+#define CSTACK_SIZE 1000
 template <class T>
 class CStack {
  public:
@@ -106,16 +106,20 @@ class CStack {
 		pos_ = future_pos;
 	}
 	T top() {
+		if(pos_ == -1) {
+			T t = {};
+			return t;
+		}
 		return data_[pos_];
 	}
 	std::vector<T> read() {
 		std::vector<T> read_data;
+		if (pos_ == -1) {
+			return read_data;
+		}
 		int read_index = last_read_;
-		while ((read_index+1) != pos_) {
-			read_index++;
-			if(read_index >= CSTACK_SIZE) {
-				read_index = 0;
-			}
+		while (((read_index+1)%CSTACK_SIZE) != pos_) {
+            read_index = ((read_index+1)%CSTACK_SIZE);
 			read_data.push_back(data_[read_index]);
 		}
 		last_read_ = read_index;
@@ -123,7 +127,7 @@ class CStack {
 	}
  private:
 	T data_[CSTACK_SIZE];
-	int pos_ = 0;
+	int pos_ = -1;
 	int last_read_ = -1;
 };
 
@@ -372,7 +376,7 @@ int main (int argc, char **argv)
 		for (auto data : data_vec) {
 			file << data.time_start.time_since_epoch().count() << ", " << data.commands << data.statuses << std::endl;
 		}
-		std::this_thread::sleep_for(std::chrono::microseconds(5000));
+		std::this_thread::sleep_for(std::chrono::microseconds(20000));
 
 	}
 	task.done();
