@@ -235,7 +235,7 @@ class Task {
 
 			// linear chirp
 			double beta = (f1-fo) * (1/t_repeat);
-			double chirp = sin(2*M_PI*(beta/2*t_s*t_s) + fo*t_s);
+			double chirp = sin(2*M_PI*(beta/2*t_s*t_s + fo*t_s));
 			controller_.set_current(.5*chirp);
 
 			controller_.update(data_.statuses, data_.commands);
