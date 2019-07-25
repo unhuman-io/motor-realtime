@@ -8,22 +8,22 @@
 #include <libgen.h>
 #include <libudev.h>
 
-struct Status {
-	uint32_t count;             // dsp counter, likely a timestamp at 180 MHz
-	int32_t count_received;     // Returns last Command::count received
-    float position_measured;    // position measured in motor radians
-    float current_measured;     // current measured in A (line-line convention)
-	int32_t res[1];               // reserved
-    float res1[3];
-};
+typedef struct {
+    uint32_t mcu_timestamp;                 // timestamp in microcontroller clock cycles
+    uint32_t host_timestamp_received;   // return of host_timestamp from ReceiveData
+    float motor_position;               // motor position in radians
+    float joint_position;               // joint position in radians
+    float iq;                           // Measured motor current in A line-line
+    int32_t motor_encoder;              // motor position in raw counts
+    float reserved[2];
+} Status;
 
-struct Command {
-	int32_t count;              // Recommend sending incrementing counter
-	uint8_t mode;               // 0: open, 1: brake, 2: current
-	float current_desired;      // current desired in A (line-line convention)
-	float position_desired;     // reserved
-    float position_deadband;    // reserved
-};
+typedef struct {
+    uint32_t host_timestamp;            // Value from host
+    uint8_t mode_desired;               // 0: open, 1: brake, 2: active
+    float current_desired;              // motor current desired in A line-line
+    float position_desired;             // motor position desired in rad
+} Command;
 
 class Motor {
  public:

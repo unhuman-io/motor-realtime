@@ -33,19 +33,19 @@ void Controller::update(std::vector<Status> statuses, std::vector<Command> &comm
         switch (mode_desired_[i]) {
             case OPEN:
             default:
-                commands[i].mode = 0;
+                commands[i].mode_desired = 0;
                 break;
             case BRAKE:
-                commands[i].mode = 1;
+                commands[i].mode_desired = 1;
                 break;
             case CURRENT:
-                commands[i].mode = 2;
+                commands[i].mode_desired = 2;
                 commands[i].current_desired = current_desired_[i];
                 break;
             case POSITION:
-                commands[i].mode = 2;
+                commands[i].mode_desired = 2;
                 float current_desired = current_desired_[i] + position_controllers_[i].update(position_desired_[i], 
-                                    statuses[i].position_measured, statuses[i].count);
+                                    statuses[i].motor_position, statuses[i].mcu_timestamp);
                 commands[i].current_desired = current_desired;
                 commands[i].current_desired = 0;
                 commands[i].position_desired = position_desired_[i];
