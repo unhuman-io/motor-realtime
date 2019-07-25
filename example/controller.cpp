@@ -47,6 +47,8 @@ void Controller::update(std::vector<Status> statuses, std::vector<Command> &comm
                 float current_desired = current_desired_[i] + position_controllers_[i].update(position_desired_[i], 
                                     statuses[i].position_measured, statuses[i].count);
                 commands[i].current_desired = current_desired;
+                commands[i].current_desired = 0;
+                commands[i].position_desired = position_desired_[i];
                 break;
         }
     }

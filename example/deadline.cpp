@@ -213,30 +213,30 @@ class Task {
 					first_switch_) {
 				first_switch_ = 0;
 				controller_.set_current(0);
-				//controller_.set_mode(Controller::POSITION);
+				controller_.set_mode(Controller::POSITION);
 			}
 
 			// a square wave in position
-			// double position = std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() % 2;
-			// controller_.set_position(3*position);
-			// double current = (std::chrono::duration_cast<std::chrono::milliseconds>(data_.time_start - start_time_).count() % 20) > 10;
-			// controller_.set_current(current-.5);
+			double position = std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() % 2;
+			controller_.set_position(.5*position);
+			//double current = (std::chrono::duration_cast<std::chrono::milliseconds>(data_.time_start - start_time_).count() % 20) > 10;
+			//controller_.set_current(current-.5);
 
 			// sin in position
-			double t_s = std::chrono::duration_cast<std::chrono::microseconds>(data_.time_start - start_time_).count()/1.0e6;
-			//controller_.set_position(3*sin(.1*t_s));
-			controller_.set_current(.5*sin(20*t_s));
-			double t_repeat = 200;
-			double fo = 5;
-			double f1 = 400;
-			double k = pow(f1/fo, 1/t_repeat);
-			t_s = fmod(t_s, t_repeat);
-			controller_.set_current(.5*sin(2*M_PI*fo*(pow(k,t_s) - 1)/log(k)));
+			// double t_s = std::chrono::duration_cast<std::chrono::microseconds>(data_.time_start - start_time_).count()/1.0e6;
+			// //controller_.set_position(3*sin(.1*t_s));
+			// controller_.set_current(.5*sin(20*t_s));
+			// double t_repeat = 200;
+			// double fo = 5;
+			// double f1 = 400;
+			// double k = pow(f1/fo, 1/t_repeat);
+			// t_s = fmod(t_s, t_repeat);
+			// controller_.set_current(.5*sin(2*M_PI*fo*(pow(k,t_s) - 1)/log(k)));
 
-			// linear chirp
-			double beta = (f1-fo) * (1/t_repeat);
-			double chirp = sin(2*M_PI*(beta/2*t_s*t_s + fo*t_s));
-			controller_.set_current(.5*chirp);
+			// // linear chirp
+			// double beta = (f1-fo) * (1/t_repeat);
+			// double chirp = sin(2*M_PI*(beta/2*t_s*t_s + fo*t_s));
+			// controller_.set_current(.5*chirp);
 
 			controller_.update(data_.statuses, data_.commands);
 
