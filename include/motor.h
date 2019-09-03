@@ -9,7 +9,7 @@
 #include <libudev.h>
 
 typedef struct {
-    uint32_t mcu_timestamp;                 // timestamp in microcontroller clock cycles
+    uint32_t mcu_timestamp;             // timestamp in microcontroller clock cycles
     uint32_t host_timestamp_received;   // return of host_timestamp from ReceiveData
     float motor_position;               // motor position in radians
     float joint_position;               // joint position in radians
@@ -20,9 +20,11 @@ typedef struct {
 
 typedef struct {
     uint32_t host_timestamp;            // Value from host
-    uint8_t mode_desired;               // 0: open, 1: brake, 2: active
+    uint8_t mode_desired;               // 0: open, 1: damped, 2: active
     float current_desired;              // motor current desired in A line-line
     float position_desired;             // motor position desired in rad
+    float current_max;                  // maximum current that position controller will apply,
+                                        //  used for virtual friction
 } Command;
 
 class Motor {
