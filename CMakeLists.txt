@@ -4,9 +4,15 @@ include(GNUInstallDirs)
 
 SET(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
-set(CPACK_DEBIAN_PACKAGE_DEPENDS libudev1)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libudev1, dkms")
+set(CPACK_PACKAGE_VERSION 0.1.3)
+set(VERSION ${CPACK_PACKAGE_VERSION})
+configure_file(rt_version.h.in rt_version.h)
+configure_file(prerm.in prerm)
+configure_file(postinst.in postinst)
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA 
-    ${CMAKE_SOURCE_DIR}/postinst)
+    postinst
+    prerm)
 INCLUDE(CPack)
 
 set (CMAKE_CXX_STANDARD 11)

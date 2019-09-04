@@ -1,0 +1,5 @@
+PACKAGE_NAME="usb_skeleton-${VERSION}"
+PACKAGE_VERSION="${VERSION}"
+BUILT_MODULE_NAME[0]="usb-skeleton"
+DEST_MODULE_LOCATION[0]="/kernel/usb/"
+AUTOINSTALL="yes"

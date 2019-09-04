@@ -8,21 +8,24 @@
 #include <libgen.h>
 #include <libudev.h>
 
-struct Status {
-	int32_t count;
-	int32_t count_received;
-    float position_measured;
-    float current_measured;
-	float res[1];
-};
+typedef struct {
+    uint32_t mcu_timestamp;             // timestamp in microcontroller clock cycles
+    uint32_t host_timestamp_received;   // return of host_timestamp from ReceiveData
+    float motor_position;               // motor position in radians
+    float joint_position;               // joint position in radians
+    float iq;                           // Measured motor current in A line-line
+    int32_t motor_encoder;              // motor position in raw counts
+    float reserved[2];
+} Status;
 
-struct Command {
-	int32_t count;
-	uint8_t mode;
-	float current_desired;
-	float position_desired;
-    float position_deadband;
-};
+typedef struct {
+    uint32_t host_timestamp;            // Value from host
+    uint8_t mode_desired;               // 0: open, 1: damped, 2: active
+    float current_desired;              // motor current desired in A line-line
+    float position_desired;             // motor position desired in rad
+    float current_max;                  // maximum current that position controller will apply,
+                                        //  used for virtual friction
+} Command;
 
 class Motor {
  public:
@@ -71,7 +74,7 @@ class Motor {
     std::string base_path() const {return base_path_; }
     std::string version() const { return version_; }
     int close() { return ::close(fid_); }
-
+    int fd() const { return fid_; }
     const Status *const status() const { return &status_; }
     Command *const command() { return &command_; }
  private:
