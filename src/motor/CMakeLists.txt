@@ -10,6 +10,7 @@ install(TARGETS motor_manager
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_executable(motor-util motor_util.cpp)
-target_link_libraries(motor-util motor_manager)
-install(TARGETS motor-util DESTINATION bin)
+add_executable(motor_util motor_util.cpp)
+target_link_libraries(motor_util motor_manager)
+target_include_directories(motor_util PUBLIC ${CMAKE_BINARY_DIR})
+install(TARGETS motor_util DESTINATION bin)
