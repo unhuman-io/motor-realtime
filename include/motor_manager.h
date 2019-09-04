@@ -20,6 +20,7 @@ class MotorManager {
     void write(std::vector<Command>);
     void write_saved_commands();
     void aread();
+    int poll();
     void close();
 
     void set_commands(std::vector<Command> commands);

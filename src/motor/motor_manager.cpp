@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <algorithm>
+#include <poll.h>
 
 // Returns a vector of strings that contain the dev file locations,
 // e.g. /dev/skel0
@@ -144,4 +145,15 @@ void MotorManager::set_command_position(std::vector<float> position) {
 
 void MotorManager::write_saved_commands() {
     write(commands_);
+}
+
+int MotorManager::poll() {
+    auto pollfds = new pollfd[motors_.size()];
+    for (int i=0; i<motors_.size(); i++) {
+        pollfds[i].fd = motors_[i]->fd();
+        pollfds[i].events = POLLIN;
+    }
+    int retval = ::poll(pollfds, motors_.size(), 1);
+    delete [] pollfds;
+    return retval;
 }
