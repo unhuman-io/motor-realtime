@@ -1,1 +1,2 @@
-KERNEL=="skel*", MODE="0666"
+KERNEL=="usbrt*", MODE="0777"
+KERNEL=="mtr*", MODE="0777"

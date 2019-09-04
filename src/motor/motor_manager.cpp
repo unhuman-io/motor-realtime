@@ -23,7 +23,8 @@ static std::vector<std::string> udev (void)
 	
 	/* Create a list of the devices in the 'hidraw' subsystem. */
 	enumerate = udev_enumerate_new(udev);
-	udev_enumerate_add_match_sysname(enumerate, "skel*");
+	udev_enumerate_add_match_sysname(enumerate, "usbrt*");
+    udev_enumerate_add_match_sysname(enumerate, "mtr*");
 	udev_enumerate_scan_devices(enumerate);
 	devices = udev_enumerate_get_list_entry(enumerate);
 

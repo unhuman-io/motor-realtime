@@ -72,6 +72,7 @@ class Motor {
     std::string name() const { return name_; }
     std::string serial_number() const { return serial_number_; }
     std::string base_path() const {return base_path_; }
+    std::string dev_path() const { return dev_path_; }
     std::string version() const { return version_; }
     int close() { return ::close(fid_); }
     int fd() const { return fid_; }
