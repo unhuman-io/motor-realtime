@@ -16,6 +16,7 @@
 #include <linux/uaccess.h>
 #include <linux/usb.h>
 #include <linux/mutex.h>
+#include <linux/poll.h>
 
 
 /* Define these values to match your devices */
@@ -218,6 +219,27 @@ static int skel_do_read_io(struct usb_skel *dev, size_t count)
 	}
 
 	return rv;
+}
+
+__poll_t skel_poll(struct file *file, struct poll_table_struct *wait) {
+	struct usb_skel *dev;
+	bool ongoing_io;
+
+	dev = file->private_data;
+	spin_lock_irq(&dev->err_lock);
+	ongoing_io = dev->ongoing_read;
+	spin_unlock_irq(&dev->err_lock);
+	if(ongoing_io) {
+		return 0;
+	} else {
+		if (dev->bulk_in_filled - dev->bulk_in_copied) {
+			return POLLIN;
+		} else {
+			skel_do_read_io(dev, dev->bulk_in_size);
+			poll_wait(file, &dev->bulk_in_wait, wait);
+			return 0;
+		}
+	}
 }
 
 static ssize_t skel_read(struct file *file, char *buffer, size_t count,
@@ -475,6 +497,7 @@ static const struct file_operations skel_fops = {
 	.release =	skel_release,
 	.flush =	skel_flush,
 	.llseek =	noop_llseek,
+	.poll = 	skel_poll,
 };
 
 /*
