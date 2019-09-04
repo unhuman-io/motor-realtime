@@ -36,10 +36,10 @@ class MotorManager {
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> command)
 {
    for (auto c : command) {
-      os << c.count << ", ";
+      os << c.host_timestamp << ", ";
    }
    for (auto c : command) {
-      os << +c.mode << ", ";
+      os << +c.mode_desired << ", ";
    }
    for (auto c : command) {
       os << c.current_desired << ", ";
@@ -54,21 +54,24 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> com
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
 {
    for (auto s : status) {
-      os << s.count << ", ";
+      os << s.mcu_timestamp << ", ";
    }
    for (auto s : status) {
-      os << s.count_received << ", ";
+      os << s.host_timestamp_received << ", ";
    }
    for (auto s : status) {
-      os << s.current_measured << ", ";
+      os << s.motor_position << ", ";
    }
    for (auto s : status) {
-      os << s.position_measured << ", ";
+      os << s.joint_position << ", ";
    }
    for (auto s : status) {
-      os << s.res[0] << ", ";
+      os << s.iq << ", ";
    }
-    return os;
+   for (auto s : status) {
+      os << s.reserved[0] << ", ";
+   }
+   return os;
 }
 
 #endif

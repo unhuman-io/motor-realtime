@@ -121,13 +121,13 @@ void MotorManager::set_commands(std::vector<Command> commands) {
 
 void MotorManager::set_command_count(int32_t count) {
     for (auto &c : commands_) {
-        c.count = count;
+        c.host_timestamp = count;
     }
 }
 
 void MotorManager::set_command_mode(uint8_t mode) {
     for (auto &c : commands_) {
-        c.mode = mode;
+        c.mode_desired = mode;
     }
 }
     

@@ -207,7 +207,7 @@ class Task {
 			motors_.set_commands(data_.commands);
 
 			for (int i=0; i<motors_.motors().size(); i++) {
-				data_.delay[i] = x - data_.statuses[i].count_received;
+				data_.delay[i] = x - data_.statuses[i].host_timestamp_received;
 				if (data_.delay[i] > 1) {
 					//std::cout << "Delay > 1: " << data_.delay[i] << std::endl;
 				}	
@@ -315,10 +315,10 @@ int main (int argc, char **argv)
 		int32_t count = 0;
 		int32_t count_received = 0;
 		if(data.commands.size()) {
-			count = data.commands[0].count;
+			count = data.commands[0].host_timestamp;
 		}
 		if(data.statuses.size()) {
-			count_received = data.statuses[0].count_received;
+			count_received = data.statuses[0].host_timestamp_received;
 		}
 		auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(data.last_time_end - data.last_time_start).count();
 		auto last_period =  std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - data.last_time_start).count();
