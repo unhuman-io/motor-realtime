@@ -1,2 +1,0 @@
-KERNEL=="usbrt*", MODE="0777"
-KERNEL=="mtr*", MODE="0777"

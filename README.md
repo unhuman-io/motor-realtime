@@ -1,11 +1,10 @@
-realtime-tmp
+# realtime-tmp
 
-This project contains a kernel driver to communicate to motor 
+This project contains helps interface with a kernel driver to communicate to motor 
 controllers over USB and an API to help communicate with the motor 
-controllers. The project will install the kernel driver in 
-`/lib/modules/${uname -r}`. The API will install a shared library 
-motor_manager.so and include files: motor.h and motor_manager.h. 
-An example is installed in `share/realtime-tmp/example`.
+controllers. The kernel driver is available at github at unhuman-io/usb_rt_driver. 
+The API will install a shared library motor_manager.so and include files: motor.h 
+and motor_manager.h. An example is installed in `share/realtime-tmp/example`.
 
 `motor_util` is a command line utility that is also installed. It uses 
 the motor_manager library and enumerates any connected devices. 
