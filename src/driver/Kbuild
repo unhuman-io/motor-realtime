@@ -1,1 +1,1 @@
-obj-m	:= usb-skeleton.o
+obj-m	:= usb-rt.o

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * USB Skeleton driver - 2.2
+ * USB RT driver - 2.2
  *
  * Copyright (C) 2001-2004 Greg Kroah-Hartman (greg@kroah.com)
  *
@@ -21,19 +21,20 @@
 
 MODULE_VERSION(RT_VERSION_STRING);
 /* Define these values to match your devices */
-#define USB_SKEL_VENDOR_ID	0x0483
-#define USB_SKEL_PRODUCT_ID	0x5740
+#define USB_RT_VENDOR_ID	0x0483
+#define USB_RT_PRODUCT_ID	0x5740
 
 /* table of devices that work with this driver */
-static const struct usb_device_id skel_table[] = {
-	{ USB_DEVICE(USB_SKEL_VENDOR_ID, USB_SKEL_PRODUCT_ID) },
+static const struct usb_device_id usb_rt_table[] = {
+	{ USB_DEVICE(USB_RT_VENDOR_ID, USB_RT_PRODUCT_ID) },
+	{ USB_DEVICE(USB_RT_VENDOR_ID, USB_RT_PRODUCT_ID+1) },
 	{ }					/* Terminating entry */
 };
-MODULE_DEVICE_TABLE(usb, skel_table);
+MODULE_DEVICE_TABLE(usb, usb_rt_table);
 
 
 /* Get a minor range for your devices from the usb maintainer */
-#define USB_SKEL_MINOR_BASE	192
+#define USB_RT_MINOR_BASE	192
 
 /* our private defines. if this grows any larger, use your own .h file */
 #define MAX_TRANSFER		(PAGE_SIZE - 512)
@@ -44,7 +45,7 @@ MODULE_DEVICE_TABLE(usb, skel_table);
 /* arbitrarily chosen */
 
 /* Structure to hold all of our device specific stuff */
-struct usb_skel {
+struct usb_rt {
 	struct usb_device	*udev;			/* the usb device for this device */
 	struct usb_interface	*interface;		/* the interface for this device */
 	struct semaphore	limit_sem;		/* limiting the number of writes in progress */
@@ -63,14 +64,14 @@ struct usb_skel {
 	struct mutex		io_mutex;		/* synchronize I/O with disconnect */
 	wait_queue_head_t	bulk_in_wait;		/* to wait for an ongoing read */
 };
-#define to_skel_dev(d) container_of(d, struct usb_skel, kref)
+#define to_usb_rt_dev(d) container_of(d, struct usb_rt, kref)
 
-static struct usb_driver skel_driver;
-static void skel_draw_down(struct usb_skel *dev);
+static struct usb_driver usb_rt_driver;
+static void usb_rt_draw_down(struct usb_rt *dev);
 
-static void skel_delete(struct kref *kref)
+static void usb_rt_delete(struct kref *kref)
 {
-	struct usb_skel *dev = to_skel_dev(kref);
+	struct usb_rt *dev = to_usb_rt_dev(kref);
 
 	usb_free_urb(dev->bulk_in_urb);
 	usb_put_dev(dev->udev);
@@ -78,16 +79,16 @@ static void skel_delete(struct kref *kref)
 	kfree(dev);
 }
 
-static int skel_open(struct inode *inode, struct file *file)
+static int usb_rt_open(struct inode *inode, struct file *file)
 {
-	struct usb_skel *dev;
+	struct usb_rt *dev;
 	struct usb_interface *interface;
 	int subminor;
 	int retval = 0;
 
 	subminor = iminor(inode);
 
-	interface = usb_find_interface(&skel_driver, subminor);
+	interface = usb_find_interface(&usb_rt_driver, subminor);
 	if (!interface) {
 		pr_err("%s - error, can't find device for minor %d\n",
 			__func__, subminor);
@@ -115,9 +116,9 @@ exit:
 	return retval;
 }
 
-static int skel_release(struct inode *inode, struct file *file)
+static int usb_rt_release(struct inode *inode, struct file *file)
 {
-	struct usb_skel *dev;
+	struct usb_rt *dev;
 
 	dev = file->private_data;
 	if (dev == NULL)
@@ -130,13 +131,13 @@ static int skel_release(struct inode *inode, struct file *file)
 	mutex_unlock(&dev->io_mutex);
 
 	/* decrement the count on our device */
-	kref_put(&dev->kref, skel_delete);
+	kref_put(&dev->kref, usb_rt_delete);
 	return 0;
 }
 
-static int skel_flush(struct file *file, fl_owner_t id)
+static int usb_rt_flush(struct file *file, fl_owner_t id)
 {
-	struct usb_skel *dev;
+	struct usb_rt *dev;
 	int res;
 
 	dev = file->private_data;
@@ -145,7 +146,7 @@ static int skel_flush(struct file *file, fl_owner_t id)
 
 	/* wait for io to stop */
 	mutex_lock(&dev->io_mutex);
-	skel_draw_down(dev);
+	usb_rt_draw_down(dev);
 
 	/* read out errors, leave subsequent opens a clean slate */
 	spin_lock_irq(&dev->err_lock);
@@ -158,9 +159,9 @@ static int skel_flush(struct file *file, fl_owner_t id)
 	return res;
 }
 
-static void skel_read_bulk_callback(struct urb *urb)
+static void usb_rt_read_bulk_callback(struct urb *urb)
 {
-	struct usb_skel *dev;
+	struct usb_rt *dev;
 	unsigned long flags;
 
 	dev = urb->context;
@@ -185,7 +186,7 @@ static void skel_read_bulk_callback(struct urb *urb)
 	wake_up_interruptible(&dev->bulk_in_wait);
 }
 
-static int skel_do_read_io(struct usb_skel *dev, size_t count)
+static int usb_rt_do_read_io(struct usb_rt *dev, size_t count)
 {
 	int rv;
 
@@ -196,7 +197,7 @@ static int skel_do_read_io(struct usb_skel *dev, size_t count)
 				dev->bulk_in_endpointAddr),
 			dev->bulk_in_buffer,
 			min(dev->bulk_in_size, count),
-			skel_read_bulk_callback,
+			usb_rt_read_bulk_callback,
 			dev);
 	/* tell everybody to leave the URB alone */
 	spin_lock_irq(&dev->err_lock);
@@ -222,8 +223,8 @@ static int skel_do_read_io(struct usb_skel *dev, size_t count)
 	return rv;
 }
 
-__poll_t skel_poll(struct file *file, struct poll_table_struct *wait) {
-	struct usb_skel *dev;
+__poll_t usb_rt_poll(struct file *file, struct poll_table_struct *wait) {
+	struct usb_rt *dev;
 	bool ongoing_io;
 
 	dev = file->private_data;
@@ -236,17 +237,17 @@ __poll_t skel_poll(struct file *file, struct poll_table_struct *wait) {
 		if (dev->bulk_in_filled - dev->bulk_in_copied) {
 			return POLLIN;
 		} else {
-			skel_do_read_io(dev, dev->bulk_in_size);
+			usb_rt_do_read_io(dev, dev->bulk_in_size);
 			poll_wait(file, &dev->bulk_in_wait, wait);
 			return 0;
 		}
 	}
 }
 
-static ssize_t skel_read(struct file *file, char *buffer, size_t count,
+static ssize_t usb_rt_read(struct file *file, char *buffer, size_t count,
 			 loff_t *ppos)
 {
-	struct usb_skel *dev;
+	struct usb_rt *dev;
 	int rv;
 	bool ongoing_io;
 
@@ -313,7 +314,7 @@ retry:
 			 * all data has been used
 			 * actual IO needs to be done
 			 */
-			rv = skel_do_read_io(dev, count);
+			rv = usb_rt_do_read_io(dev, count);
 			if (rv < 0)
 				goto exit;
 			else
@@ -338,10 +339,10 @@ retry:
 		 * we start IO but don't wait
 		 */
 		// if (available < count)
-		// 	skel_do_read_io(dev, count - chunk);
+		// 	usb_rt_do_read_io(dev, count - chunk);
 	} else {
 		/* no data in the buffer */
-		rv = skel_do_read_io(dev, count);
+		rv = usb_rt_do_read_io(dev, count);
 		if (rv < 0)
 			goto exit;
 		else
@@ -352,9 +353,9 @@ exit:
 	return rv;
 }
 
-static void skel_write_bulk_callback(struct urb *urb)
+static void usb_rt_write_bulk_callback(struct urb *urb)
 {
-	struct usb_skel *dev;
+	struct usb_rt *dev;
 	unsigned long flags;
 
 	dev = urb->context;
@@ -379,10 +380,10 @@ static void skel_write_bulk_callback(struct urb *urb)
 	up(&dev->limit_sem);
 }
 
-static ssize_t skel_write(struct file *file, const char *user_buffer,
+static ssize_t usb_rt_write(struct file *file, const char *user_buffer,
 			  size_t count, loff_t *ppos)
 {
-	struct usb_skel *dev;
+	struct usb_rt *dev;
 	int retval = 0;
 	struct urb *urb = NULL;
 	char *buf = NULL;
@@ -454,7 +455,7 @@ static ssize_t skel_write(struct file *file, const char *user_buffer,
 	/* initialize the urb properly */
 	usb_fill_bulk_urb(urb, dev->udev,
 			  usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr),
-			  buf, writesize, skel_write_bulk_callback, dev);
+			  buf, writesize, usb_rt_write_bulk_callback, dev);
 	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 	usb_anchor_urb(urb, &dev->submitted);
 
@@ -490,31 +491,39 @@ exit:
 	return retval;
 }
 
-static const struct file_operations skel_fops = {
+static const struct file_operations usb_rt_fops = {
 	.owner =	THIS_MODULE,
-	.read =		skel_read,
-	.write =	skel_write,
-	.open =		skel_open,
-	.release =	skel_release,
-	.flush =	skel_flush,
+	.read =		usb_rt_read,
+	.write =	usb_rt_write,
+	.open =		usb_rt_open,
+	.release =	usb_rt_release,
+	.flush =	usb_rt_flush,
 	.llseek =	noop_llseek,
-	.poll = 	skel_poll,
+	.poll = 	usb_rt_poll,
 };
 
 /*
  * usb class driver info in order to get a minor number from the usb core,
  * and to have the device registered with the driver core
  */
-static struct usb_class_driver skel_class = {
-	.name =		"skel%d",
-	.fops =		&skel_fops,
-	.minor_base =	USB_SKEL_MINOR_BASE,
+// The generic class
+static struct usb_class_driver usb_rt_class = {
+	.name =		"usbrt%d",
+	.fops =		&usb_rt_fops,
+	.minor_base =	USB_RT_MINOR_BASE,
 };
 
-static int skel_probe(struct usb_interface *interface,
+// A specialized name for motors
+static struct usb_class_driver usb_mtr_class = {
+	.name =		"mtr%d",
+	.fops =		&usb_rt_fops,
+	.minor_base =	USB_RT_MINOR_BASE,
+};
+
+static int usb_rt_probe(struct usb_interface *interface,
 		      const struct usb_device_id *id)
 {
-	struct usb_skel *dev;
+	struct usb_rt *dev;
 	struct usb_endpoint_descriptor *bulk_in=NULL, *bulk_out=NULL;
 	int retval;
 
@@ -571,7 +580,14 @@ static int skel_probe(struct usb_interface *interface,
 	usb_set_intfdata(interface, dev);
 
 	/* we can register the device now, as it is ready */
-	retval = usb_register_dev(interface, &skel_class);
+	switch (id->idProduct) {
+		case USB_RT_PRODUCT_ID+1:
+			retval = usb_register_dev(interface, &usb_mtr_class);
+			break;
+		default:
+			retval = usb_register_dev(interface, &usb_rt_class);
+			break;
+	}
 	if (retval) {
 		/* something prevented us from registering this driver */
 		dev_err(&interface->dev,
@@ -582,27 +598,27 @@ static int skel_probe(struct usb_interface *interface,
 
 	/* let the user know what node this device is now attached to */
 	dev_info(&interface->dev,
-		 "USB Skeleton device now attached to USBSkel-%d",
+		 "USB RT device now attached to USBRT-%d",
 		 interface->minor);
 	return 0;
 
 error:
 	/* this frees allocated memory */
-	kref_put(&dev->kref, skel_delete);
+	kref_put(&dev->kref, usb_rt_delete);
 
 	return retval;
 }
 
-static void skel_disconnect(struct usb_interface *interface)
+static void usb_rt_disconnect(struct usb_interface *interface)
 {
-	struct usb_skel *dev;
+	struct usb_rt *dev;
 	int minor = interface->minor;
 
 	dev = usb_get_intfdata(interface);
 	usb_set_intfdata(interface, NULL);
 
 	/* give back our minor */
-	usb_deregister_dev(interface, &skel_class);
+	usb_deregister_dev(interface, &usb_rt_class);
 
 	/* prevent more I/O from starting */
 	mutex_lock(&dev->io_mutex);
@@ -612,12 +628,12 @@ static void skel_disconnect(struct usb_interface *interface)
 	usb_kill_anchored_urbs(&dev->submitted);
 
 	/* decrement our usage count */
-	kref_put(&dev->kref, skel_delete);
+	kref_put(&dev->kref, usb_rt_delete);
 
-	dev_info(&interface->dev, "USB Skeleton #%d now disconnected", minor);
+	dev_info(&interface->dev, "USB RT #%d now disconnected", minor);
 }
 
-static void skel_draw_down(struct usb_skel *dev)
+static void usb_rt_draw_down(struct usb_rt *dev)
 {
 	int time;
 
@@ -627,34 +643,34 @@ static void skel_draw_down(struct usb_skel *dev)
 	usb_kill_urb(dev->bulk_in_urb);
 }
 
-static int skel_suspend(struct usb_interface *intf, pm_message_t message)
+static int usb_rt_suspend(struct usb_interface *intf, pm_message_t message)
 {
-	struct usb_skel *dev = usb_get_intfdata(intf);
+	struct usb_rt *dev = usb_get_intfdata(intf);
 
 	if (!dev)
 		return 0;
-	skel_draw_down(dev);
+	usb_rt_draw_down(dev);
 	return 0;
 }
 
-static int skel_resume(struct usb_interface *intf)
+static int usb_rt_resume(struct usb_interface *intf)
 {
 	return 0;
 }
 
-static int skel_pre_reset(struct usb_interface *intf)
+static int usb_rt_pre_reset(struct usb_interface *intf)
 {
-	struct usb_skel *dev = usb_get_intfdata(intf);
+	struct usb_rt *dev = usb_get_intfdata(intf);
 
 	mutex_lock(&dev->io_mutex);
-	skel_draw_down(dev);
+	usb_rt_draw_down(dev);
 
 	return 0;
 }
 
-static int skel_post_reset(struct usb_interface *intf)
+static int usb_rt_post_reset(struct usb_interface *intf)
 {
-	struct usb_skel *dev = usb_get_intfdata(intf);
+	struct usb_rt *dev = usb_get_intfdata(intf);
 
 	/* we are sure no URBs are active - no locking needed */
 	dev->errors = -EPIPE;
@@ -663,18 +679,18 @@ static int skel_post_reset(struct usb_interface *intf)
 	return 0;
 }
 
-static struct usb_driver skel_driver = {
-	.name =		"skeleton",
-	.probe =	skel_probe,
-	.disconnect =	skel_disconnect,
-	.suspend =	skel_suspend,
-	.resume =	skel_resume,
-	.pre_reset =	skel_pre_reset,
-	.post_reset =	skel_post_reset,
-	.id_table =	skel_table,
+static struct usb_driver usb_rt_driver = {
+	.name =		"usb_rt",
+	.probe =	usb_rt_probe,
+	.disconnect =	usb_rt_disconnect,
+	.suspend =	usb_rt_suspend,
+	.resume =	usb_rt_resume,
+	.pre_reset =	usb_rt_pre_reset,
+	.post_reset =	usb_rt_post_reset,
+	.id_table =	usb_rt_table,
 	.supports_autosuspend = 1,
 };
 
-module_usb_driver(skel_driver);
+module_usb_driver(usb_rt_driver);
 
 MODULE_LICENSE("GPL v2");
