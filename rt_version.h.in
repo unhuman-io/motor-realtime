@@ -1,0 +1,6 @@
+#ifndef RT_VERSION_H
+#define RT_VERSION_H
+
+#define RT_VERSION_STRING "${VERSION}"
+
+#endif
