@@ -17,8 +17,9 @@
 #include <linux/usb.h>
 #include <linux/mutex.h>
 #include <linux/poll.h>
+#include "rt_version.h"
 
-
+MODULE_VERSION(RT_VERSION_STRING);
 /* Define these values to match your devices */
 #define USB_SKEL_VENDOR_ID	0x0483
 #define USB_SKEL_PRODUCT_ID	0x5740
