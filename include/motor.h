@@ -71,7 +71,7 @@ class Motor {
     std::string base_path() const {return base_path_; }
     std::string version() const { return version_; }
     int close() { return ::close(fid_); }
-
+    int fd() const { return fid_; }
     const Status *const status() const { return &status_; }
     Command *const command() { return &command_; }
  private:

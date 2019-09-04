@@ -177,7 +177,9 @@ class Task {
 			data_.time_start = std::chrono::steady_clock::now();
 
 			// start a read on all motors
-			motors_.aread();
+			//motors_.aread();
+			// poll all motors, will block until at least one has data
+			motors_.poll();
 			data_.aread_time = std::chrono::steady_clock::now();
 
 			// blocking io to get the data alread set up and wait if not ready yet
