@@ -3,8 +3,15 @@
 #include <iostream>
 #include <iomanip>
 #include "rt_version.h"
+#include "CLI11.hpp"
 
-int main() {
+int main(int argc, char** argv) {
+    CLI::App app{"Utility for communicating with motor drivers"};
+    bool set = false, print = false;
+    app.add_option("-s,--set", set, "Send data to motor(s)");
+    app.add_option("-p,--print", print, "Print data received from motor(s)");
+    CLI11_PARSE(app, argc, argv);
+    
     MotorManager m;
     auto motors = m.get_connected_motors();
     int name_width = 10;
@@ -25,4 +32,20 @@ int main() {
                   << std::setw(version_width) << m->version()
                   << std::setw(path_width) << m->base_path() << std::endl;
     }
+
+    if (set && motors.size()) {
+      //  m.set_command_current(1);
+        m.set_command_mode(2);
+        m.write_saved_commands();
+    }
+
+    if (print && motors.size()) {
+        while (1) {
+            m.poll();
+            auto status = m.read();
+            std::cout << status << std::endl;
+        }
+    }
+
+    return 0;
 }
