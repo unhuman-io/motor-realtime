@@ -14,18 +14,21 @@ _motor_util_completion()
     do
         case ${COMP_WORDS[$i]} in
             set) subcommand=set ; break ;; 
+            -n|--names) subcommand=names ; break ;;
         esac
         (( i-- ))
     done
 
     COMREPLY=()
     local words
+    local base_words="-l --list --list-names-only -n --names -p --print set -v --version -h --help";
     case $subcommand in
         set) words="--host_time --mode --current --position -h --help";
             case $last in
-                --host_time|--mode|--current|--position) return 0;;
+                --host_time|--mode|--current|--position) return 0 ;;
             esac ;;
-        *) words="-l --list -p --print set -v --version -h --help";;
+        names) words="$(motor_util --list-names-only) $base_words" ;;
+        *) words=$base_words ;;
     esac
 
     COMPREPLY=($(compgen -W "$words" -- $cur))
