@@ -7,7 +7,7 @@
 
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers"};
-    bool print = false, list = true, version = false, list_names=false;
+    bool print = false, list = true, version = false, list_names=false, list_path=false;
     std::vector<std::string> names = {};
     Command command = {};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
@@ -19,6 +19,7 @@ int main(int argc, char** argv) {
     app.add_flag("-l,--list", list, "List connected motors");
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
+    app.add_flag("--list-path-only", list_path, "Print only connected motor paths");
     app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
     CLI11_PARSE(app, argc, argv);
 
@@ -37,7 +38,7 @@ int main(int argc, char** argv) {
     } else {
         motors = m.get_connected_motors();
     }
-    
+
     if (version) {
         std::cout << "motor_util version: " << RT_VERSION_STRING << std::endl;
     }
@@ -48,10 +49,15 @@ int main(int argc, char** argv) {
         int version_width = 60;
         int path_width = 15;
         int dev_path_width = 12;
-        if (list_names) {
+        if (list_names || list_path) {
               if (motors.size() > 0) {
                     for (auto m : motors) {
-                        std::cout << m->name() << std::endl;
+                        if (list_names) {
+                            std::cout << m->name();
+                        } else if (list_path) {
+                            std::cout << m->base_path();
+                        }
+                        std::cout << std::endl;
                     }
               }
         } else {

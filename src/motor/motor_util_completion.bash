@@ -21,7 +21,7 @@ _motor_util_completion()
 
     COMREPLY=()
     local words
-    local base_words="-l --list --list-names-only -n --names -p --print set -v --version -h --help";
+    local base_words="-l --list --list-names-only --list-path-only -n --names -p --print set -v --version -h --help";
     case $subcommand in
         set) words="--host_time --mode --current --position -h --help";
             case $last in
