@@ -2,20 +2,34 @@
 #include "motor.h"
 #include <iostream>
 #include <iomanip>
+#include <chrono>
+#include <thread>
 #include "rt_version.h"
 #include "CLI11.hpp"
+
+struct ReadOptions {
+    bool poll;
+    bool aread;
+    double frequency_hz;
+    bool statistics;
+};
 
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers"};
     bool print = false, list = true, version = false, list_names=false, list_path=false;
     std::vector<std::string> names = {};
     Command command = {};
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false };
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired");
     set->add_option("--current", command.current_desired, "Current desired");
     set->add_option("--position", command.position_desired, "Position desired");
-    app.add_flag("-p,--print", print, "Print data received from motor(s)");
+    auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
+    read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
+    read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
+    read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
+    read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
     app.add_flag("-l,--list", list, "List connected motors");
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
@@ -84,12 +98,34 @@ int main(int argc, char** argv) {
         m.write(commands);
     }
 
-    if (print && motors.size()) {
+    if (*read_option) {
         m.open();
+        auto start_time = std::chrono::steady_clock::now();
+        auto next_time = start_time;
+        auto loop_start_time = start_time;
+        int64_t period_ns = 1e9/read_opts.frequency_hz;
         while (1) {
-            m.poll();
+            auto last_loop_start_time = loop_start_time;
+            loop_start_time = std::chrono::steady_clock::now();
+            next_time += std::chrono::nanoseconds(period_ns);
+            if (read_opts.aread) {
+                m.aread();
+            }
+            if (read_opts.poll) {
+                m.poll();
+            }
             auto status = m.read();
-            std::cout << status << std::endl;
+            auto exec_time = std::chrono::steady_clock::now();
+            std::this_thread::sleep_until(next_time);
+
+            if (read_opts.statistics) {
+                auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(exec_time - loop_start_time).count();
+                auto last_start = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count();
+                auto last_period = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - last_loop_start_time).count();
+                std::cout << last_start << '\t' << last_period << '\t' << last_exec << std::endl;
+            } else {
+                std::cout << status << std::endl;
+            }
         }
         m.close();
     }

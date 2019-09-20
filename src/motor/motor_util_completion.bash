@@ -14,6 +14,7 @@ _motor_util_completion()
     do
         case ${COMP_WORDS[$i]} in
             set) subcommand=set ; break ;; 
+            read) subcommand=read ; break ;;
             -n|--names) subcommand=names ; break ;;
         esac
         (( i-- ))
@@ -21,11 +22,15 @@ _motor_util_completion()
 
     COMREPLY=()
     local words
-    local base_words="-l --list --list-names-only --list-path-only -n --names -p --print set -v --version -h --help";
+    local base_words="-l --list --list-names-only --list-path-only -n --names set read -v --version -h --help";
     case $subcommand in
-        set) words="--host_time --mode --current --position -h --help";
+        set) words="--host_time --mode --current --position read -h --help";
             case $last in
                 --host_time|--mode|--current|--position) return 0 ;;
+            esac ;;
+        read) words="--poll --aread --frequency_hz --statistics set -h --help";
+            case $last in
+                --frequency_hz) return 0 ;;
             esac ;;
         names) words="$(motor_util --list-names-only) $base_words" ;;
         *) words=$base_words ;;
