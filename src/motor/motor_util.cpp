@@ -23,6 +23,7 @@ class Statistics {
     }
     double get_mean() const {
         return value_sum_/queue_.size();
+        //return std::accumulate(std::begin(queue_), std::end(queue_), 0)/queue_.size();
     }
     double get_stddev() const {
         if (queue_.size() > 1) {
@@ -155,9 +156,6 @@ int main(int argc, char** argv) {
             }
             auto status = m.read();
             auto exec_time = std::chrono::steady_clock::now();
-            // option to not sleep
-            // while (std::chrono::steady_clock::now() < next_time);
-            std::this_thread::sleep_until(next_time);
 
             if (read_opts.statistics) {
                 i++;
@@ -168,13 +166,18 @@ int main(int argc, char** argv) {
                 period.push(last_period);
                 if (i > 100) {
                     i = 0;
-                    std::cout << last_start << '\t' << floor(period.get_mean()) << '\t' << 
-                    period.get_stddev() << '\t' << period.get_min()  << '\t' << period.get_max() << '\t' <<
-                    floor(exec.get_mean()) << '\t' <<  exec.get_stddev() << '\t' << exec.get_min() << '\t' << exec.get_max()  << std::endl;
+                    auto width = 15;
+                    std::cout << std::fixed << std::setprecision(0) << std::setw(width) << last_start << std::setw(width) << floor(period.get_mean()) << std::setw(width) << 
+                    period.get_stddev() << std::setw(width) << period.get_min()  << std::setw(width) << period.get_max() << std::setw(width) <<
+                    floor(exec.get_mean()) << std::setw(width) <<  exec.get_stddev() << std::setw(width) << exec.get_min() << std::setw(width) << exec.get_max()  << std::endl;
                 }
             } else {
                 std::cout << status << std::endl;
             }
+
+            // option to not sleep
+            // while (std::chrono::steady_clock::now() < next_time);
+            std::this_thread::sleep_until(next_time);
         }
         m.close();
     }
