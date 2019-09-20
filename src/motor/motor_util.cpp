@@ -6,6 +6,43 @@
 #include <thread>
 #include "rt_version.h"
 #include "CLI11.hpp"
+#include <queue>
+
+class Statistics {
+ public:
+    Statistics(int size) : size_(size) {}
+    void push(double value) {
+        double old_value = 0;
+        if (queue_.size() >= size_) {
+            old_value = queue_.front();
+            queue_.pop_front();
+        }
+        queue_.push_back(value);
+        value_sum_ += value - old_value;
+        value_squared_sum_ += pow(value, 2) - pow(old_value, 2);
+    }
+    double get_mean() const {
+        return value_sum_/queue_.size();
+    }
+    double get_stddev() const {
+        if (queue_.size() > 1) {
+            double variance = value_squared_sum_ - 2*value_sum_*get_mean() + pow(get_mean(),2)*queue_.size();
+            return sqrt(variance/(queue_.size()-1));
+        } else {
+            return 0;
+        }
+    }
+    double get_min() const {
+        return *std::min_element(std::begin(queue_), std::end(queue_));
+    }
+    double get_max() const {
+        return *std::max_element(std::begin(queue_), std::end(queue_));
+    }
+ private:
+    int size_;
+    double value_sum_ = 0, value_squared_sum_ = 0;
+    std::deque<double> queue_;
+};
 
 struct ReadOptions {
     bool poll;
@@ -104,6 +141,8 @@ int main(int argc, char** argv) {
         auto next_time = start_time;
         auto loop_start_time = start_time;
         int64_t period_ns = 1e9/read_opts.frequency_hz;
+        Statistics exec(100), period(100);
+        int i = 0;
         while (1) {
             auto last_loop_start_time = loop_start_time;
             loop_start_time = std::chrono::steady_clock::now();
@@ -116,13 +155,23 @@ int main(int argc, char** argv) {
             }
             auto status = m.read();
             auto exec_time = std::chrono::steady_clock::now();
+            // option to not sleep
+            // while (std::chrono::steady_clock::now() < next_time);
             std::this_thread::sleep_until(next_time);
 
             if (read_opts.statistics) {
+                i++;
                 auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(exec_time - loop_start_time).count();
                 auto last_start = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count();
                 auto last_period = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - last_loop_start_time).count();
-                std::cout << last_start << '\t' << last_period << '\t' << last_exec << std::endl;
+                exec.push(last_exec);
+                period.push(last_period);
+                if (i > 100) {
+                    i = 0;
+                    std::cout << last_start << '\t' << floor(period.get_mean()) << '\t' << 
+                    period.get_stddev() << '\t' << period.get_min()  << '\t' << period.get_max() << '\t' <<
+                    floor(exec.get_mean()) << '\t' <<  exec.get_stddev() << '\t' << exec.get_min() << '\t' << exec.get_max()  << std::endl;
+                }
             } else {
                 std::cout << status << std::endl;
             }
