@@ -55,7 +55,7 @@ class Motor {
         udev_device_unref(dev);
         udev_unref(udev);  }
     ~Motor() { close(); }
-    int open() { fid_ = ::open(dev_path_.c_str(), O_RDWR); fid_flags_ = fcntl(fid_, F_GETFL); };
+    int open() { fid_ = ::open(dev_path_.c_str(), O_RDWR); fid_flags_ = fcntl(fid_, F_GETFL); return fid_; }
     ssize_t read() { return ::read(fid_, &status_, sizeof(status_)); };
     ssize_t write() { return ::write(fid_, &command_, sizeof(command_)); };
     ssize_t aread() { int fcntl_error = fcntl(fid_, F_SETFL, fid_flags_ | O_NONBLOCK);
