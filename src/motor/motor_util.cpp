@@ -131,9 +131,11 @@ int main(int argc, char** argv) {
     }
 
     if (*set && motors.size()) {
+        m.open();
         auto commands = std::vector<Command>(motors.size(), command);
         std::cout << "Writing commands: \n" << commands << std::endl;
         m.write(commands);
+        m.close();
     }
 
     if (*read_option) {
