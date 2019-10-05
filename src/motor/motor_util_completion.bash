@@ -28,7 +28,7 @@ _motor_util_completion()
             case $last in
                 --host_time|--mode|--current|--position) return 0 ;;
             esac ;;
-        read) words="--poll --aread --frequency_hz --statistics set -h --help";
+        read) words="--poll --aread --frequency --statistics set -h --help";
             case $last in
                 --frequency_hz) return 0 ;;
             esac ;;
