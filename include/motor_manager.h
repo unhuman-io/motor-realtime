@@ -47,6 +47,9 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> com
    for (auto c : command) {
       os << c.position_desired << ", ";
    }
+   for (auto c : command) {
+      os << c.reserved << ", ";
+   }
 
    return os;
 }
@@ -67,6 +70,9 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    }
    for (auto s : status) {
       os << s.iq << ", ";
+   }
+   for (auto s : status) {
+      os << s.motor_encoder << ", ";
    }
    for (auto s : status) {
       os << s.reserved[0] << ", ";
