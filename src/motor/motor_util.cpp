@@ -63,6 +63,7 @@ int main(int argc, char** argv) {
     set->add_option("--mode", command.mode_desired, "Mode desired");
     set->add_option("--current", command.current_desired, "Current desired");
     set->add_option("--position", command.position_desired, "Position desired");
+    set->add_option("--reserved", command.reserved, "Reserved command");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
     read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
