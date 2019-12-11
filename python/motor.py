@@ -16,7 +16,7 @@ class Motor(Configurable):
     def __init__(self, driver, channel, *args, **kwargs):
         super(Motor, self).__init__(*args, **kwargs)  # initializes traitlets
 
-        self._motor = channel
+        self._motor = "J" + str(channel)
         atexit.register(self._release)
         
     @traitlets.observe('value')
