@@ -20,9 +20,10 @@ typedef struct {
 
 typedef struct {
     uint32_t host_timestamp;            // Value from host
-    uint8_t mode_desired;               // 0: open, 1: damped, 2: active
+    uint8_t mode_desired;               // 0: open, 1: damped, 2: current, 3: position, 4: velocity, 5: current tuning, 6: position tuning
     float current_desired;              // motor current desired in A line-line
     float position_desired;             // motor position desired in rad
+    float velocity_desired;             // motor velocity desired in rad/s
     float reserved;                     // reserved option
 } Command;
 

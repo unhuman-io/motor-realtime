@@ -28,6 +28,7 @@ class MotorManager {
     void set_command_mode(uint8_t mode);
     void set_command_current(std::vector<float> current);
     void set_command_position(std::vector<float> position);
+    void set_command_velocity(std::vector<float> velocity);
  private:
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;

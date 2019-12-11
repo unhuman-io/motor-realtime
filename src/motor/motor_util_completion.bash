@@ -24,7 +24,7 @@ _motor_util_completion()
     local words
     local base_words="-l --list --list-names-only --list-path-only -n --names set read -v --version -h --help";
     case $subcommand in
-        set) words="--host_time --mode --current --position --reserved read -h --help";
+        set) words="--host_time --mode --current --position --velocity --reserved read -h --help";
             case $last in
                 --host_time|--mode|--current|--position|--reserved) return 0 ;;
             esac ;;

@@ -144,6 +144,12 @@ void MotorManager::set_command_position(std::vector<float> position) {
     }
 }
 
+void MotorManager::set_command_velocity(std::vector<float> velocity) {
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].velocity_desired = velocity[i];
+    }
+}
+
 void MotorManager::write_saved_commands() {
     write(commands_);
 }
