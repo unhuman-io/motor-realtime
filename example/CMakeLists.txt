@@ -1,2 +1,4 @@
 add_executable(deadline deadline.cpp controller.cpp)
 target_link_libraries(deadline pthread motor_manager)
+add_executable(joystick joystick.cpp)
+target_link_libraries(joystick motor_manager)

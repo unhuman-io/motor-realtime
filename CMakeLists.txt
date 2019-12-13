@@ -5,7 +5,7 @@ include(GNUInstallDirs)
 SET(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libudev1, dkms, usb_rt_driver")
-set(CPACK_PACKAGE_VERSION 0.2.0)
+set(CPACK_PACKAGE_VERSION 0.3.0)
 set(VERSION ${CPACK_PACKAGE_VERSION})
 configure_file(rt_version.h.in rt_version.h)
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA 

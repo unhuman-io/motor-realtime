@@ -57,12 +57,18 @@ int main(int argc, char** argv) {
     bool print = false, list = true, version = false, list_names=false, list_path=false;
     std::vector<std::string> names = {};
     Command command = {};
+    std::vector<std::pair<std::string, ModeDesired>> mode_map{
+        {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
+        {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
+        {"position_tuning", ModeDesired::POSITION_TUNING}, {"reset", ModeDesired::RESET}};
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false };
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
-    set->add_option("--mode", command.mode_desired, "Mode desired");
+    set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
     set->add_option("--current", command.current_desired, "Current desired");
     set->add_option("--position", command.position_desired, "Position desired");
+    set->add_option("--velocity", command.velocity_desired, "Velocity desired");
+    set->add_option("--reserved", command.reserved, "Reserved command");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
     read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
@@ -133,13 +139,18 @@ int main(int argc, char** argv) {
     if (*set && motors.size()) {
         m.open();
         auto commands = std::vector<Command>(motors.size(), command);
-        std::cout << "Writing commands: \n" << commands << std::endl;
+        std::cout << "Writing commands: \n" << m.command_headers() << std::endl << commands << std::endl;
         m.write(commands);
         m.close();
     }
 
     if (*read_option) {
         m.open();
+        if (read_opts.statistics) {
+            ; //todo
+        } else {
+            std::cout << m.status_headers() << std::endl;
+        }
         auto start_time = std::chrono::steady_clock::now();
         auto next_time = start_time;
         auto loop_start_time = start_time;
