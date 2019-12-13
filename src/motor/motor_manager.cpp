@@ -6,6 +6,7 @@
 #include <cstring>
 #include <algorithm>
 #include <poll.h>
+#include <sstream>
 
 // Returns a vector of strings that contain the dev file locations,
 // e.g. /dev/skel0
@@ -163,4 +164,55 @@ int MotorManager::poll() {
     int retval = ::poll(pollfds, motors_.size(), 1);
     delete [] pollfds;
     return retval;
+}
+
+std::string MotorManager::command_headers() const {
+    std::stringstream ss;
+    int length = motors_.size();
+    for (int i=0;i<length;i++) {
+        ss << "host_timestamp" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "mode_desired" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "current_desired" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "position_desired" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "velocity_desired" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "reserved" << i << ", ";
+    }
+    return ss.str();
+}
+
+std::string MotorManager::status_headers() const {
+    std::stringstream ss;
+    int length = motors_.size();
+    for (int i=0;i<length;i++) {
+        ss << "mcu_timestamp" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "host_timestamp_received" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "motor_position" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "joint_position" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "iq" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "motor_encoder" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "reserved" << i << ", ";
+    }
+    return ss.str();
 }

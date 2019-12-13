@@ -29,6 +29,8 @@ class MotorManager {
     void set_command_current(std::vector<float> current);
     void set_command_position(std::vector<float> position);
     void set_command_velocity(std::vector<float> velocity);
+    std::string command_headers() const;
+    std::string status_headers() const;
  private:
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;
@@ -47,6 +49,9 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> com
    }
    for (auto c : command) {
       os << c.position_desired << ", ";
+   }
+   for (auto c : command) {
+      os << c.velocity_desired << ", ";
    }
    for (auto c : command) {
       os << c.reserved << ", ";

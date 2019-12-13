@@ -15,6 +15,7 @@ _motor_util_completion()
         case ${COMP_WORDS[$i]} in
             set) subcommand=set ; break ;; 
             read) subcommand=read ; break ;;
+            --mode) subcommand=mode ; break ;;
             -n|--names) subcommand=names ; break ;;
         esac
         (( i-- ))
@@ -30,8 +31,9 @@ _motor_util_completion()
             esac ;;
         read) words="--poll --aread --frequency --statistics set -h --help";
             case $last in
-                --frequency_hz) return 0 ;;
+                --frequency) return 0 ;;
             esac ;;
+        mode) words="open damped current position velocity current current_tuning position_tuning reset" ;;
         names) words="$(motor_util --list-names-only) $base_words" ;;
         *) words=$base_words ;;
     esac
