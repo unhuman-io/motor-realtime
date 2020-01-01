@@ -7,6 +7,7 @@
 #include "rt_version.h"
 #include "CLI11.hpp"
 #include <queue>
+#include <signal.h>
 
 class Statistics {
  public:
@@ -52,9 +53,11 @@ struct ReadOptions {
     bool statistics;
 };
 
+bool signal_exit = false;
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers"};
     bool print = false, list = true, version = false, list_names=false, list_path=false;
+    bool user_space_driver = false;
     std::vector<std::string> names = {};
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map{
@@ -78,13 +81,14 @@ int main(int argc, char** argv) {
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
     app.add_flag("--list-path-only", list_path, "Print only connected motor paths");
+    app.add_flag("-u,--user-space", user_space_driver, "Connect through user space usb");
     app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
     CLI11_PARSE(app, argc, argv);
 
     MotorManager m;
     std::vector<std::shared_ptr<Motor>> motors;
     if (names.size()) {
-        motors = m.get_motors_by_name(names);
+        motors = m.get_motors_by_name(names, user_space_driver);
         auto i = std::begin(motors);
         while (i != std::end(motors)) {
             if (!*i) {
@@ -94,7 +98,7 @@ int main(int argc, char** argv) {
             }
         }
     } else {
-        motors = m.get_connected_motors();
+        motors = m.get_connected_motors(user_space_driver);
     }
 
     if (version) {
@@ -146,6 +150,7 @@ int main(int argc, char** argv) {
 
     if (*read_option) {
         m.open();
+        signal(SIGINT,[](int signum){signal_exit = true;});
         if (read_opts.statistics) {
             ; //todo
         } else {
@@ -157,7 +162,7 @@ int main(int argc, char** argv) {
         int64_t period_ns = 1e9/read_opts.frequency_hz;
         Statistics exec(100), period(100);
         int i = 0;
-        while (1) {
+        while (!signal_exit) {
             auto last_loop_start_time = loop_start_time;
             loop_start_time = std::chrono::steady_clock::now();
             next_time += std::chrono::nanoseconds(period_ns);

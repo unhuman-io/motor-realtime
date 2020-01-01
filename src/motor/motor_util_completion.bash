@@ -22,7 +22,7 @@ _motor_util_completion()
 
     COMREPLY=()
     local words
-    local base_words="-l --list --list-names-only --list-path-only -n --names set read -v --version -h --help";
+    local base_words="-l --list --list-names-only --list-path-only -n --names set read -v --version -u --user-space -h --help";
     case $subcommand in
         set) words="--host_time --mode --current --position --velocity --reserved read -h --help";
             case $last in

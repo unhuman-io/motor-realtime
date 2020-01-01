@@ -11,8 +11,8 @@ class Motor;
 
 class MotorManager {
  public:
-    std::vector<std::shared_ptr<Motor>> get_connected_motors();
-    std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names);
+    std::vector<std::shared_ptr<Motor>> get_connected_motors(bool user_space_driver=false);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool user_space_driver=false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
     std::vector<Command> commands() const { return commands_; }
     void open();
