@@ -1,4 +1,4 @@
-add_library(motor_manager SHARED motor_manager.cpp)
+add_library(motor_manager SHARED motor_manager.cpp motor.cpp)
 target_link_libraries(motor_manager udev)
 target_include_directories(motor_manager PUBLIC ${CMAKE_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 

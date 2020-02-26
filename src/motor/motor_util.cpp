@@ -51,6 +51,7 @@ struct ReadOptions {
     bool aread;
     double frequency_hz;
     bool statistics;
+    bool text;
 };
 
 bool signal_exit = false;
@@ -64,7 +65,7 @@ int main(int argc, char** argv) {
         {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
         {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
         {"position_tuning", ModeDesired::POSITION_TUNING}, {"reset", ModeDesired::RESET}};
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false };
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false };
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -77,6 +78,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
+    read_option->add_flag("--text",read_opts.text, "Read the text interface instead");
     app.add_flag("-l,--list", list, "List connected motors");
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
@@ -149,55 +151,64 @@ int main(int argc, char** argv) {
     }
 
     if (*read_option) {
-        m.open();
-        signal(SIGINT,[](int signum){signal_exit = true;});
-        if (read_opts.statistics) {
-            ; //todo
+        if (read_opts.text) {
+            signal(SIGINT,[](int signum){signal_exit = true;});
+            while(!signal_exit) {
+                char data[64];
+                m.motors()[0]->motor_text()->read(data,64);
+                std::cout << data << std::endl;
+            }
         } else {
-            std::cout << m.status_headers() << std::endl;
-        }
-        auto start_time = std::chrono::steady_clock::now();
-        auto next_time = start_time;
-        auto loop_start_time = start_time;
-        int64_t period_ns = 1e9/read_opts.frequency_hz;
-        Statistics exec(100), period(100);
-        int i = 0;
-        while (!signal_exit) {
-            auto last_loop_start_time = loop_start_time;
-            loop_start_time = std::chrono::steady_clock::now();
-            next_time += std::chrono::nanoseconds(period_ns);
-            if (read_opts.aread) {
-                m.aread();
-            }
-            if (read_opts.poll) {
-                m.poll();
-            }
-            auto status = m.read();
-            auto exec_time = std::chrono::steady_clock::now();
-
+            m.open();
+            signal(SIGINT,[](int signum){signal_exit = true;});
             if (read_opts.statistics) {
-                i++;
-                auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(exec_time - loop_start_time).count();
-                auto last_start = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count();
-                auto last_period = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - last_loop_start_time).count();
-                exec.push(last_exec);
-                period.push(last_period);
-                if (i > 100) {
-                    i = 0;
-                    auto width = 15;
-                    std::cout << std::fixed << std::setprecision(0) << std::setw(width) << last_start << std::setw(width) << floor(period.get_mean()) << std::setw(width) << 
-                    period.get_stddev() << std::setw(width) << period.get_min()  << std::setw(width) << period.get_max() << std::setw(width) <<
-                    floor(exec.get_mean()) << std::setw(width) <<  exec.get_stddev() << std::setw(width) << exec.get_min() << std::setw(width) << exec.get_max()  << std::endl;
-                }
+                ; //todo
             } else {
-                std::cout << status << std::endl;
+                std::cout << m.status_headers() << std::endl;
             }
+            auto start_time = std::chrono::steady_clock::now();
+            auto next_time = start_time;
+            auto loop_start_time = start_time;
+            int64_t period_ns = 1e9/read_opts.frequency_hz;
+            Statistics exec(100), period(100);
+            int i = 0;
+            while (!signal_exit) {
+                auto last_loop_start_time = loop_start_time;
+                loop_start_time = std::chrono::steady_clock::now();
+                next_time += std::chrono::nanoseconds(period_ns);
+                if (read_opts.aread) {
+                    m.aread();
+                }
+                if (read_opts.poll) {
+                    m.poll();
+                }
+                auto status = m.read();
+                auto exec_time = std::chrono::steady_clock::now();
 
-            // option to not sleep
-            // while (std::chrono::steady_clock::now() < next_time);
-            std::this_thread::sleep_until(next_time);
+                if (read_opts.statistics) {
+                    i++;
+                    auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(exec_time - loop_start_time).count();
+                    auto last_start = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count();
+                    auto last_period = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - last_loop_start_time).count();
+                    exec.push(last_exec);
+                    period.push(last_period);
+                    if (i > 100) {
+                        i = 0;
+                        auto width = 15;
+                        std::cout << std::fixed << std::setprecision(0) << std::setw(width) << last_start << std::setw(width) << floor(period.get_mean()) << std::setw(width) << 
+                        period.get_stddev() << std::setw(width) << period.get_min()  << std::setw(width) << period.get_max() << std::setw(width) <<
+                        floor(exec.get_mean()) << std::setw(width) <<  exec.get_stddev() << std::setw(width) << exec.get_min() << std::setw(width) << exec.get_max()  << std::endl;
+                    }
+                } else {
+                    std::cout << status << std::endl;
+                }
+
+                // option to not sleep
+                // while (std::chrono::steady_clock::now() < next_time);
+                std::this_thread::sleep_until(next_time);
+            }
+            m.close();
         }
-        m.close();
     }
 
     return 0;
