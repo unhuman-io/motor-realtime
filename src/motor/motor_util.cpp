@@ -52,6 +52,7 @@ struct ReadOptions {
     double frequency_hz;
     bool statistics;
     bool text;
+    bool timestamp_in_seconds;
 };
 
 bool signal_exit = false;
@@ -65,7 +66,7 @@ int main(int argc, char** argv) {
         {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
         {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
         {"position_tuning", ModeDesired::POSITION_TUNING}, {"reset", ModeDesired::RESET}};
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false };
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false };
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -74,12 +75,13 @@ int main(int argc, char** argv) {
     set->add_option("--velocity", command.velocity_desired, "Velocity desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
+    read_option->add_flag("-s,--timestamp-in-seconds", read_opts.timestamp_in_seconds, "Report motor timestamp as seconds since start and unwrap");
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
     read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
     read_option->add_flag("--text",read_opts.text, "Read the text interface instead");
-    app.add_flag("-l,--list", list, "List connected motors");
+    app.add_flag("-l,--list,!--no-list", list, "List connected motors");
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
     app.add_flag("--list-path-only", list_path, "Print only connected motor paths");
@@ -164,6 +166,12 @@ int main(int argc, char** argv) {
             if (read_opts.statistics) {
                 ; //todo
             } else {
+                if (read_opts.timestamp_in_seconds) {
+                    int length = motors.size();
+                    for (int i=0;i<length;i++) {
+                        std::cout << "t_seconds" << i << ", ";
+                    }
+                }
                 std::cout << m.status_headers() << std::endl;
             }
             auto start_time = std::chrono::steady_clock::now();
@@ -200,6 +208,19 @@ int main(int argc, char** argv) {
                         floor(exec.get_mean()) << std::setw(width) <<  exec.get_stddev() << std::setw(width) << exec.get_min() << std::setw(width) << exec.get_max()  << std::endl;
                     }
                 } else {
+                    std::cout << std::fixed;
+                    if (read_opts.timestamp_in_seconds) {
+                        std::cout << std::setprecision(9);
+                        static auto last_status = status;
+                        static double *t_seconds = new double[status.size()]();
+                        for (int i = 0; i < status.size(); i++) {
+                            uint32_t dt = status[i].mcu_timestamp - last_status[i].mcu_timestamp;
+                            t_seconds[i] += dt/170.0e6;
+                            std::cout << t_seconds[i] << ", ";
+                        }
+                        last_status = status;
+                    }
+                    std::cout << std::setprecision(5);
                     std::cout << status << std::endl;
                 }
 
