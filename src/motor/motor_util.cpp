@@ -8,6 +8,7 @@
 #include "CLI11.hpp"
 #include <queue>
 #include <signal.h>
+#include <string>
 
 class Statistics {
  public:
@@ -66,6 +67,8 @@ int main(int argc, char** argv) {
         {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
         {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
         {"position_tuning", ModeDesired::POSITION_TUNING}, {"reset", ModeDesired::RESET}};
+    std::string set_api_data;
+    bool api_mode = false;
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false };
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
@@ -87,6 +90,8 @@ int main(int argc, char** argv) {
     app.add_flag("--list-path-only", list_path, "Print only connected motor paths");
     app.add_flag("-u,--user-space", user_space_driver, "Connect through user space usb");
     app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
+    auto set_api = app.add_option("--set_api", set_api_data, "Send API data (to set parameters)");
+    app.add_flag("--api", api_mode, "Enter API mode");
     CLI11_PARSE(app, argc, argv);
 
     MotorManager m;
@@ -152,13 +157,38 @@ int main(int argc, char** argv) {
         m.close();
     }
 
+    if (*set_api && motors.size()) {
+        m.motors()[0]->motor_text()->write(set_api_data.c_str(), set_api_data.size()+1);
+    }
+
+    if (api_mode && motors.size()) {
+      //  signal(SIGINT,[](int signum){signal_exit = true;});
+        std::string s;
+        bool sin = false;
+        std::thread t([&s,&sin]() { while(!signal_exit) { std::cin >> s; sin = true; } });
+        while(!signal_exit) {
+            char data[64];
+            try {
+                m.motors()[0]->motor_text()->read(data,64);
+                std::cout << data << std::endl;
+            } catch (std::runtime_error) {}
+            if (sin) {
+                m.motors()[0]->motor_text()->write(s.c_str(), s.size()+1);
+                sin = false;
+            }
+        }
+        t.join();
+    }
+
     if (*read_option) {
         if (read_opts.text) {
             signal(SIGINT,[](int signum){signal_exit = true;});
             while(!signal_exit) {
                 char data[64];
-                m.motors()[0]->motor_text()->read(data,64);
-                std::cout << data << std::endl;
+                try {
+                    m.motors()[0]->motor_text()->read(data,64);
+                    std::cout << data << std::endl;
+                } catch (std::runtime_error) {}
             }
         } else {
             m.open();

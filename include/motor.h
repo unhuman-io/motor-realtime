@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <stdexcept>
+#include <cstring>
 
 typedef struct {
     uint32_t mcu_timestamp;             // timestamp in microcontroller clock cycles
@@ -44,9 +45,10 @@ class USBFile {
         ep_num_ = ep_num;
         dev_path_ = dev_path; 
         fid_ = ::open(dev_path_.c_str(), O_RDWR); 
+        open();
         fid_flags_ = fcntl(fid_, F_GETFL);
     }
-    ~USBFile() { ::close(fid_);  }
+    ~USBFile() { close(); ::close(fid_);  }
      ssize_t read(char *data, unsigned int length) { 
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_IN,
@@ -57,26 +59,28 @@ class USBFile {
 
         int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
-            throw std::runtime_error("USB read error " + std::to_string(errno));
+            throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
-    ssize_t write(char *data, unsigned int length) { 
+    ssize_t write(const char *data, unsigned int length) { 
+        char buf[64];
+        std::memcpy(buf, data, length);
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_OUT,
             .len = length,
             .timeout = 100,
-            .data = data
+            .data = buf
         };
 
         int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
-            throw std::runtime_error("USB write error " + std::to_string(errno));
+            throw std::runtime_error("USB write error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
     int open() {
-        struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
+        struct usbdevfs_disconnect_claim claim = { 1, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
         int ioval = ::ioctl(fid_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
         if (ioval < 0) {
             throw std::runtime_error("USB open error " + std::to_string(errno));
@@ -84,12 +88,12 @@ class USBFile {
         return 0;
     }
     int close() {
-        int ep = 0;
+        int ep = ep_num_;
         int ioval = ::ioctl(fid_, USBDEVFS_RELEASEINTERFACE, &ep); 
         if (ioval < 0) {
             throw std::runtime_error("USB release interface error " + std::to_string(errno));
         }
-        struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
+        struct usbdevfs_ioctl connect = { .ifno = 1, .ioctl_code=USBDEVFS_CONNECT };
         ioval = ::ioctl(fid_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
         if (ioval < 0) {
             throw std::runtime_error("USB close error " + std::to_string(errno));
