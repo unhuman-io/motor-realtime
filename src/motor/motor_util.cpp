@@ -181,6 +181,7 @@ int main(int argc, char** argv) {
                 std::cout << data << std::endl;
             }
             if (sin) {
+               // std::cout << "s: " << s << "n: " << s.size() << std::endl;
                 m.motors()[0]->motor_text()->write(s.c_str(), s.size());
                 sin = false;
             }
