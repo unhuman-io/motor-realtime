@@ -157,23 +157,31 @@ int main(int argc, char** argv) {
         m.close();
     }
 
-    if (*set_api && motors.size()) {
-        m.motors()[0]->motor_text()->write(set_api_data.c_str(), set_api_data.size()+1);
+    if (*set_api || api_mode || *read_option && read_opts.text) {
+        if (motors.size() != 1) {
+            std::cout << "Select one motor to use api mode" << std::endl;
+            return 1;
+        }
     }
 
-    if (api_mode && motors.size()) {
-      //  signal(SIGINT,[](int signum){signal_exit = true;});
+    if (*set_api && motors.size()) {
+        auto nbytes = m.motors()[0]->motor_text()->write(set_api_data.c_str(), set_api_data.size());
+        std::cout << "wrote " << nbytes << " bytes: " << set_api_data << std::endl;
+    }
+
+    if (api_mode) {
         std::string s;
         bool sin = false;
-        std::thread t([&s,&sin]() { while(!signal_exit) { std::cin >> s; sin = true; } });
+        std::thread t([&s,&sin]() { while(1) { std::cin >> s; sin = true; } });
         while(!signal_exit) {
             char data[64];
-            try {
-                m.motors()[0]->motor_text()->read(data,64);
+            auto nbytes = m.motors()[0]->motor_text()->read(data,64);
+            if (nbytes > 0) {
+                data[nbytes] = 0;
                 std::cout << data << std::endl;
-            } catch (std::runtime_error) {}
+            }
             if (sin) {
-                m.motors()[0]->motor_text()->write(s.c_str(), s.size()+1);
+                m.motors()[0]->motor_text()->write(s.c_str(), s.size());
                 sin = false;
             }
         }
@@ -185,10 +193,11 @@ int main(int argc, char** argv) {
             signal(SIGINT,[](int signum){signal_exit = true;});
             while(!signal_exit) {
                 char data[64];
-                try {
-                    m.motors()[0]->motor_text()->read(data,64);
+                auto nbytes = m.motors()[0]->motor_text()->read(data,64);
+                if (nbytes > 0) {
+                    data[nbytes] = 0;
                     std::cout << data << std::endl;
-                } catch (std::runtime_error) {}
+                }
             }
         } else {
             m.open();

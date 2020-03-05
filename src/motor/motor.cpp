@@ -11,6 +11,9 @@ Motor::Motor(std::string dev_path) {
         name_ = "";
     }
 
+    std::string text_api_path = udev_device_get_syspath(dev);
+    motor_txt_ = new SysfsFile(text_api_path + "/device/text_api");
+
     dev = udev_device_get_parent_with_subsystem_devtype(
             dev,
             "usb",
@@ -25,8 +28,9 @@ Motor::Motor(std::string dev_path) {
     }
 
     //dev = udev_device_get_parent(dev);
-    const char * parent_dev_path = udev_device_get_devnode(dev);
-    motor_txt_ = new USBFile(parent_dev_path, 1);
+    // const char * parent_dev_path = udev_device_get_devnode(dev);
+    // motor_txt_ = new USBFile(parent_dev_path, 0);
+    
     udev_device_unref(dev);
     udev_unref(udev);  
 }

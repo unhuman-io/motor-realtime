@@ -39,7 +39,61 @@ typedef struct {
     float reserved;                     // reserved option
 } Command;
 
-class USBFile {
+class TextFile {
+ public:
+    virtual ~TextFile() {};
+    virtual ssize_t read(char *data, unsigned int length) = 0;
+    virtual ssize_t write(const char *data, unsigned int length) = 0;
+};
+
+class SysfsFile : public TextFile {
+ public:
+    SysfsFile (std::string path) {
+        path_ = path;
+    }
+    int open() {
+        int fd = ::open(path_.c_str(), O_RDWR);
+        if (fd > 0) {
+            return fd;
+        } else {
+            throw std::runtime_error("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    }
+    void close(int fd) {
+        int retval = ::close(fd);
+        if (retval) {
+            throw std::runtime_error("Sysfs close error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    }
+    ssize_t read(char *data, unsigned int length) {
+        // sysfs file needs to be opened and closed to read new values
+        int fd = open();
+        auto retval = ::read(fd, data, length);
+        close(fd);
+        if (retval < 0) {
+            if (errno == ETIMEDOUT) {
+                return 0;
+            } else {
+                throw std::runtime_error("Sysfs read error " + std::to_string(errno) + ": " + strerror(errno));
+            }
+        }
+        return retval;
+    }
+    ssize_t write(const char *data, unsigned int length) {
+        int fd = open();
+        auto retval = ::write(fd, data, length);
+        close(fd);
+        if (retval < 0) {
+            throw std::runtime_error("Sysfs write error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        return retval;
+    }
+    ~SysfsFile() {}
+ private:
+    std::string path_;
+};
+
+class USBFile : public TextFile {
  public:
     USBFile (std::string dev_path, uint8_t ep_num = 2) { 
         ep_num_ = ep_num;
@@ -73,6 +127,7 @@ class USBFile {
             .data = buf
         };
 
+        std::cout << fid_ << std::endl;
         int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
             throw std::runtime_error("USB write error " + std::to_string(errno) + ": " + strerror(errno));
@@ -80,10 +135,10 @@ class USBFile {
         return retval;
     }
     int open() {
-        struct usbdevfs_disconnect_claim claim = { 1, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
+        struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
         int ioval = ::ioctl(fid_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
         if (ioval < 0) {
-            throw std::runtime_error("USB open error " + std::to_string(errno));
+            throw std::runtime_error("USB open error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return 0;
     }
@@ -93,7 +148,7 @@ class USBFile {
         if (ioval < 0) {
             throw std::runtime_error("USB release interface error " + std::to_string(errno));
         }
-        struct usbdevfs_ioctl connect = { .ifno = 1, .ioctl_code=USBDEVFS_CONNECT };
+        struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
         ioval = ::ioctl(fid_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
         if (ioval < 0) {
             throw std::runtime_error("USB close error " + std::to_string(errno));
@@ -133,14 +188,14 @@ class Motor {
     int fd() const { return fid_; }
     const Status *const status() const { return &status_; }
     Command *const command() { return &command_; }
-    USBFile* motor_text() { return motor_txt_; }
+    TextFile* motor_text() { return motor_txt_; }
  protected:
     int fid_ = 0;
     int fid_flags_;
     std::string serial_number_, name_, dev_path_, base_path_, version_;
     Status status_ = {};
     Command command_ = {};
-    USBFile *motor_txt_;
+    TextFile *motor_txt_;
 };
 
 class UserSpaceMotor : public Motor {
