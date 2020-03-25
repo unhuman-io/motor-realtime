@@ -15,6 +15,7 @@ _motor_util_completion()
         case ${COMP_WORDS[$i]} in
             set) subcommand=set ; break ;; 
             read) subcommand=read ; break ;;
+            --set_api) subcommand=set_api ; break ;;
             -n|--names) subcommand=names ; break ;;
         esac
         (( i-- ))
@@ -22,18 +23,19 @@ _motor_util_completion()
 
     COMREPLY=()
     local words
-    local base_words="-l --list --list-names-only --list-path-only -n --names set read -v --version -h --help";
+    local base_words="-l --list --no-list --list-names-only --list-path-only -n --names set read --set_api --api -v --version -u --user-space -h --help";
     case $subcommand in
         set) words="--host_time --mode --current --position --velocity --reserved read -h --help";
             case $last in
                 --host_time|--current|--position|--velocity|--reserved) return 0 ;;
-                --mode) words="open damped current position velocity current current_tuning position_tuning reset" ;;
+                --mode) words="open damped current position velocity current current_tuning position_tuning voltage reset" ;;
             esac ;;
-        read) words="--poll --aread --frequency --statistics set -h --help";
+        read) words="--poll --aread --frequency --statistics --text -s --timestamp-in-seconds set -h --help";
             case $last in
                 --frequency) return 0 ;;
             esac ;;
         names) words="$(motor_util --list-names-only) $base_words" ;;
+        set_api) return 0 ;;
         *) words=$base_words ;;
     esac
 

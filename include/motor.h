@@ -8,6 +8,15 @@
 #include <libgen.h>
 #include <libudev.h>
 
+// user space driver
+#include <linux/usb/ch9.h> // todo why not usb.h
+#include <linux/usbdevice_fs.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <stdexcept>
+#include <cstring>
+
 typedef struct {
     uint32_t mcu_timestamp;             // timestamp in microcontroller clock cycles
     uint32_t host_timestamp_received;   // return of host_timestamp from ReceiveData
@@ -18,7 +27,7 @@ typedef struct {
     float reserved[2];
 } Status;
 
-enum ModeDesired {OPEN, DAMPED, CURRENT, POSITION, VELOCITY, CURRENT_TUNING, POSITION_TUNING, RESET=255};
+enum ModeDesired {OPEN, DAMPED, CURRENT, POSITION, VELOCITY, CURRENT_TUNING, POSITION_TUNING, VOLTAGE, RESET=255};
 
 typedef struct {
     uint32_t host_timestamp;            // Value from host
@@ -30,37 +39,135 @@ typedef struct {
     float reserved;                     // reserved option
 } Command;
 
+class TextFile {
+ public:
+    virtual ~TextFile() {};
+    virtual ssize_t read(char *data, unsigned int length) = 0;
+    virtual ssize_t write(const char *data, unsigned int length) = 0;
+};
+
+class SysfsFile : public TextFile {
+ public:
+    SysfsFile (std::string path) {
+        path_ = path;
+    }
+    int open() {
+        int fd = ::open(path_.c_str(), O_RDWR);
+        if (fd > 0) {
+            return fd;
+        } else {
+            throw std::runtime_error("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    }
+    void close(int fd) {
+        int retval = ::close(fd);
+        if (retval) {
+            throw std::runtime_error("Sysfs close error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    }
+    ssize_t read(char *data, unsigned int length) {
+        // sysfs file needs to be opened and closed to read new values
+        int fd = open();
+        auto retval = ::read(fd, data, length);
+        close(fd);
+        if (retval < 0) {
+            if (errno == ETIMEDOUT) {
+                return 0;
+            } else {
+                throw std::runtime_error("Sysfs read error " + std::to_string(errno) + ": " + strerror(errno));
+            }
+        }
+        return retval;
+    }
+    ssize_t write(const char *data, unsigned int length) {
+        int fd = open();
+        auto retval = ::write(fd, data, length);
+        close(fd);
+        if (retval < 0) {
+            throw std::runtime_error("Sysfs write error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        return retval;
+    }
+    ~SysfsFile() {}
+ private:
+    std::string path_;
+};
+
+class USBFile : public TextFile {
+ public:
+    USBFile (std::string dev_path, uint8_t ep_num = 2) { 
+        ep_num_ = ep_num;
+        dev_path_ = dev_path; 
+        fid_ = ::open(dev_path_.c_str(), O_RDWR); 
+        open();
+        fid_flags_ = fcntl(fid_, F_GETFL);
+    }
+    ~USBFile() { close(); ::close(fid_);  }
+     ssize_t read(char *data, unsigned int length) { 
+        struct usbdevfs_bulktransfer transfer = {
+            .ep = ep_num_ | USB_DIR_IN,
+            .len = length,
+            .timeout = 100,
+            .data = data
+        };
+
+        int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
+        if (retval < 0) {
+            throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        return retval;
+    }
+    ssize_t write(const char *data, unsigned int length) { 
+        char buf[64];
+        std::memcpy(buf, data, length);
+        struct usbdevfs_bulktransfer transfer = {
+            .ep = ep_num_ | USB_DIR_OUT,
+            .len = length,
+            .timeout = 100,
+            .data = buf
+        };
+
+        std::cout << fid_ << std::endl;
+        int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
+        if (retval < 0) {
+            throw std::runtime_error("USB write error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        return retval;
+    }
+    int open() {
+        struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
+        int ioval = ::ioctl(fid_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
+        if (ioval < 0) {
+            throw std::runtime_error("USB open error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        return 0;
+    }
+    int close() {
+        int ep = ep_num_;
+        int ioval = ::ioctl(fid_, USBDEVFS_RELEASEINTERFACE, &ep); 
+        if (ioval < 0) {
+            throw std::runtime_error("USB release interface error " + std::to_string(errno));
+        }
+        struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
+        ioval = ::ioctl(fid_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
+        if (ioval < 0) {
+            throw std::runtime_error("USB close error " + std::to_string(errno));
+        }
+        return 0;
+    }
+ private:
+    std::string dev_path_;
+    unsigned int ep_num_;
+    int fid_, fid_flags_;
+};
 class Motor {
  public:
-    Motor(std::string dev_path) { dev_path_ = dev_path; 
-        struct udev *udev = udev_new();
-        struct udev_device *dev = udev_device_new_from_subsystem_sysname(udev, "usbmisc", basename(const_cast<char *>(dev_path.c_str())));
-        const char * name = udev_device_get_sysattr_value(dev, "device/interface");
-        if (name != NULL) {
-            name_ = name;
-        } else {
-            name_ = "";
-        }
-
-        dev = udev_device_get_parent_with_subsystem_devtype(
-		       dev,
-		       "usb",
-		       "usb_device");
-        serial_number_ = udev_device_get_sysattr_value(dev, "serial"); 
-        base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev)));
-        const char * version = udev_device_get_sysattr_value(dev, "configuration");
-        if (version != NULL) {
-            version_ = version;
-        } else {
-            version_ = "";
-        }
-
-        udev_device_unref(dev);
-        udev_unref(udev);  }
-    ~Motor() { close(); }
-    int open() { fid_ = ::open(dev_path_.c_str(), O_RDWR); fid_flags_ = fcntl(fid_, F_GETFL); return fid_; }
-    ssize_t read() { return ::read(fid_, &status_, sizeof(status_)); };
-    ssize_t write() { return ::write(fid_, &command_, sizeof(command_)); };
+    Motor() {}
+    Motor(std::string dev_path);
+    virtual ~Motor();
+    virtual int open() { fid_ = ::open(dev_path_.c_str(), O_RDWR); fid_flags_ = fcntl(fid_, F_GETFL); return fid_; }
+    virtual ssize_t read() { return ::read(fid_, &status_, sizeof(status_)); };
+    virtual ssize_t write() { return ::write(fid_, &command_, sizeof(command_)); };
     ssize_t aread() { int fcntl_error = fcntl(fid_, F_SETFL, fid_flags_ | O_NONBLOCK);
 			ssize_t read_error = read(); 
             fcntl_error = fcntl(fid_, F_SETFL, fid_flags_);
@@ -77,16 +184,117 @@ class Motor {
     std::string base_path() const {return base_path_; }
     std::string dev_path() const { return dev_path_; }
     std::string version() const { return version_; }
-    int close() { return ::close(fid_); }
+    virtual int close() { return ::close(fid_); }
     int fd() const { return fid_; }
     const Status *const status() const { return &status_; }
     Command *const command() { return &command_; }
- private:
+    TextFile* motor_text() { return motor_txt_; }
+ protected:
     int fid_ = 0;
     int fid_flags_;
     std::string serial_number_, name_, dev_path_, base_path_, version_;
     Status status_ = {};
     Command command_ = {};
+    TextFile *motor_txt_;
+};
+
+class UserSpaceMotor : public Motor {
+ public:
+    UserSpaceMotor(std::string dev_path, uint8_t ep_num = 2) { 
+        ep_num_ = ep_num;
+        dev_path_ = dev_path; 
+        struct udev *udev = udev_new();
+        struct stat st;
+        if (stat(dev_path.c_str(), &st) < 0) {
+            throw std::runtime_error("Motor stat error " + std::to_string(errno));
+        }
+        struct udev_device *dev = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
+                const char * sysname = udev_device_get_sysname(dev);
+        const char * subsystem = udev_device_get_subsystem(dev);
+        const char * devpath = udev_device_get_devpath(dev);
+        //struct udev_device *dev = udev_device_new_from_syspath(udev, syspath;
+       // struct udev_device *dev = udev_device_new_from_subsystem_sysname(udev, "usb", sysname);
+        std::string interface_name = sysname;
+        interface_name += ":1.0/interface";
+        const char * name = udev_device_get_sysattr_value(dev, interface_name.c_str());
+        if (name != NULL) {
+            name_ = name;
+        } else {
+            name_ = "";
+        }
+
+        // dev = udev_device_get_parent_with_subsystem_devtype(
+		//        dev,
+		//        "usb",
+		//        "usb_device");
+        serial_number_ = udev_device_get_sysattr_value(dev, "serial"); 
+        base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev)));
+        const char * version = udev_device_get_sysattr_value(dev, "configuration");
+        if (version != NULL) {
+            version_ = version;
+        } else {
+            version_ = "";
+        }
+        motor_txt_ = new USBFile(dev_path, 1);
+        udev_device_unref(dev);
+        udev_unref(udev);  
+    }
+    virtual ~UserSpaceMotor() {  }
+    virtual ssize_t read() { 
+        char data[64];
+        struct usbdevfs_bulktransfer transfer = {
+            .ep = ep_num_ | USB_DIR_IN,
+            .len = sizeof(status_),
+            .timeout = 100,
+            .data = &status_
+        };
+
+        int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
+        if (retval < 0) {
+            throw std::runtime_error("Motor read error " + std::to_string(errno));
+        }
+        return retval;
+    }
+    virtual ssize_t write() { 
+        char data[64];
+        struct usbdevfs_bulktransfer transfer = {
+            .ep = ep_num_ | USB_DIR_OUT,
+            .len = sizeof(command_),
+            .timeout = 100,
+            .data = &command_
+        };
+
+        int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
+        if (retval < 0) {
+            throw std::runtime_error("Motor write error " + std::to_string(errno));
+        }
+        return retval;
+    }
+
+    virtual int open() {
+        int retval = Motor::open();
+        struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
+        int ioval = ::ioctl(fid_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
+        if (ioval < 0) {
+            throw std::runtime_error("Motor open error " + std::to_string(errno));
+        }
+        return retval;
+    }
+    virtual int close() {
+        int ep = 0;
+        int ioval = ::ioctl(fid_, USBDEVFS_RELEASEINTERFACE, &ep); 
+        if (ioval < 0) {
+            throw std::runtime_error("Motor release interface error " + std::to_string(errno));
+        }
+        struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
+        ioval = ::ioctl(fid_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
+        if (ioval < 0) {
+            throw std::runtime_error("Motor close error " + std::to_string(errno));
+        }
+        return Motor::close();
+    }
+ private:
+    unsigned int ep_num_;
 };
 
 #endif
