@@ -66,7 +66,8 @@ int main(int argc, char** argv) {
     std::vector<std::pair<std::string, ModeDesired>> mode_map{
         {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
         {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
-        {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, {"reset", ModeDesired::RESET}};
+        {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, {"phase_lock", ModeDesired::PHASE_LOCK}, 
+        {"reset", ModeDesired::RESET}};
     std::string set_api_data;
     bool api_mode = false;
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false };
