@@ -54,6 +54,9 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> com
       os << c.velocity_desired << ", ";
    }
    for (auto c : command) {
+      os << c.torque_desired << ", ";
+   }
+   for (auto c : command) {
       os << c.reserved << ", ";
    }
 
@@ -76,6 +79,9 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    }
    for (auto s : status) {
       os << s.iq << ", ";
+   }
+   for (auto s : status) {
+      os << s.torque << ", ";
    }
    for (auto s : status) {
       os << s.motor_encoder << ", ";

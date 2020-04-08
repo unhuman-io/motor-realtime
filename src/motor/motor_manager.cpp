@@ -222,6 +222,9 @@ std::string MotorManager::status_headers() const {
         ss << "iq" << i << ", ";
     }
     for (int i=0;i<length;i++) {
+        ss << "torque" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
         ss << "motor_encoder" << i << ", ";
     }
     for (int i=0;i<length;i++) {

@@ -25,10 +25,10 @@ _motor_util_completion()
     local words
     local base_words="-l --list --no-list --list-names-only --list-path-only -n --names set read --set_api --api -v --version -u --user-space -h --help";
     case $subcommand in
-        set) words="--host_time --mode --current --position --velocity --reserved read -h --help";
+        set) words="--host_time --mode --current --position --velocity --torque --reserved read -h --help";
             case $last in
                 --host_time|--current|--position|--velocity|--reserved) return 0 ;;
-                --mode) words="open damped current position velocity current current_tuning position_tuning voltage phase_lock reset" ;;
+                --mode) words="open damped current position velocity torque impedance current_tuning position_tuning voltage phase_lock reset" ;;
             esac ;;
         read) words="--poll --aread --frequency --statistics --text -s --timestamp-in-seconds set -h --help";
             case $last in

@@ -65,7 +65,8 @@ int main(int argc, char** argv) {
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map{
         {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
-        {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
+        {"position", ModeDesired::POSITION}, {"torque", ModeDesired::TORQUE}, {"impedance", ModeDesired::IMPEDANCE}, 
+        {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
         {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, {"phase_lock", ModeDesired::PHASE_LOCK}, 
         {"reset", ModeDesired::RESET}};
     std::string set_api_data;
@@ -77,6 +78,7 @@ int main(int argc, char** argv) {
     set->add_option("--current", command.current_desired, "Current desired");
     set->add_option("--position", command.position_desired, "Position desired");
     set->add_option("--velocity", command.velocity_desired, "Velocity desired");
+    set->add_option("--torque", command.torque_desired, "Torque desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("-s,--timestamp-in-seconds", read_opts.timestamp_in_seconds, "Report motor timestamp as seconds since start and unwrap");
