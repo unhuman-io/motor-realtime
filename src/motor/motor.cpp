@@ -33,6 +33,7 @@ Motor::Motor(std::string dev_path) {
     
     udev_device_unref(dev);
     udev_unref(udev);  
+    open();
 }
 
  Motor::~Motor() { close(); delete motor_txt_; }

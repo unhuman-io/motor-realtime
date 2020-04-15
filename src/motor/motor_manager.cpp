@@ -25,8 +25,8 @@ static std::vector<std::string> udev (bool user_space_driver=false)
 	/* Create a list of the devices in the 'hidraw' subsystem. */
 	enumerate = udev_enumerate_new(udev);
     if (user_space_driver) {
-        udev_enumerate_add_match_sysattr(enumerate, "idVendor", "0483");
-        udev_enumerate_add_match_sysattr(enumerate, "idProduct", "5741");
+        udev_enumerate_add_match_sysattr(enumerate, "idVendor", "3293");
+        udev_enumerate_add_match_sysattr(enumerate, "idProduct", "0100");
     } else {
         udev_enumerate_add_match_sysname(enumerate, "usbrt*");
         udev_enumerate_add_match_sysname(enumerate, "mtr*");

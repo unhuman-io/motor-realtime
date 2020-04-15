@@ -153,11 +153,9 @@ int main(int argc, char** argv) {
     }
 
     if (*set && motors.size()) {
-        m.open();
         auto commands = std::vector<Command>(motors.size(), command);
         std::cout << "Writing commands: \n" << m.command_headers() << std::endl << commands << std::endl;
         m.write(commands);
-        m.close();
     }
 
     if (*set_api || api_mode || *read_option && read_opts.text) {
@@ -204,7 +202,6 @@ int main(int argc, char** argv) {
                 }
             }
         } else {
-            m.open();
             signal(SIGINT,[](int signum){signal_exit = true;});
             if (read_opts.statistics) {
                 ; //todo
@@ -271,7 +268,6 @@ int main(int argc, char** argv) {
                 // while (std::chrono::steady_clock::now() < next_time);
                 std::this_thread::sleep_until(next_time);
             }
-            m.close();
         }
     }
 
