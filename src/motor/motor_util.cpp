@@ -259,7 +259,7 @@ int main(int argc, char** argv) {
                     std::cout << std::fixed;
                     std::cout << std::setprecision(9);
                     if (read_opts.host_time) {
-                        std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count()/1e9;
+                        std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count()/1e9 << ",";
                     }
                     if (read_opts.timestamp_in_seconds) {
                         
