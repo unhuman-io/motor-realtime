@@ -54,6 +54,7 @@ struct ReadOptions {
     bool statistics;
     bool text;
     bool timestamp_in_seconds;
+    bool host_time;
 };
 
 bool signal_exit = false;
@@ -87,6 +88,7 @@ int main(int argc, char** argv) {
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
     read_option->add_flag("--text",read_opts.text, "Read the text interface instead");
+    read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
     app.add_flag("-l,--list,!--no-list", list, "List connected motors");
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
@@ -209,6 +211,9 @@ int main(int argc, char** argv) {
             if (read_opts.statistics) {
                 ; //todo
             } else {
+                if (read_opts.host_time) {
+                    std::cout << "t_host,";
+                }
                 if (read_opts.timestamp_in_seconds) {
                     int length = motors.size();
                     for (int i=0;i<length;i++) {
@@ -252,8 +257,12 @@ int main(int argc, char** argv) {
                     }
                 } else {
                     std::cout << std::fixed;
+                    std::cout << std::setprecision(9);
+                    if (read_opts.host_time) {
+                        std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count()/1e9;
+                    }
                     if (read_opts.timestamp_in_seconds) {
-                        std::cout << std::setprecision(9);
+                        
                         static auto last_status = status;
                         static double *t_seconds = new double[status.size()]();
                         for (int i = 0; i < status.size(); i++) {
