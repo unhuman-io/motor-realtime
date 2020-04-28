@@ -16,10 +16,6 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include <sys/socket.h> 
-#include <netinet/in.h> 
-#include <arpa/inet.h>
-
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -27,6 +23,7 @@
 #include "motor_manager.h"
 #include <fstream>
 #include "controller.h"
+#include <cmath>
 
 #define PORT 8080 
 
@@ -88,10 +85,10 @@ return syscall(__NR_sched_getattr, pid, attr, size, flags);
 struct Data {
   std::vector<Status> statuses;
 	std::vector<Command> commands;
-	std::vector<int32_t> delay;
 	std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end, aread_time, read_time, control_time, write_time;
 };
 
+// A circular stack. If data is written by one thread and read by one other thread, data is read from the top without worrying about thread safety.
 template <class T>
 class CStack {
  public:
@@ -111,10 +108,6 @@ class CStack {
 	int pos_ = 0;
 };
 
-int sock;
-bool send_tcp = false;
-
-
 class Task {
  public:
   Task(CStack<Data> &cstack, MotorManager &motors) : cstack_(cstack), motors_(motors), 
@@ -126,7 +119,6 @@ class Task {
 		}
 		data_.commands.resize(motors_.motors().size());
 		data_.statuses.resize(motors_.motors().size());
-		data_.delay.resize(motors_.motors().size());
 
 		controller_.set_current(1);
 		controller_.set_position(0);
@@ -187,40 +179,23 @@ class Task {
 			data_.read_time = std::chrono::steady_clock::now();
 
 			motors_.set_command_count(x);
-			motors_.set_command_mode(2);
-			data_.commands = motors_.commands();
-
-			// switch from current to position at 10 seconds
-			if (std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() >= 1 &&
-					first_switch_) {
-				first_switch_ = 0;
-				controller_.set_current(0);
-				controller_.set_mode(Controller::POSITION);
-			}
-
+			motors_.set_command_mode(ModeDesired::POSITION);
+	
 			// a square wave in position
-			double position = std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() % 2;
-			controller_.set_position(10*position);
+			//double position = std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() % 2;
+			double position = 10*std::sin(std::chrono::duration_cast<std::chrono::nanoseconds>(data_.time_start - start_time_).count() / 1.0e9);
+			double velocity = 10*std::cos(std::chrono::duration_cast<std::chrono::nanoseconds>(data_.time_start - start_time_).count() / 1.0e9);
+			//controller_.set_position(10*position);
 
-			controller_.update(data_.statuses, data_.commands);
+		//	controller_.update(data_.statuses, data_.commands);
+			motors_.set_command_position(std::vector<float>(motors_.motors().size(), position));
+			motors_.set_command_velocity(std::vector<float>(motors_.motors().size(), velocity));
 
-			motors_.set_commands(data_.commands);
-
-			for (int i=0; i<motors_.motors().size(); i++) {
-				data_.delay[i] = x - data_.statuses[i].host_timestamp_received;
-				if (data_.delay[i] > 1) {
-					//std::cout << "Delay > 1: " << data_.delay[i] << std::endl;
-				}	
-			}
 			data_.control_time = std::chrono::steady_clock::now();
 
 			motors_.write_saved_commands();
+			data_.commands = motors_.commands();
 			data_.write_time = std::chrono::steady_clock::now();
-
-
-			if (send_tcp) {
-				send(sock , &data_ , 20 , 0 ); 
-			}
 
 			cstack_.push(data_);
 			data_.last_time_end = std::chrono::steady_clock::now();
@@ -240,50 +215,13 @@ class Task {
 	Data data_;
 	
 	std::chrono::steady_clock::time_point start_time_, next_time_;
-	long period_ns_ =   500 * 1000;
+	long period_ns_ =  400 * 1000;
 	int fid_;
 	int fid_flags_;
 	MotorManager &motors_;
 	Controller controller_;
 	int first_switch_ = 1;
 };
-
-
-
-int setup_socket() {
-    struct sockaddr_in address; 
-    int valread; 
-    struct sockaddr_in serv_addr; 
-    char hello[] = "Hello from client"; 
-    char buffer[1024] = {0}; 
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-    { 
-        printf("\n Socket creation error \n"); 
-        return -1; 
-    } 
-   
-    memset(&serv_addr, '0', sizeof(serv_addr)); 
-   
-    serv_addr.sin_family = AF_INET; 
-    serv_addr.sin_port = htons(PORT); 
-       
-    // Convert IPv4 and IPv6 addresses from text to binary form 
-    if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0)  
-    { 
-        printf("\nInvalid address/ Address not supported \n"); 
-        return -1; 
-    } 
-   
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
-    { 
-        printf("\nConnection Failed a\n"); 
-		send_tcp = false;
-    } else {
-		send_tcp = true;
-	}
-
-    return 0; 
-}
 
 #include <csignal>
 sig_atomic_t volatile running = 1;
@@ -294,7 +232,6 @@ int main (int argc, char **argv)
 	//auto motors = motor_manager.get_motors_by_name({"J1", "J2", "J3", "J4", "J5", "J6"});
 	// or just get all the motors
 	auto motors = motor_manager.get_connected_motors();
-	setup_socket();
 	printf("main thread [%ld]\n", gettid());
 	CStack<Data> cstack;
 	Task task(cstack, motor_manager);
