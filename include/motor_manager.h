@@ -31,6 +31,9 @@ class MotorManager {
     void set_command_velocity(std::vector<float> velocity);
     std::string command_headers() const;
     std::string status_headers() const;
+    int serialize_command_size() const;
+    int serialize_saved_commands(char *data) const;
+    bool deserialize_saved_commands(char *data);
  private:
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;

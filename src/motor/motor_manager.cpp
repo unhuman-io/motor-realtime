@@ -168,6 +168,37 @@ void MotorManager::write_saved_commands() {
     write(commands_);
 }
 
+int MotorManager::serialize_command_size() const {
+    return sizeof(commands_.size()) + commands_.size() * sizeof(commands_[0]);
+}
+
+int MotorManager::serialize_saved_commands(char *data) const {
+    char *datastart = data;
+    auto size = commands_.size();
+    std::memcpy(data, &size, sizeof(size));
+    data += sizeof(size);
+    for (int i=0; i<commands_.size(); i++) {
+        std::memcpy(data, &commands_[i], sizeof(commands_[0]));
+        data += sizeof(commands_[0]);
+    }
+    return data - datastart;
+}
+
+bool MotorManager::deserialize_saved_commands(char *data) {
+   auto size = commands_.size();
+   decltype(commands_.size()) size_in;
+   std::memcpy(&size_in, data, sizeof(size_in));
+   if (size_in == size) {
+        data += sizeof(size_in);
+        for (int i=0; i<commands_.size(); i++) {
+            std::memcpy(&commands_[i], data, sizeof(commands_[0]));
+            data += sizeof(commands_[0]);
+        }
+        return true;
+   }
+   return false;
+}
+
 int MotorManager::poll() {
     auto pollfds = new pollfd[motors_.size()];
     for (int i=0; i<motors_.size(); i++) {

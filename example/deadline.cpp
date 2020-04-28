@@ -24,6 +24,7 @@
 #include <fstream>
 #include "controller.h"
 #include <cmath>
+#include <poll.h>
 
 #define PORT 8080 
 
@@ -162,6 +163,12 @@ class Task {
 			not_root = 1;
 		}
 
+		if (pipe_) {
+			umask(0000);
+			mkfifo("/tmp/deadline", 0666);
+			pipe_fd_ = open("/tmp/deadline", O_RDWR | O_NONBLOCK); // read write so this keeps the fifo open
+		}
+
 		while (!done_) {
 			x++;
 			next_time_ += std::chrono::nanoseconds(period_ns_);
@@ -169,30 +176,46 @@ class Task {
 			data_.time_start = std::chrono::steady_clock::now();
 
 			// start a read on all motors
-			//motors_.aread();
+			motors_.aread();
 			// poll all motors, will block until at least one has data
-			motors_.poll();
+			//motors_.poll();
 			data_.aread_time = std::chrono::steady_clock::now();
+
+			if (pipe_) {
+				// check for data on the pipe, timeout before a usb read is likely to finish
+				pollfd pipe_fds[] = {{.fd=pipe_fd_, .events=POLLIN}};
+				timespec timeout_ts = {.tv_nsec=100 * 1000};
+				int retval = ppoll(pipe_fds, 1, &timeout_ts, NULL);
+				if (retval) {
+					char data[motors_.serialize_command_size()];
+					int n = read(pipe_fd_, data, motors_.serialize_command_size());
+					//printf("read %d bytes\n",n);
+					if (n == motors_.serialize_command_size()) {
+						motors_.deserialize_saved_commands(data);
+					}
+				}
+				//pipe_commands_ = pipe_.read();
+			}
 
 			// blocking io to get the data alread set up and wait if not ready yet
 			data_.statuses = motors_.read();
 			data_.read_time = std::chrono::steady_clock::now();
 
-			motors_.set_command_count(x);
-			motors_.set_command_mode(ModeDesired::POSITION);
-	
-			// a square wave in position
-			//double position = std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() % 2;
-			double position = 10*std::sin(std::chrono::duration_cast<std::chrono::nanoseconds>(data_.time_start - start_time_).count() / 1.0e9);
-			double velocity = 10*std::cos(std::chrono::duration_cast<std::chrono::nanoseconds>(data_.time_start - start_time_).count() / 1.0e9);
-			//controller_.set_position(10*position);
+			if (!pipe_) { // a demo
+				motors_.set_command_count(x);
+				motors_.set_command_mode(ModeDesired::POSITION);
+		
+				// a square wave in position
+				//double position = std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() % 2;
+				double position = 10*std::sin(std::chrono::duration_cast<std::chrono::nanoseconds>(data_.time_start - start_time_).count() / 1.0e9);
+				double velocity = 10*std::cos(std::chrono::duration_cast<std::chrono::nanoseconds>(data_.time_start - start_time_).count() / 1.0e9);
+				motors_.set_command_position(std::vector<float>(motors_.motors().size(), position));
+				motors_.set_command_velocity(std::vector<float>(motors_.motors().size(), velocity));
 
-		//	controller_.update(data_.statuses, data_.commands);
-			motors_.set_command_position(std::vector<float>(motors_.motors().size(), position));
-			motors_.set_command_velocity(std::vector<float>(motors_.motors().size(), velocity));
-
+				
+			}
+			
 			data_.control_time = std::chrono::steady_clock::now();
-
 			motors_.write_saved_commands();
 			data_.commands = motors_.commands();
 			data_.write_time = std::chrono::steady_clock::now();
@@ -207,6 +230,11 @@ class Task {
 			}
 		}
 
+		if (pipe_) {
+			close(pipe_fd_);
+			remove("/tmp/deadline");
+		}
+
 		printf("deadline thread dies [%ld]\n", gettid());
 	}
 	std::thread *thread_;
@@ -215,12 +243,15 @@ class Task {
 	Data data_;
 	
 	std::chrono::steady_clock::time_point start_time_, next_time_;
-	long period_ns_ =  400 * 1000;
+	long period_ns_ =  500 * 1000;
 	int fid_;
 	int fid_flags_;
 	MotorManager &motors_;
 	Controller controller_;
 	int first_switch_ = 1;
+	bool pipe_ = true;
+	int pipe_fd_ = 0;
+	std::vector<Command> pipe_commands_;
 };
 
 #include <csignal>
@@ -244,7 +275,7 @@ int main (int argc, char **argv)
 
 	signal(SIGINT, [] (int signum) {running = 0;});
 
-	for(int i=0; i<100; i++) {
+	for(int i=0;; i++) {
 		if (!running) {
 			break;
 		}
