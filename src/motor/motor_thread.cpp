@@ -33,6 +33,7 @@ void MotorThread::update() {
     data_.write_time = std::chrono::steady_clock::now();
 
     post_update();
+    cstack_.push(data_);
     RealtimeThread::update();
     data_.last_time_end = std::chrono::steady_clock::now();
 }
