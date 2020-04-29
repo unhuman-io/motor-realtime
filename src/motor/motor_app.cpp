@@ -29,10 +29,10 @@ MotorApp::MotorApp(int argc, char **argv, MotorThread *motor_thread)
 int MotorApp::run() {
 	//auto motors = motor_manager.get_motors_by_name({"J1", "J2", "J3", "J4", "J5", "J6"});
 	// or just get all the motors
+    printf("main thread [%d]\n", gettid());
     auto &motor_manager = motor_thread_->motor_manager();
 	motor_manager.get_connected_motors();
     motor_thread_->init();
-	printf("main thread [%d]\n", gettid());
 	auto &cstack = motor_thread_->cstack();
 	
 	motor_thread_->run();
