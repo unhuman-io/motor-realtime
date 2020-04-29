@@ -1,12 +1,10 @@
 #include "motor_app.h"
 #include "motor_thread.h"
-#include "motor_manager.h"
 #include <poll.h>
 
 class Task : public MotorThread {
  public:
-  Task(MotorManager &motors)
-		: MotorThread(motors, 2000) {
+  Task() : MotorThread(2000) {
 		umask(0000);
 		mkfifo("/tmp/deadline", 0666);
 		pipe_fd_ = open("/tmp/deadline", O_RDWR | O_NONBLOCK); // read write so this keeps the fifo open
@@ -40,9 +38,7 @@ class Task : public MotorThread {
 
 int main (int argc, char **argv)
 {	
-	MotorManager motor_manager;
-	motor_manager.get_connected_motors();
-	Task task(motor_manager);
+	Task task;
 	auto app = MotorApp(argc, argv, &task);
 	return app.run();
 }

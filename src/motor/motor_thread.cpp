@@ -1,8 +1,10 @@
 #include "motor_thread.h"
-#include "motor_manager.h"
 
-MotorThread::MotorThread(MotorManager &motor_manager, uint32_t frequency_hz)
-    : motor_manager_(motor_manager), RealtimeThread(frequency_hz) {
+MotorThread::MotorThread(uint32_t frequency_hz)
+    : RealtimeThread(frequency_hz) {
+}
+
+void MotorThread::init() {
     motor_manager_.open();
     std::cout << "Connecting to motors:" << std::endl;
     for (auto m : motor_manager_.motors()) {
