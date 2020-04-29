@@ -1,9 +1,11 @@
-add_library(motor_manager SHARED motor_manager.cpp motor.cpp realtime_thread.cpp)
+add_library(motor_manager SHARED motor_manager.cpp motor.cpp realtime_thread.cpp motor_thread.cpp)
 target_link_libraries(motor_manager udev)
 target_include_directories(motor_manager PUBLIC ${CMAKE_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
     ${CMAKE_SOURCE_DIR}/include/motor_manager.h
-    ${CMAKE_SOURCE_DIR}/include/motor.h)
+    ${CMAKE_SOURCE_DIR}/include/motor.h
+    ${CMAKE_SOURCE_DIR}/include/realtime_thread.h
+    ${CMAKE_SOURCE_DIR}/include/motor_thread.h)
 set_target_properties(motor_manager PROPERTIES PUBLIC_HEADER 
     "${MOTOR_MANAGER_PUBLIC_HEADERS}")
 install(TARGETS motor_manager

@@ -8,6 +8,7 @@
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <sys/syscall.h>
+#include <sys/mman.h>
 
 #include <chrono>
 #include <thread>
@@ -75,13 +76,19 @@ void RealtimeThread::run() {
 
 void RealtimeThread::done() {
 	done_ = true; 
-	thread_->join();
+	if (exit_.get_future().wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
+		printf("Difficulty stopping realtime thread\n");
+	} else {
+		thread_->join();
+		printf("Realtime thread joined\n");
+	}
 	delete thread_;
 }
 
 void RealtimeThread::run_deadline()
 {
 	printf("realtime thread started period_ns = %d, [%ld]\n", period_ns_, gettid());
+	exit_ = std::promise<void>();
 
 	struct sched_attr attr;
 	attr.size = sizeof(attr);
@@ -105,7 +112,13 @@ void RealtimeThread::run_deadline()
 		printf("Running deadline scheduler\n");
 	}
 
+	ret = mlockall(MCL_CURRENT | MCL_FUTURE);
+	if (ret < 0) {
+		perror("Error locking memory");
+	}
+
 	auto next_time = std::chrono::steady_clock::now();
+	start_time_ = next_time;
 	while (!done_) {
 		next_time += std::chrono::nanoseconds(period_ns_);
 
@@ -118,5 +131,6 @@ void RealtimeThread::run_deadline()
 		}
 	}
 
-	printf("realtime thread dies [%ld]\n", gettid());
+	exit_.set_value();
+	printf("realtime thread finish [%ld]\n", gettid());
 }

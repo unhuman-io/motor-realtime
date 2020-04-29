@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <future>
+#include <chrono>
 
 namespace std {
     class thread;
@@ -14,9 +16,11 @@ class RealtimeThread {
 	void done();
  protected:
     virtual void update() {}
+    std::chrono::steady_clock::time_point start_time_;
  private:
     void run_deadline();
     std::thread *thread_;
 	uint32_t period_ns_;
     bool done_ = false;
+    std::promise<void> exit_;
 };

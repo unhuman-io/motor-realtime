@@ -13,14 +13,10 @@
 #include "controller.h"
 #include <cmath>
 #include <poll.h>
-#include "realtime_thread.h"
+#include "motor_thread.h"
 #include <thread>
 
-struct Data {
-  std::vector<Status> statuses;
-	std::vector<Command> commands;
-	std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end, aread_time, read_time, control_time, write_time;
-};
+
 
 // A circular stack. If data is written by one thread and read by one other thread, data is read from the top without worrying about thread safety.
 template <class T>
@@ -42,104 +38,67 @@ class CStack {
 	int pos_ = 0;
 };
 
-class Task : public RealtimeThread {
+class Task : public MotorThread {
  public:
-  Task(CStack<Data> &cstack, MotorManager &motors) : cstack_(cstack), motors_(motors), 
-			controller_(motors.motors().size()), RealtimeThread(2000) {
-		motors_.open();
-		std::cout << "Connecting to motors:" << std::endl;
-		for (auto m : motors_.motors()) {
-			std:: cout << m->name() << std::endl;
-		}
-		data_.commands.resize(motors_.motors().size());
-		data_.statuses.resize(motors_.motors().size());
-
-		controller_.set_current(1);
-		controller_.set_position(0);
-		controller_.set_mode(Controller::CURRENT);
-
+  Task(CStack<Data> &cstack, MotorManager &motors) : cstack_(cstack),
+			controller_(motors.motors().size()), MotorThread(motors, 2000) {
 		if (pipe_) {
 			umask(0000);
 			mkfifo("/tmp/deadline", 0666);
 			pipe_fd_ = open("/tmp/deadline", O_RDWR | O_NONBLOCK); // read write so this keeps the fifo open
 		}
-		x=0;
 	}
 	~Task() {
 		if (pipe_) {
 			close(pipe_fd_);
 			remove("/tmp/deadline");
 		}
-		motors_.close();
+		motor_manager_.close();
 	}
  protected:
-	virtual void update() {
-		x++;
-		data_.last_time_start = data_.time_start;
-		data_.time_start = std::chrono::steady_clock::now();
-
-		// start a read on all motors
-		motors_.aread();
-		// poll all motors, will block until at least one has data
-		//motors_.poll();
-		data_.aread_time = std::chrono::steady_clock::now();
-
+	virtual void pre_update() {
 		if (pipe_) {
 			// check for data on the pipe, timeout before a usb read is likely to finish
 			pollfd pipe_fds[] = {{.fd=pipe_fd_, .events=POLLIN}};
 			timespec timeout_ts = {.tv_nsec=100 * 1000};
 			int retval = ppoll(pipe_fds, 1, &timeout_ts, NULL);
 			if (retval) {
-				char data[motors_.serialize_command_size()];
-				int n = read(pipe_fd_, data, motors_.serialize_command_size());
+				char data[motor_manager_.serialize_command_size()];
+				int n = read(pipe_fd_, data, motor_manager_.serialize_command_size());
 				//printf("read %d bytes\n",n);
-				if (n == motors_.serialize_command_size()) {
-					motors_.deserialize_saved_commands(data);
+				if (n == motor_manager_.serialize_command_size()) {
+					motor_manager_.deserialize_saved_commands(data);
 				}
 			}
 			//pipe_commands_ = pipe_.read();
 		}
+	}
 
-		// blocking io to get the data alread set up and wait if not ready yet
-		data_.statuses = motors_.read();
-		data_.read_time = std::chrono::steady_clock::now();
-
+	virtual void controller_update() {
 		if (!pipe_) { // a demo
-			motors_.set_command_count(x);
-			motors_.set_command_mode(ModeDesired::POSITION);
+			motor_manager_.set_command_count(x_++);
+			motor_manager_.set_command_mode(ModeDesired::POSITION);
 	
 			// a square wave in position
 			//double position = std::chrono::duration_cast<std::chrono::seconds>(data_.time_start - start_time_).count() % 2;
 			double position = 10*std::sin(std::chrono::duration_cast<std::chrono::nanoseconds>(data_.time_start - start_time_).count() / 1.0e9);
 			double velocity = 10*std::cos(std::chrono::duration_cast<std::chrono::nanoseconds>(data_.time_start - start_time_).count() / 1.0e9);
-			motors_.set_command_position(std::vector<float>(motors_.motors().size(), position));
-			motors_.set_command_velocity(std::vector<float>(motors_.motors().size(), velocity));
-
-			
+			motor_manager_.set_command_position(std::vector<float>(motor_manager_.motors().size(), position));
+			motor_manager_.set_command_velocity(std::vector<float>(motor_manager_.motors().size(), velocity));
 		}
-		
-		data_.control_time = std::chrono::steady_clock::now();
-		motors_.write_saved_commands();
-		data_.commands = motors_.commands();
-		data_.write_time = std::chrono::steady_clock::now();
+	}
 
+	virtual void post_update() {
 		cstack_.push(data_);
-		data_.last_time_end = std::chrono::steady_clock::now();
-}
+	}
 
  private:
 	CStack<Data> &cstack_;
-	Data data_;
-	
-	std::chrono::steady_clock::time_point start_time_;
-	int fid_;
-	int fid_flags_;
-	MotorManager &motors_;
 	Controller controller_;
 	int first_switch_ = 1;
 	bool pipe_ = true;
 	int pipe_fd_ = 0;
-	uint32_t x;
+	uint32_t x_ = 0;
 };
 
 #include <csignal>
