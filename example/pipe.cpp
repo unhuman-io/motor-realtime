@@ -31,7 +31,6 @@ class Task : public MotorThread {
 	}
 
  private:
-	int first_switch_ = 1;
 	int pipe_fd_ = 0;
 	uint32_t x_ = 0;
 };

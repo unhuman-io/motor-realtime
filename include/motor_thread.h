@@ -39,6 +39,7 @@ class MotorThread : public RealtimeThread {
     void init();
     MotorManager& motor_manager() { return motor_manager_; }
  protected:
+    virtual void post_init() {}
     virtual void pre_update() {}
     virtual void controller_update() {}
     virtual void post_update() {}

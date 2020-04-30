@@ -12,6 +12,7 @@ void MotorThread::init() {
     }
     data_.commands.resize(motor_manager_.motors().size());
     data_.statuses.resize(motor_manager_.motors().size());
+    post_init();
 }
 
 void MotorThread::update() {
