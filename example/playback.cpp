@@ -21,14 +21,13 @@ class Task : public MotorThread {
 		uint64_t timestamp;
 		std::vector<Command> commands;
 		commands.resize(motor_manager_.motors().size());
-		//std::cout << s << x_++ << std::endl;
+		//std::cout << s << std::endl;
 		iss >> timestamp >> s2 >> commands;
-		std::cout << timestamp << ", " << commands << std::endl;
+		//std::cout << timestamp << ", " << commands << std::endl;
 		motor_manager_.set_commands(commands);
 	}
 
  private:
-	uint32_t x_ = 0;
 	std::ifstream data_file_;
 	int size_commands_ = 1;
 };
