@@ -66,6 +66,36 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> com
    return os;
 }
 
+inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
+{
+   char s;
+   for (auto &c : command) {
+      is >> c.host_timestamp >> s;
+   }
+   for (auto &c : command) {
+      uint16_t u;
+      is >> u >> s;
+      c.mode_desired = u;
+   }
+   for (auto &c : command) {
+      is >> c.current_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.position_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.velocity_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.torque_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.reserved >> s;
+   }
+
+   return is;
+}
+
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
 {
    for (auto s : status) {

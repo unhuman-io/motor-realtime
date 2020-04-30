@@ -23,7 +23,7 @@ double current_gain = 500;
 class Task : public MotorThread {
  public:
   Task() : MotorThread(2000) {
-		fd_ = open("/dev/hidraw7", O_RDONLY);
+		fd_ = open("/dev/hidraw8", O_RDONLY);
 	}
 	~Task() {
 		close(fd_);
