@@ -18,6 +18,7 @@
 #include "motor_thread.h"
 #include <thread>
 
+#include <sys/types.h>
 #include <csignal>
 sig_atomic_t volatile running = 1;
 
