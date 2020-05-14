@@ -11,8 +11,8 @@ class Motor;
 
 class MotorManager {
  public:
-    std::vector<std::shared_ptr<Motor>> get_connected_motors();
-    std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names);
+    std::vector<std::shared_ptr<Motor>> get_connected_motors(bool user_space_driver=false);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool user_space_driver=false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
     std::vector<Command> commands() const { return commands_; }
     void open();
@@ -31,6 +31,9 @@ class MotorManager {
     void set_command_velocity(std::vector<float> velocity);
     std::string command_headers() const;
     std::string status_headers() const;
+    int serialize_command_size() const;
+    int serialize_saved_commands(char *data) const;
+    bool deserialize_saved_commands(char *data);
  private:
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;
@@ -54,10 +57,43 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> com
       os << c.velocity_desired << ", ";
    }
    for (auto c : command) {
+      os << c.torque_desired << ", ";
+   }
+   for (auto c : command) {
       os << c.reserved << ", ";
    }
 
    return os;
+}
+
+inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
+{
+   char s;
+   for (auto &c : command) {
+      is >> c.host_timestamp >> s;
+   }
+   for (auto &c : command) {
+      uint16_t u;
+      is >> u >> s;
+      c.mode_desired = u;
+   }
+   for (auto &c : command) {
+      is >> c.current_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.position_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.velocity_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.torque_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.reserved >> s;
+   }
+
+   return is;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
@@ -76,6 +112,9 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    }
    for (auto s : status) {
       os << s.iq << ", ";
+   }
+   for (auto s : status) {
+      os << s.torque << ", ";
    }
    for (auto s : status) {
       os << s.motor_encoder << ", ";
