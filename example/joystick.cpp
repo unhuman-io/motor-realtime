@@ -37,7 +37,8 @@ class Task : public MotorThread {
 	virtual void pre_update() {
 		// check for data on the pipe, timeout before a usb read is likely to finish
 		pollfd poll_fds[] = {{.fd=fd_, .events=POLLIN}};
-		timespec timeout_ts = {.tv_nsec=100 * 1000};
+		timespec timeout_ts = {};
+        timeout_ts.tv_nsec=100 * 1000;
 		int retval = ppoll(poll_fds, 1, &timeout_ts, NULL);
 		if (retval) {
             read(fd_, &joystick, sizeof(joystick));
