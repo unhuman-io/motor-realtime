@@ -10,7 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: install libudev-dev
-      run: sudo apt install libudev-dev
+      run: sudo apt-get install libudev-dev
     - name: cmake
       run: cmake .
     - name: make

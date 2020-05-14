@@ -18,7 +18,9 @@
 #include "motor_thread.h"
 #include <thread>
 
-#include <sys/types.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#define gettid() syscall(SYS_gettid)
 #include <csignal>
 sig_atomic_t volatile running = 1;
 
