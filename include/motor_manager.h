@@ -31,6 +31,9 @@ class MotorManager {
     void set_command_velocity(std::vector<float> velocity);
     std::string command_headers() const;
     std::string status_headers() const;
+    int serialize_command_size() const;
+    int serialize_saved_commands(char *data) const;
+    bool deserialize_saved_commands(char *data);
  private:
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;
@@ -61,6 +64,36 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> com
    }
 
    return os;
+}
+
+inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
+{
+   char s;
+   for (auto &c : command) {
+      is >> c.host_timestamp >> s;
+   }
+   for (auto &c : command) {
+      uint16_t u;
+      is >> u >> s;
+      c.mode_desired = u;
+   }
+   for (auto &c : command) {
+      is >> c.current_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.position_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.velocity_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.torque_desired >> s;
+   }
+   for (auto &c : command) {
+      is >> c.reserved >> s;
+   }
+
+   return is;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
