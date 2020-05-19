@@ -17,4 +17,7 @@ add_executable(motor_util motor_util.cpp)
 target_link_libraries(motor_util motor_manager cli11 pthread)
 target_include_directories(motor_util PUBLIC ${CMAKE_BINARY_DIR})
 install(TARGETS motor_util DESTINATION bin)
-install(FILES motor_util_completion.bash DESTINATION /etc/bash_completion.d)
+# can't seem to use ${CMAKE_INSTALL_SYSCONFDIR} below instead of /etc with cpack
+if(INSTALL_COMPLETION)
+    install(FILES motor_util_completion.bash DESTINATION /etc/bash_completion.d)
+endif()
