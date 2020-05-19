@@ -28,8 +28,10 @@ jobs:
       run: make VERBOSE=1
     - name: make install
       run: make install
+    - name: archive
+      run: tar -czf artifacts.tgz artifacts/ 
     - name: Archive production artifacts2
       uses: actions/upload-artifact@v1
       with:
         name: artifacts
-        path: artifacts
+        path: artifacts.tgz
