@@ -12,7 +12,7 @@ jobs:
     - name: install libudev-dev
       run: sudo apt-get install libudev-dev
     - name: cmake
-      run: cmake .
+      run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .
     - name: make
       run: make VERBOSE=1
     - name: make package
@@ -22,3 +22,14 @@ jobs:
       with:
         name: packages
         path: packages
+    - name: cmake2
+      run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
+    - name: make2
+      run: make VERBOSE=1
+    - name: make install
+      run: make install
+    - name: Archive production artifacts2
+      uses: actions/upload-artifact@v1
+      with:
+        name: artifacts
+        path: artifacts
