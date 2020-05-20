@@ -3,6 +3,7 @@
 #include <vector>
 #include "motor.h"
 #include "motor_manager.h"
+#include <atomic>
 
 class MotorManager;
 
@@ -22,14 +23,14 @@ class CStack {
 			future_pos = 0;
 		}
 		data_[future_pos] = t;
-		pos_ = future_pos;
+		pos_.store(future_pos, std::memory_order_release);
 	}
 	T top() const {
-		return data_[pos_];
+		return data_[pos_.load(std::memory_order_acquire)];
 	}
  private:
-	T data_[100];
-	int pos_ = 0;
+	T data_[100] = {};
+	std::atomic<int> pos_ = {0};
 };
 
 class MotorThread : public RealtimeThread {
