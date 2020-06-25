@@ -25,7 +25,7 @@ typedef struct {
     float iq;                           // Measured motor current in A line-line
     float torque;                       // measured torque in Nm
     int32_t motor_encoder;              // motor position in raw counts
-    float reserved[2];
+    float reserved[3];
 } Status;
 
 enum ModeDesired {OPEN, DAMPED, CURRENT, POSITION, TORQUE, IMPEDANCE, VELOCITY, CURRENT_TUNING, POSITION_TUNING, VOLTAGE, PHASE_LOCK, RESET=255};

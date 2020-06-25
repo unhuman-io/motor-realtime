@@ -122,6 +122,12 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    for (auto s : status) {
       os << s.reserved[0] << ", ";
    }
+   for (auto s : status) {
+      os << *reinterpret_cast<uint32_t *>(&s.reserved[1]) << ", ";
+   }
+   for (auto s : status) {
+      os << *reinterpret_cast<uint32_t *>(&s.reserved[2]) << ", ";
+   }
    return os;
 }
 

@@ -259,7 +259,13 @@ std::string MotorManager::status_headers() const {
         ss << "motor_encoder" << i << ", ";
     }
     for (int i=0;i<length;i++) {
-        ss << "reserved" << i << ", ";
+        ss << "reserved0" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "reserved1" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "reserved2" << i << ", ";
     }
     return ss.str();
 }
