@@ -68,7 +68,8 @@ int main(int argc, char** argv) {
         {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
         {"position", ModeDesired::POSITION}, {"torque", ModeDesired::TORQUE}, {"impedance", ModeDesired::IMPEDANCE}, 
         {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
-        {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, {"phase_lock", ModeDesired::PHASE_LOCK}, 
+        {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, 
+        {"phase_lock", ModeDesired::PHASE_LOCK}, {"stepper_tuning", ModeDesired::STEPPER_TUNING},
         {"reset", ModeDesired::RESET}};
     std::string set_api_data;
     bool api_mode = false;

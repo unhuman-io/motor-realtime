@@ -28,7 +28,7 @@ typedef struct {
     float reserved[3];
 } Status;
 
-enum ModeDesired {OPEN, DAMPED, CURRENT, POSITION, TORQUE, IMPEDANCE, VELOCITY, CURRENT_TUNING, POSITION_TUNING, VOLTAGE, PHASE_LOCK, RESET=255};
+enum ModeDesired {OPEN, DAMPED, CURRENT, POSITION, TORQUE, IMPEDANCE, VELOCITY, CURRENT_TUNING, POSITION_TUNING, VOLTAGE, PHASE_LOCK, STEPPER_TUNING, RESET=255};
 
 typedef struct {
     uint32_t host_timestamp;            // Value from host
