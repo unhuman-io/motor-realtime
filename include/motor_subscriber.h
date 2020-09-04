@@ -6,31 +6,38 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <cstring>
+#include <semaphore.h>
+#include <cstack.h>
 
+template <class T>
 class MotorSubscriber {
  public:
-    MotorSubscriber() {
-        fd_ = shm_open(shm_, O_RDONLY, 0666);
-        memptr_ = mmap(NULL,       /* let system pick where to put segment */
-                        1000,   /* how many bytes */
+    MotorSubscriber(std::string shm_name = "motor_data") : shm_name_(shm_name) {
+        fd_ = shm_open(shm_name_.c_str(), O_RDONLY, 0666);
+        if (fd_ > 0) {
+            memptr_ = mmap(NULL,       /* let system pick where to put segment */
+                        sizeof(*data_),   /* how many bytes */
                         PROT_READ, /* access protections */
                         MAP_SHARED, /* mapping visible to other processes */
                         fd_,         /* file descriptor */
                         0);
+        }
+        data_ = reinterpret_cast<CStack<T> *>(memptr_);
     }
     ~MotorSubscriber() {
-        munmap(memptr_, 1000);
+        munmap(memptr_, sizeof(*data_));
         close(fd_);
-        shm_unlink(shm_);
     }
-    std::string read() {
-        char s[1000];
-        std::strncpy(s, (char *) memptr_, 1000);
-        std::string str = s;
-        return str;
+    T read() {
+        T data = {};
+        if (fd_ > 0) {
+            data = data_->top();
+        }
+        return data;
     }
  private:
     int fd_;
-    char shm_[100] = "motor_data";
+    std::string shm_name_;
     void * memptr_;
+    CStack<T> * data_;
 };

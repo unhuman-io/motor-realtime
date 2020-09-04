@@ -14,6 +14,7 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> get_connected_motors(bool user_space_driver=false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool user_space_driver=false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
+    void set_motors(std::vector<std::shared_ptr<Motor>> motors) { motors_ = motors; }
     std::vector<Command> commands() const { return commands_; }
     void open();
     std::vector<Status> read();
@@ -29,6 +30,8 @@ class MotorManager {
     void set_command_current(std::vector<float> current);
     void set_command_position(std::vector<float> position);
     void set_command_velocity(std::vector<float> velocity);
+    void set_command_torque(std::vector<float> torque);
+
     std::string command_headers() const;
     std::string status_headers() const;
     int serialize_command_size() const;
@@ -38,6 +41,22 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;
 };
+
+inline std::vector<float> get_joint_position(std::vector<Status> statuses) {
+   std::vector<float> out;
+   for (auto stat : statuses) {
+      out.push_back(stat.joint_position);
+   }
+   return out;
+}
+
+inline std::vector<float> get_motor_position(std::vector<Status> statuses) {
+   std::vector<float> out;
+   for (auto stat : statuses) {
+      out.push_back(stat.motor_position);
+   }
+   return out;
+}
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> command)
 {
@@ -130,5 +149,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    }
    return os;
 }
+
+
 
 #endif

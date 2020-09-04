@@ -2,12 +2,14 @@
 #include <thread>
 #include <iostream>
 
+struct cstr{char s[100];};
+
 int main(int argc, char** argv) {
-    MotorSubscriber sub;
+    MotorSubscriber<cstr> sub;
     while(1) {
-        std::string str = sub.read();
+        std::string str = sub.read().s;
         if (str.size()) {
-            std::cout << sub.read();
+            std::cout << str;
         } else {
             std::cout << "no data" << std::endl;
         }

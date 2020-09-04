@@ -9,7 +9,10 @@
 #include <queue>
 #include <signal.h>
 #include <string>
+#include "motor_publisher.h"
+#include <sstream>
 
+struct cstr{char s[100];};
 class Statistics {
  public:
     Statistics(int size) : size_(size) {}
@@ -55,6 +58,7 @@ struct ReadOptions {
     bool text;
     bool timestamp_in_seconds;
     bool host_time;
+    bool publish;
 };
 
 bool signal_exit = false;
@@ -73,7 +77,7 @@ int main(int argc, char** argv) {
         {"reset", ModeDesired::RESET}};
     std::string set_api_data;
     bool api_mode = false;
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false };
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .publish = false };
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -90,6 +94,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
     read_option->add_flag("--text",read_opts.text, "Read the text interface instead");
     read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
+    read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
     app.add_flag("-l,--list,!--no-list", list, "List connected motors");
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
@@ -229,6 +234,7 @@ int main(int argc, char** argv) {
             int64_t period_ns = 1e9/read_opts.frequency_hz;
             Statistics exec(100), period(100);
             int i = 0;
+            MotorPublisher<cstr> pub;
             while (!signal_exit) {
                 auto last_loop_start_time = loop_start_time;
                 loop_start_time = std::chrono::steady_clock::now();
@@ -241,6 +247,17 @@ int main(int argc, char** argv) {
                 }
                 auto status = m.read();
                 auto exec_time = std::chrono::steady_clock::now();
+
+                if (read_opts.publish) {
+                    std::ostringstream oss;
+                    for (auto stat : status) {
+                        oss << stat.joint_position << " ";
+                    }
+                    oss << std::endl;
+                    cstr c;
+                    std::strncpy(c.s, oss.str().c_str(), 100);
+                    pub.publish(c);
+                }
 
                 if (read_opts.statistics) {
                     i++;

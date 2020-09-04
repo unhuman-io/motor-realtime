@@ -164,6 +164,12 @@ void MotorManager::set_command_velocity(std::vector<float> velocity) {
     }
 }
 
+void MotorManager::set_command_torque(std::vector<float> torque) {
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].torque_desired = torque[i];
+    }
+}
+
 void MotorManager::write_saved_commands() {
     write(commands_);
 }

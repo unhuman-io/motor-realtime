@@ -16,12 +16,12 @@ install(TARGETS motor_manager
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 add_executable(motor_util motor_util.cpp)
-target_link_libraries(motor_util motor_manager cli11 pthread)
+target_link_libraries(motor_util motor_manager cli11 pthread rt)
 target_include_directories(motor_util PUBLIC ${CMAKE_BINARY_DIR})
 
 add_executable(motor_data_echo motor_data_echo.cpp)
 target_include_directories(motor_data_echo PUBLIC ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(motor_data_echo rt)
+target_link_libraries(motor_data_echo rt pthread)
 
 install(TARGETS motor_util DESTINATION bin)
 # can't seem to use ${CMAKE_INSTALL_SYSCONFDIR} below instead of /etc with cpack
