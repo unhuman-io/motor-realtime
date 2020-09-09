@@ -54,10 +54,10 @@ class SysfsFile : public TextFile {
     }
     int open() {
         int fd = ::open(path_.c_str(), O_RDWR);
-        if (fd > 0) {
+        if (fd >= 0) {
             return fd;
         } else {
-            throw std::runtime_error("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno));
+            throw std::runtime_error("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + path_.c_str());
         }
     }
     void close(int fd) {
@@ -144,15 +144,15 @@ class USBFile : public TextFile {
         return 0;
     }
     int close() {
-        int ep = ep_num_;
-        int ioval = ::ioctl(fid_, USBDEVFS_RELEASEINTERFACE, &ep); 
+        int interface_num = 0;
+        int ioval = ::ioctl(fid_, USBDEVFS_RELEASEINTERFACE, &interface_num); 
         if (ioval < 0) {
-            throw std::runtime_error("USB release interface error " + std::to_string(errno));
+            throw std::runtime_error("USB release interface error " + std::to_string(errno) + ": " + strerror(errno));
         }
         struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
         ioval = ::ioctl(fid_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
         if (ioval < 0) {
-            throw std::runtime_error("USB close error " + std::to_string(errno));
+            throw std::runtime_error("USB close error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return 0;
     }
@@ -207,7 +207,7 @@ class UserSpaceMotor : public Motor {
         struct udev *udev = udev_new();
         struct stat st;
         if (stat(dev_path.c_str(), &st) < 0) {
-            throw std::runtime_error("Motor stat error " + std::to_string(errno));
+            throw std::runtime_error("Motor stat error " + std::to_string(errno) + ": " + strerror(errno));
         }
         struct udev_device *dev = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
                 const char * sysname = udev_device_get_sysname(dev);
@@ -252,7 +252,7 @@ class UserSpaceMotor : public Motor {
 
         int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
-            throw std::runtime_error("Motor read error " + std::to_string(errno));
+            throw std::runtime_error("Motor read error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
@@ -267,7 +267,7 @@ class UserSpaceMotor : public Motor {
 
         int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
-            throw std::runtime_error("Motor write error " + std::to_string(errno));
+            throw std::runtime_error("Motor write error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
@@ -277,20 +277,20 @@ class UserSpaceMotor : public Motor {
         struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
         int ioval = ::ioctl(fid_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
         if (ioval < 0) {
-            throw std::runtime_error("Motor open error " + std::to_string(errno));
+            throw std::runtime_error("Motor open error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
     virtual int close() {
-        int ep = 0;
-        int ioval = ::ioctl(fid_, USBDEVFS_RELEASEINTERFACE, &ep); 
+        int interface_num = 0;
+        int ioval = ::ioctl(fid_, USBDEVFS_RELEASEINTERFACE, &interface_num); 
         if (ioval < 0) {
-            throw std::runtime_error("Motor release interface error " + std::to_string(errno));
+            throw std::runtime_error("Motor release interface error " + std::to_string(errno) + ": " + strerror(errno));
         }
         struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
         ioval = ::ioctl(fid_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
         if (ioval < 0) {
-            throw std::runtime_error("Motor close error " + std::to_string(errno));
+            throw std::runtime_error("Motor close error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return Motor::close();
     }
