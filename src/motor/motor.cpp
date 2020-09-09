@@ -32,7 +32,8 @@ Motor::Motor(std::string dev_path) {
     // motor_txt_ = new USBFile(parent_dev_path, 0);
     
     udev_device_unref(dev);
-    udev_unref(udev);  
+    udev_unref(udev);
+    open();
 }
 
  Motor::~Motor() { close(); delete motor_txt_; }

@@ -12,7 +12,6 @@ class Task : public MotorThread {
 	~Task() {
 		close(pipe_fd_);
 		remove("/tmp/deadline");
-		motor_manager_.close();
 	}
  protected:
 	virtual void pre_update() {
