@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
         {"reset", ModeDesired::RESET}};
     std::string set_api_data;
     bool api_mode = false;
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .publish = false };
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false };
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -105,10 +105,13 @@ int main(int argc, char** argv) {
     app.add_flag("--api", api_mode, "Enter API mode");
     CLI11_PARSE(app, argc, argv);
 
+    signal(SIGINT,[](int signum){signal_exit = true;});
+
     MotorManager m;
     std::vector<std::shared_ptr<Motor>> motors;
     if (names.size()) {
         motors = m.get_motors_by_name(names, user_space_driver);
+        // remove null motors
         auto i = std::begin(motors);
         while (i != std::end(motors)) {
             if (!*i) {
@@ -161,11 +164,9 @@ int main(int argc, char** argv) {
     }
 
     if (*set && motors.size()) {
-        m.open();
         auto commands = std::vector<Command>(motors.size(), command);
         std::cout << "Writing commands: \n" << m.command_headers() << std::endl << commands << std::endl;
         m.write(commands);
-        m.close();
     }
 
     if (*set_api || api_mode || *read_option && read_opts.text) {
@@ -183,7 +184,7 @@ int main(int argc, char** argv) {
     if (api_mode) {
         std::string s;
         bool sin = false;
-        std::thread t([&s,&sin]() { while(1) { std::cin >> s; sin = true; } });
+        std::thread t([&s,&sin]() { while(!signal_exit) { std::cin >> s; sin = true; } });
         while(!signal_exit) {
             char data[64];
             auto nbytes = m.motors()[0]->motor_text()->read(data,64);
@@ -197,12 +198,11 @@ int main(int argc, char** argv) {
                 sin = false;
             }
         }
-        t.join();
+        //t.join(); Let system kill thread, otherwise it continues to wait for input
     }
 
     if (*read_option) {
         if (read_opts.text) {
-            signal(SIGINT,[](int signum){signal_exit = true;});
             while(!signal_exit) {
                 char data[64];
                 auto nbytes = m.motors()[0]->motor_text()->read(data,64);
@@ -212,8 +212,6 @@ int main(int argc, char** argv) {
                 }
             }
         } else {
-            m.open();
-            signal(SIGINT,[](int signum){signal_exit = true;});
             if (read_opts.statistics) {
                 ; //todo
             } else {
@@ -298,7 +296,6 @@ int main(int argc, char** argv) {
                 // while (std::chrono::steady_clock::now() < next_time);
                 std::this_thread::sleep_until(next_time);
             }
-            m.close();
         }
     }
 

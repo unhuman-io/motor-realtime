@@ -16,13 +16,11 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
     void set_motors(std::vector<std::shared_ptr<Motor>> motors) { motors_ = motors; }
     std::vector<Command> commands() const { return commands_; }
-    void open();
     std::vector<Status> read();
     void write(std::vector<Command>);
     void write_saved_commands();
     void aread();
     int poll();
-    void close();
 
     void set_commands(std::vector<Command> commands);
     void set_command_count(int32_t count);

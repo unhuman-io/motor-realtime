@@ -14,7 +14,7 @@ static std::vector<std::string> udev (bool user_space_driver=false)
 {
 	struct udev_enumerate *enumerate;
 	struct udev_list_entry *devices, *dev_list_entry;
-
+    
 	/* Create the udev object */
 	struct udev *udev = udev_new();
 	if (!udev) {
@@ -25,8 +25,8 @@ static std::vector<std::string> udev (bool user_space_driver=false)
 	/* Create a list of the devices in the 'hidraw' subsystem. */
 	enumerate = udev_enumerate_new(udev);
     if (user_space_driver) {
-        udev_enumerate_add_match_sysattr(enumerate, "idVendor", "0483");
-        udev_enumerate_add_match_sysattr(enumerate, "idProduct", "5741");
+        udev_enumerate_add_match_sysattr(enumerate, "idVendor", "3293");
+        udev_enumerate_add_match_sysattr(enumerate, "idProduct", "0100");
     } else {
         udev_enumerate_add_match_sysname(enumerate, "usbrt*");
         udev_enumerate_add_match_sysname(enumerate, "mtr*");
@@ -94,12 +94,6 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name(std::vector
     return motors_;
 }
 
-void MotorManager::open() {
-    for (auto m : motors_) {
-        m->open();
-    }
-}
-
 std::vector<Status> MotorManager::read() {
     std::vector<Status> statuses(motors_.size());
     for (int i=0; i<motors_.size(); i++) {
@@ -119,12 +113,6 @@ void MotorManager::write(std::vector<Command> commands) {
 void MotorManager::aread() {
     for (int i=0; i<motors_.size(); i++) {
         motors_[i]->aread();
-    }
-}
-
-void MotorManager::close() {
-    for (auto m : motors_) {
-        m->close();
     }
 }
 

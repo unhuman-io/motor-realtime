@@ -5,7 +5,6 @@ MotorThread::MotorThread(uint32_t frequency_hz)
 }
 
 void MotorThread::init() {
-    motor_manager_.open();
     std::cout << "Connecting to motors:" << std::endl;
     for (auto m : motor_manager_.motors()) {
         std:: cout << m->name() << std::endl;
