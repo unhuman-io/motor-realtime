@@ -17,13 +17,16 @@ _motor_util_completion()
             read) subcommand=read ; break ;;
             --set_api) subcommand=set_api ; break ;;
             -n|--names) subcommand=names ; break ;;
+            -p|--paths) subcommand=paths ; break ;;
+            -d|--devpaths) subcommand=devpaths ; break ;;
+            -s|--serial_numbers) subcommand=serial_numbers ; break ;;
         esac
         (( i-- ))
     done
 
     COMREPLY=()
     local words
-    local base_words="-l --list --no-list --list-names-only --list-path-only -n --names set read --set_api --api -v --version -u --user-space -h --help";
+    local base_words="-l --list --no-list --list-names-only --list-path-only --list-devpath-only --list-serial-number-only -n --names -p --paths -d --devpaths -s --serial_numbers set read --set_api --api -v --version -u --user-space -h --help";
     case $subcommand in
         set) words="--host_time --mode --current --position --velocity --torque --reserved read -h --help";
             case $last in
@@ -35,6 +38,9 @@ _motor_util_completion()
                 --frequency) return 0 ;;
             esac ;;
         names) words="$(motor_util --list-names-only) $base_words" ;;
+        paths) words="$(motor_util --list-path-only) $base_words" ;;
+        devpaths) words="$(motor_util --list-devpath-only) $base_words" ;;
+        serial_numbers) words="$(motor_util --list-serial-number-only) $base_words" ;;
         set_api) return 0 ;;
         *) words=$base_words ;;
     esac

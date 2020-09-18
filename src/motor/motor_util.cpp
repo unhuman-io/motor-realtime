@@ -64,9 +64,12 @@ struct ReadOptions {
 bool signal_exit = false;
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers"};
-    bool print = false, list = true, version = false, list_names=false, list_path=false;
+    bool print = false, list = true, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false;
     bool user_space_driver = false;
     std::vector<std::string> names = {};
+    std::vector<std::string> paths = {};
+    std::vector<std::string> devpaths = {};
+    std::vector<std::string> serial_numbers = {};
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map{
         {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
@@ -99,29 +102,49 @@ int main(int argc, char** argv) {
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
     app.add_flag("--list-path-only", list_path, "Print only connected motor paths");
+    app.add_flag("--list-devpath-only", list_devpath, "Print only connected motor devpaths");
+    app.add_flag("--list-serial-number-only", list_serial_number, "Print only connected motor serial numbers");
     app.add_flag("-u,--user-space", user_space_driver, "Connect through user space usb");
     app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
+    app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
+    app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
+    app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
     auto set_api = app.add_option("--set_api", set_api_data, "Send API data (to set parameters)");
     app.add_flag("--api", api_mode, "Enter API mode");
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int signum){signal_exit = true;});
 
-    MotorManager m;
+    MotorManager m(user_space_driver);
     std::vector<std::shared_ptr<Motor>> motors;
     if (names.size()) {
-        motors = m.get_motors_by_name(names, user_space_driver);
-        // remove null motors
-        auto i = std::begin(motors);
-        while (i != std::end(motors)) {
-            if (!*i) {
-                i = motors.erase(i);
-            } else {
-                ++i;
-            }
+        motors = m.get_motors_by_name(names);
+    }
+    if (paths.size()) {
+        auto tmp_motors = m.get_motors_by_path(paths);
+        motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+    }
+    if (devpaths.size()) {
+        auto tmp_motors = m.get_motors_by_devpath(devpaths);
+        motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+    }
+    if (serial_numbers.size()) {
+        auto tmp_motors = m.get_motors_by_serial_number(serial_numbers);
+        motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+    }
+    m.set_motors(motors);
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size()) {
+        motors = m.get_connected_motors();
+    }
+
+    // remove null motors
+    auto i = std::begin(motors);
+    while (i != std::end(motors)) {
+        if (!*i) {
+            i = motors.erase(i);
+        } else {
+            ++i;
         }
-    } else {
-        motors = m.get_connected_motors(user_space_driver);
     }
 
     if (version) {
@@ -134,13 +157,17 @@ int main(int argc, char** argv) {
         int version_width = 60;
         int path_width = 15;
         int dev_path_width = 12;
-        if (list_names || list_path) {
+        if (list_names || list_path || list_devpath || list_serial_number) {
               if (motors.size() > 0) {
                     for (auto m : motors) {
                         if (list_names) {
                             std::cout << m->name();
                         } else if (list_path) {
                             std::cout << m->base_path();
+                        } else if (list_devpath) {
+                            std::cout << m->dev_path();
+                        } else if (list_serial_number)  {
+                            std::cout << m->serial_number();
                         }
                         std::cout << std::endl;
                     }
