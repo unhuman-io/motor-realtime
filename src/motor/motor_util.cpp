@@ -59,6 +59,7 @@ struct ReadOptions {
     bool timestamp_in_seconds;
     bool host_time;
     bool publish;
+    bool csv;
 };
 
 bool signal_exit = false;
@@ -80,7 +81,7 @@ int main(int argc, char** argv) {
         {"reset", ModeDesired::RESET}};
     std::string set_api_data;
     bool api_mode = false;
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false };
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -98,6 +99,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--text",read_opts.text, "Read the text interface instead");
     read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
     read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
+    read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
     app.add_flag("-l,--list,!--no-list", list, "List connected motors");
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
@@ -114,6 +116,12 @@ int main(int argc, char** argv) {
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int signum){signal_exit = true;});
+
+    if (*read_option && read_opts.csv) {
+        read_opts.timestamp_in_seconds = true;
+        read_opts.host_time = true;
+        list = false;
+    }
 
     MotorManager m(user_space_driver);
     std::vector<std::shared_ptr<Motor>> motors;

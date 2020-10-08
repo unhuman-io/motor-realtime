@@ -33,7 +33,7 @@ _motor_util_completion()
                 --host_time|--current|--position|--velocity|--reserved) return 0 ;;
                 --mode) words="open damped current position velocity torque impedance current_tuning position_tuning voltage phase_lock stepper_tuning reset" ;;
             esac ;;
-        read) words="--poll --aread --frequency --statistics --text -s --timestamp-in-seconds -t --host-time-seconds --publish set -h --help";
+        read) words="--poll --aread --frequency --statistics --text -s --timestamp-in-seconds -t --host-time-seconds --publish --csv set -h --help";
             case $last in
                 --frequency) return 0 ;;
             esac ;;
