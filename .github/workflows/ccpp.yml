@@ -45,5 +45,5 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
-          ./artifacts/*
+          ./artifacts.tgz
         tag: develop
