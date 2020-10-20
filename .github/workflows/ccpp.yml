@@ -25,7 +25,8 @@ jobs:
     - uses: eine/tip@master
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        files: packages
+        files: |
+          ./packages/*
         tag: develop
     - name: cmake2
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
@@ -40,3 +41,9 @@ jobs:
       with:
         name: artifacts
         path: artifacts.tgz
+    - uses: eine/tip@master
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./artifacts/*
+        tag: develop
