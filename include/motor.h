@@ -139,6 +139,39 @@ class USBFile : public TextFile {
     unsigned int ep_num_;
     int fd_;
 };
+
+class TextAPIItem {
+ public:
+    TextAPIItem(TextFile *motor_txt, std::string name) : motor_txt_(motor_txt), name_(name) {}
+
+    void set(std::string s) {
+        std::string s2 = name_ + "=" + s;
+        motor_txt_->write(s2.c_str(), s2.size());
+        char c[64];
+        motor_txt_->read(c, 64);
+    }
+    std::string get() const {
+        motor_txt_->write(name_.c_str(), name_.size());
+        char c[64] = {};
+        motor_txt_->read(c, 64);
+        return c;
+    }
+    void operator=(std::string s) {
+        set(s);
+    }
+ private:
+    TextFile *motor_txt_;
+    std::string name_;
+};
+
+inline std::ostream& operator<<(std::ostream& os, TextAPIItem const& item) {
+    os << item.get();
+    return os;
+}
+inline double& operator<<(double& d, TextAPIItem const& item) {
+    d = std::stod(item.get());
+    return d;
+}
 class Motor {
  public:
     Motor() {}
@@ -162,6 +195,8 @@ class Motor {
     std::string base_path() const {return base_path_; }
     std::string dev_path() const { return dev_path_; }
     std::string version() const { return version_; }
+    // note will probably not be the final interface
+    TextAPIItem operator[](std::string s) { TextAPIItem t(motor_txt_, s); return t; };
     int fd() const { return fd_; }
     const Status *const status() const { return &status_; }
     Command *const command() { return &command_; }
