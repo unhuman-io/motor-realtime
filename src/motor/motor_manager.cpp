@@ -120,6 +120,13 @@ std::vector<Status> MotorManager::read() {
 }
 
 void MotorManager::write(std::vector<Command> commands) {
+    count_++;
+    if (auto_count_) {
+        set_command_count(count_);
+        for (int i=0; i<commands.size(); i++) {
+            commands[i].host_timestamp = count_;
+        }
+    }
     for (int i=0; i<motors_.size(); i++) {
         *motors_[i]->command() = commands[i];
         motors_[i]->write();
