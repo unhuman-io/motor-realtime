@@ -233,7 +233,8 @@ int main(int argc, char** argv) {
                 sin = false;
             }
         }
-        //t.join(); Let system kill thread, otherwise it continues to wait for input
+        pthread_cancel(t.native_handle());
+        t.join();
     }
 
     if (*read_option) {
