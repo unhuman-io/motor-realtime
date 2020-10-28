@@ -26,6 +26,7 @@ class MotorManager {
     void aread();
     int poll();
 
+    void set_auto_count(bool on=true) { auto_count_ = on; }
     void set_commands(std::vector<Command> commands);
     void set_command_count(int32_t count);
     void set_command_mode(uint8_t mode);
@@ -44,6 +45,8 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;
     bool user_space_driver_;
+    uint32_t count_ = 0;
+    bool auto_count_ = false;
 };
 
 inline std::vector<float> get_joint_position(std::vector<Status> statuses) {

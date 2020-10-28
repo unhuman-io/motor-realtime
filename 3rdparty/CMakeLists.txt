@@ -2,3 +2,4 @@ file(DOWNLOAD "https://github.com/CLIUtils/CLI11/releases/download/v1.8.0/CLI11.
 file(DOWNLOAD "https://github.com/CLIUtils/CLI11/blob/master/LICENSE" 3rdparty/LICENSE/CLI11)
 add_library(cli11 INTERFACE)
 target_include_directories(cli11 INTERFACE ${CMAKE_BINARY_DIR}/3rdparty/)
+add_subdirectory(pybind11)
