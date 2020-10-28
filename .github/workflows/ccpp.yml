@@ -11,6 +11,7 @@ jobs:
     - uses: actions/checkout@master
       with:
         submodules: true
+        fetch-depth: 0
     - name: install libudev-dev
       run: sudo apt-get install libudev-dev
     - name: cmake
