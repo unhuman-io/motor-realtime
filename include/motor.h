@@ -156,7 +156,7 @@ class TextAPIItem {
         motor_txt_->read(c, 64);
         return c;
     }
-    void operator=(std::string s) {
+    void operator=(const std::string s) {
         set(s);
     }
  private:
@@ -196,7 +196,7 @@ class Motor {
     std::string dev_path() const { return dev_path_; }
     std::string version() const { return version_; }
     // note will probably not be the final interface
-    TextAPIItem operator[](std::string s) { TextAPIItem t(motor_txt_, s); return t; };
+    TextAPIItem operator[](const std::string s) { TextAPIItem t(motor_txt_, s); return t; };
     int fd() const { return fd_; }
     const Status *const status() const { return &status_; }
     Command *const command() { return &command_; }

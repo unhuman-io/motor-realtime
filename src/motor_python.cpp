@@ -1,5 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/operators.h>
 #include "motor_manager.h"
 
 namespace py = pybind11;
@@ -35,11 +36,21 @@ PYBIND11_MODULE(motor, m) {
         .def("set_command_velocity", &MotorManager::set_command_velocity)
         .def("set_command_torque", &MotorManager::set_command_torque);
 
-
     py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
         .def(py::init<const std::string&>())
         .def("name", &Motor::name)
-        .def("__repr__", [](const Motor &m){ return "<Motor " + m.name() + ">"; });
+        .def("__repr__", [](const Motor &m){ return "<Motor " + m.name() + ">"; })
+        .def("__getitem__", &Motor::operator[])
+        .def("__setitem__", [](Motor &m, const std::string key, const std::string value) {
+            m[key].set(value);
+        });
+
+    py::class_<TextAPIItem>(m, "TextAPIItem")
+        .def("__repr__", &TextAPIItem::get)
+        .def("get", &TextAPIItem::get)
+        .def("set", &TextAPIItem::set)
+        //.def("assign", static_cast<void (TextAPIItem::*)(const std::string &)>(&TextAPIItem::operator=));
+        .def("assign", &TextAPIItem::set);
 
     py::enum_<ModeDesired>(m, "ModeDesired")
         .value("Open", ModeDesired::OPEN)
