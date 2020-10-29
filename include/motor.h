@@ -42,7 +42,8 @@ typedef struct {
 
 class TextFile {
  public:
-    virtual ~TextFile() {};
+    virtual ~TextFile() {}
+    virtual void flush() {}
     virtual ssize_t read(char *data, unsigned int length) = 0;
     virtual ssize_t write(const char *data, unsigned int length) = 0;
 };
@@ -65,6 +66,10 @@ class SysfsFile : public TextFile {
         if (retval) {
             throw std::runtime_error("Sysfs close error " + std::to_string(errno) + ": " + strerror(errno));
         }
+    }
+    virtual void flush() {
+        char c[64];
+        while(read(c, 64));
     }
     ssize_t read(char *data, unsigned int length) {
         // sysfs file needs to be opened and closed to read new values
@@ -142,7 +147,9 @@ class USBFile : public TextFile {
 
 class TextAPIItem {
  public:
-    TextAPIItem(TextFile *motor_txt, std::string name) : motor_txt_(motor_txt), name_(name) {}
+    TextAPIItem(TextFile *motor_txt, std::string name) : motor_txt_(motor_txt), name_(name) { 
+        motor_txt_->flush();
+    }
 
     void set(std::string s) {
         std::string s2 = name_ + "=" + s;
