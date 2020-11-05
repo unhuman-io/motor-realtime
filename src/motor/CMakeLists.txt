@@ -3,6 +3,7 @@ target_link_libraries(motor_manager udev)
 target_include_directories(motor_manager PUBLIC ${CMAKE_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
     ${CMAKE_SOURCE_DIR}/include/motor_manager.h
+    ${CMAKE_SOURCE_DIR}/include/motor_messages.h
     ${CMAKE_SOURCE_DIR}/include/motor.h
     ${CMAKE_SOURCE_DIR}/include/realtime_thread.h
     ${CMAKE_SOURCE_DIR}/include/motor_thread.h
