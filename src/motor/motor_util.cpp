@@ -162,7 +162,7 @@ int main(int argc, char** argv) {
     if (list) {
         int name_width = 10;
         int serial_number_width = 15;
-        int version_width = 60;
+        int version_width = 45;
         int path_width = 15;
         int dev_path_width = 12;
         if (list_names || list_path || list_devpath || list_serial_number) {
@@ -249,7 +249,7 @@ int main(int argc, char** argv) {
             }
         } else {
             if (read_opts.statistics) {
-                ; //todo
+                std::cout << "period_avg std_dev min max read_time_avg std_dev min max";
             } else {
                 if (read_opts.host_time) {
                     std::cout << "t_host,";
