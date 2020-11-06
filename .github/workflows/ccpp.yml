@@ -26,6 +26,7 @@ jobs:
         name: packages
         path: packages
     - uses: eine/tip@master
+      if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
@@ -45,8 +46,46 @@ jobs:
         name: artifacts
         path: artifacts.tgz
     - uses: eine/tip@master
+      if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./artifacts.tgz
+        tag: develop
+
+  build_arm:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@master
+      with:
+        submodules: true
+        fetch-depth: 0
+    - uses: uraimo/run-on-arch-action@v2.0.5
+      name: Run commands
+      id: runcmd
+      with:
+        arch: aarch64
+        distro: ubuntu18.04
+        setup: |
+          mkdir -p "${PWD}/packages"
+        dockerRunArgs: |
+          --volume "${PWD}/packages:/packages"
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release .
+          make
+          make package
+        install: |
+          apt-get update -q -y
+          apt-get install -y cmake build-essential libudev-dev git python3-dev
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: packages
+        path: packages
+    - uses: eine/tip@master
+      if: contains(github.ref, 'develop')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./packages/*
         tag: develop
