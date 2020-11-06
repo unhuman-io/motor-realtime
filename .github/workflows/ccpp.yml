@@ -74,7 +74,7 @@ jobs:
           make package
         install: |
           apt-get update -q -y
-          apt-get install -y cmake build-essential
+          apt-get install -y cmake build-essential libudev-dev git
     - name: Archive production artifacts
       uses: actions/upload-artifact@v1
       with:
