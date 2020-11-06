@@ -65,7 +65,7 @@ struct ReadOptions {
 bool signal_exit = false;
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers"};
-    bool print = false, list = true, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false;
+    bool print = false, verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false;
     bool user_space_driver = false;
     std::vector<std::string> names = {};
     std::vector<std::string> paths = {};
@@ -100,7 +100,8 @@ int main(int argc, char** argv) {
     read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
     read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
-    app.add_flag("-l,--list,!--no-list", list, "List connected motors");
+    app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
+    app.add_flag("--no-list", no_list, "Do not list connected motors");
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
     app.add_flag("--list-path-only", list_path, "Print only connected motor paths");
@@ -120,7 +121,7 @@ int main(int argc, char** argv) {
     if (*read_option && read_opts.csv) {
         read_opts.timestamp_in_seconds = true;
         read_opts.host_time = true;
-        list = false;
+        no_list = true;
     }
 
     MotorManager m(user_space_driver);
@@ -159,10 +160,10 @@ int main(int argc, char** argv) {
         std::cout << "motor_util version: " << RT_VERSION_STRING << std::endl;
     }
 
-    if (list) {
+    if (!no_list) {
         int name_width = 10;
         int serial_number_width = 15;
-        int version_width = 45;
+        int version_width = verbose_list ? 45 : 12;
         int path_width = 15;
         int dev_path_width = 12;
         if (list_names || list_path || list_devpath || list_serial_number) {
@@ -191,7 +192,7 @@ int main(int argc, char** argv) {
                     std::cout << std::setw(dev_path_width) << m->dev_path()
                             << std::setw(name_width) << m->name()
                             << std::setw(serial_number_width) << m->serial_number()
-                            << std::setw(version_width) << m->version()
+                            << std::setw(version_width) << (verbose_list ? m->version() : m->short_version())
                             << std::setw(path_width) << m->base_path() << std::endl;
                 }
             }

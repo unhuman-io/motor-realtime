@@ -180,6 +180,11 @@ class Motor {
     std::string base_path() const {return base_path_; }
     std::string dev_path() const { return dev_path_; }
     std::string version() const { return version_; }
+    std::string short_version() const {
+        std::string s = version();
+        auto pos = s.find("-g");
+        return s.substr(0,pos);
+    }
     // note will probably not be the final interface
     TextAPIItem operator[](const std::string s) { TextAPIItem t(motor_txt_, s); return t; };
     int fd() const { return fd_; }
