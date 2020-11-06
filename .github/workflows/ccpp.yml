@@ -26,7 +26,7 @@ jobs:
         name: packages
         path: packages
     - uses: eine/tip@master
-      if: contains(github.ref, "develop")
+      if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
@@ -46,7 +46,7 @@ jobs:
         name: artifacts
         path: artifacts.tgz
     - uses: eine/tip@master
-      if: contains(github.ref, "develop")
+      if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
@@ -83,7 +83,7 @@ jobs:
         name: packages
         path: packages
     - uses: eine/tip@master
-      if: contains(github.ref, "develop")
+      if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
