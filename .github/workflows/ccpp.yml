@@ -54,7 +54,10 @@ jobs:
   build_arm:
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@master
+      with:
+        submodules: true
+        fetch-depth: 0
     - uses: uraimo/run-on-arch-action@v2.0.5
       name: Run commands
       id: runcmd
