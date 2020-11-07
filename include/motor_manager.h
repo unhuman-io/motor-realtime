@@ -122,6 +122,16 @@ inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
    return is;
 }
 
+inline int geti() { 
+    static int i = std::ios_base::xalloc();
+    return i;
+}
+
+inline std::ostream& reserved_uint32(std::ostream &os) {
+    os.iword(geti()) = 1; 
+    return os;
+}
+
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
 {
    for (auto s : status) {
@@ -148,11 +158,20 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    for (auto s : status) {
       os << s.reserved[0] << ", ";
    }
-   for (auto s : status) {
-      os << *reinterpret_cast<uint32_t *>(&s.reserved[1]) << ", ";
-   }
-   for (auto s : status) {
-      os << *reinterpret_cast<uint32_t *>(&s.reserved[2]) << ", ";
+   if (os.iword(geti()) == 1) {
+      for (auto s : status) {
+         os << *reinterpret_cast<uint32_t *>(&s.reserved[1]) << ", ";
+      }
+      for (auto s : status) {
+         os << *reinterpret_cast<uint32_t *>(&s.reserved[2]) << ", ";
+      }
+   } else {
+      for (auto s : status) {
+         os << s.reserved[1] << ", ";
+      }
+      for (auto s : status) {
+         os << s.reserved[2] << ", ";
+      }
    }
    return os;
 }
