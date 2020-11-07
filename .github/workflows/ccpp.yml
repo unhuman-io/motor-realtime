@@ -60,19 +60,20 @@ jobs:
       with:
         submodules: true
         fetch-depth: 0
-    - uses: uraimo/run-on-arch-action@v2.0.5
+    - uses: uraimo/run-on-arch-action@v2.0.7
       name: Run commands
       id: runcmd
       with:
         arch: aarch64
         distro: ubuntu18.04
+        githubToken: ${{ github.token }}
         setup: |
           mkdir -p "${PWD}/packages"
         dockerRunArgs: |
           --volume "${PWD}/packages:/packages"
         run: |
           cmake -DCMAKE_BUILD_TYPE=Release .
-          make
+          make -j
           make package
         install: |
           apt-get update -q -y
