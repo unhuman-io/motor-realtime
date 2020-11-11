@@ -68,6 +68,9 @@ inline std::vector<float> get_motor_position(std::vector<Status> statuses) {
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> command)
 {
    for (auto c : command) {
+      os << command << ", ";
+   }
+   for (auto c : command) {
       os << c.host_timestamp << ", ";
    }
    for (auto c : command) {
@@ -92,88 +95,12 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> com
    return os;
 }
 
-inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
-{
-   char s;
-   for (auto &c : command) {
-      is >> c.host_timestamp >> s;
-   }
-   for (auto &c : command) {
-      uint16_t u;
-      is >> u >> s;
-      c.mode_desired = u;
-   }
-   for (auto &c : command) {
-      is >> c.current_desired >> s;
-   }
-   for (auto &c : command) {
-      is >> c.position_desired >> s;
-   }
-   for (auto &c : command) {
-      is >> c.velocity_desired >> s;
-   }
-   for (auto &c : command) {
-      is >> c.torque_desired >> s;
-   }
-   for (auto &c : command) {
-      is >> c.reserved >> s;
-   }
-
-   return is;
-}
-
-inline int geti() { 
-    static int i = std::ios_base::xalloc();
-    return i;
-}
-
-inline std::ostream& reserved_uint32(std::ostream &os) {
-    os.iword(geti()) = 1; 
-    return os;
-}
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
 {
    for (auto s : status) {
-      os << s.mcu_timestamp << ", ";
+      os << s << ", ";
    }
-   for (auto s : status) {
-      os << s.host_timestamp_received << ", ";
-   }
-   for (auto s : status) {
-      os << s.motor_position << ", ";
-   }
-   for (auto s : status) {
-      os << s.joint_position << ", ";
-   }
-   for (auto s : status) {
-      os << s.iq << ", ";
-   }
-   for (auto s : status) {
-      os << s.torque << ", ";
-   }
-   for (auto s : status) {
-      os << s.motor_encoder << ", ";
-   }
-   for (auto s : status) {
-      os << s.reserved[0] << ", ";
-   }
-   if (os.iword(geti()) == 1) {
-      for (auto s : status) {
-         os << *reinterpret_cast<uint32_t *>(&s.reserved[1]) << ", ";
-      }
-      for (auto s : status) {
-         os << *reinterpret_cast<uint32_t *>(&s.reserved[2]) << ", ";
-      }
-   } else {
-      for (auto s : status) {
-         os << s.reserved[1] << ", ";
-      }
-      for (auto s : status) {
-         os << s.reserved[2] << ", ";
-      }
-   }
-   return os;
 }
 
 

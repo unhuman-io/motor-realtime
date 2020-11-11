@@ -82,6 +82,7 @@ int main(int argc, char** argv) {
         {"reset", ModeDesired::RESET}};
     std::string set_api_data;
     bool api_mode = false;
+    bool set_options = false;
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
@@ -91,6 +92,7 @@ int main(int argc, char** argv) {
     set->add_option("--velocity", command.velocity_desired, "Velocity desired");
     set->add_option("--torque", command.torque_desired, "Torque desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
+    set->add_flag("--options", set_options, "print set options and exit");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("-s,--timestamp-in-seconds", read_opts.timestamp_in_seconds, "Report motor timestamp as seconds since start and unwrap");
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
@@ -124,6 +126,14 @@ int main(int argc, char** argv) {
         read_opts.timestamp_in_seconds = true;
         read_opts.host_time = true;
         no_list = true;
+    }
+
+    if (*set && set_options) {
+        for (auto o : set->get_options()) {
+            std::cout << o->get_name() << " ";
+        }
+        std::cout << std::endl;
+        return 0;
     }
 
     MotorManager m(user_space_driver);

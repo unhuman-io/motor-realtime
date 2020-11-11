@@ -1,6 +1,8 @@
 #ifndef MOTOR_MESSAGES_H
 #define MOTOR_MESSAGES_H
 
+#include <stdint.h>
+
 typedef struct {
     uint32_t mcu_timestamp;             // timestamp in microcontroller clock cycles
     uint32_t host_timestamp_received;   // return of host_timestamp from ReceiveData
@@ -9,7 +11,10 @@ typedef struct {
     float iq;                           // Measured motor current in A line-line
     float torque;                       // measured torque in Nm
     int32_t motor_encoder;              // motor position in raw counts
-    float reserved[3];
+    union {
+        float reserved[3];
+        uint32_t reserved_uint[3];
+    };
 } Status;
 
 enum ModeDesired {OPEN, DAMPED, CURRENT, POSITION, TORQUE, IMPEDANCE, VELOCITY, CURRENT_TUNING, POSITION_TUNING, VOLTAGE, PHASE_LOCK, STEPPER_TUNING, RESET=255};

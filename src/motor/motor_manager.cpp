@@ -231,6 +231,9 @@ std::string MotorManager::command_headers() const {
     std::stringstream ss;
     int length = motors_.size();
     for (int i=0;i<length;i++) {
+        ss << motors_.command_headers() << ", ";
+    }
+    for (int i=0;i<length;i++) {
         ss << "host_timestamp" << i << ", ";
     }
     for (int i=0;i<length;i++) {
@@ -254,6 +257,9 @@ std::string MotorManager::command_headers() const {
 std::string MotorManager::status_headers() const {
     std::stringstream ss;
     int length = motors_.size();
+    for (int i=0;i<length;i++) {
+        ss << motors_[i].status_headers() << ", ";
+    }
     for (int i=0;i<length;i++) {
         ss << "mcu_timestamp" << i << ", ";
     }
