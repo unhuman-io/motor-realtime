@@ -82,6 +82,7 @@ int main(int argc, char** argv) {
         {"reset", ModeDesired::RESET}};
     std::string set_api_data;
     bool api_mode = false;
+    bool run_stats = false;
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
@@ -116,6 +117,7 @@ int main(int argc, char** argv) {
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
     auto set_api = app.add_option("--set_api", set_api_data, "Send API data (to set parameters)");
     app.add_flag("--api", api_mode, "Enter API mode");
+    app.add_flag("--run-stats", run_stats, "Check firmware run timing");
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int signum){signal_exit = true;});
@@ -198,6 +200,24 @@ int main(int argc, char** argv) {
                             << std::setw(path_width) << m->base_path() << std::endl;
                 }
             }
+        }
+    }
+
+    if (run_stats && motors.size()) {
+        std::cout << "name, fast_loop_cycles, fast_loop_period, main_loop_cycles, main_loop_period" << std::endl;
+        for (auto m : motors) {
+            auto max_api_val = [](TextAPIItem a, int num = 100) {
+                int out = 0;
+                for (int i=0;i<num;i++) {
+                    out = std::max(std::atoi(a.get().c_str()), out);
+                } 
+                return out;
+            };
+            std::cout << m->name() << ", ";
+            std::cout << max_api_val((*m)["t_exec_fastloop"]) << ", ";
+            std::cout << max_api_val((*m)["t_period_fastloop"]) << ", ";
+            std::cout << max_api_val((*m)["t_exec_mainloop"]) << ", ";
+            std::cout << max_api_val((*m)["t_period_mainloop"]) << std::endl;
         }
     }
 
