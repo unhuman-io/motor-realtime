@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <ostream>
+#include <iomanip>
 class Motor;
 
 #include "motor.h"
