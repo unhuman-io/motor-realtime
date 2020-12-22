@@ -134,23 +134,24 @@ inline std::ostream& reserved_uint32(std::ostream &os) {
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
 {
+
    for (auto s : status) {
-      os << s.mcu_timestamp << ", ";
+      os << std::setw(10) << s.mcu_timestamp << ", ";
    }
    for (auto s : status) {
       os << s.host_timestamp_received << ", ";
    }
    for (auto s : status) {
-      os << s.motor_position << ", ";
+      os << std::setw(8) << s.motor_position << ", ";
    }
    for (auto s : status) {
-      os << s.joint_position << ", ";
+      os << std::setw(8) << s.joint_position << ", ";
    }
    for (auto s : status) {
-      os << s.iq << ", ";
+      os << std::setw(8) << s.iq << ", ";
    }
    for (auto s : status) {
-      os << s.torque << ", ";
+      os << std::setw(8) << s.torque << ", ";
    }
    for (auto s : status) {
       os << s.motor_encoder << ", ";
