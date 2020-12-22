@@ -34,7 +34,9 @@ PYBIND11_MODULE(motor, m) {
         .def("set_command_current", &MotorManager::set_command_current)
         .def("set_command_position", &MotorManager::set_command_position)
         .def("set_command_velocity", &MotorManager::set_command_velocity)
-        .def("set_command_torque", &MotorManager::set_command_torque);
+        .def("set_command_torque", &MotorManager::set_command_torque)
+        .def("set_command_reserved", &MotorManager::set_command_reserved)
+        .def("collect_data", &MotorManager::collect_data, py::arg("t_seconds") = 1, py::arg("frequency_hz") = 1000);
 
     py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
         .def(py::init<const std::string&>())
@@ -58,6 +60,7 @@ PYBIND11_MODULE(motor, m) {
         .value("Current", ModeDesired::CURRENT)
         .value("Position", ModeDesired::POSITION)
         .value("Torque", ModeDesired::TORQUE)
+        .value("PositionTuning", ModeDesired::POSITION_TUNING)
         .value("Reset", ModeDesired::RESET)
         .export_values();
 

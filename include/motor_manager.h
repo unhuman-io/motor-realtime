@@ -27,6 +27,8 @@ class MotorManager {
     void aread();
     int poll();
 
+    std::vector<std::vector<Status>> collect_data(double t_seconds = 1, double frequency_hz = 1000);
+
     void set_auto_count(bool on=true) { auto_count_ = on; }
     void set_commands(std::vector<Command> commands);
     void set_command_count(int32_t count);
@@ -35,6 +37,7 @@ class MotorManager {
     void set_command_position(std::vector<float> position);
     void set_command_velocity(std::vector<float> velocity);
     void set_command_torque(std::vector<float> torque);
+    void set_command_reserved(std::vector<float> reserved);
 
     std::string command_headers() const;
     std::string status_headers() const;

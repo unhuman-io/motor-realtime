@@ -45,4 +45,15 @@ typedef struct {
     };
 } Command;
 
+typedef struct {
+    uint32_t num;
+    Status status[10];
+} Statuses;
+
+typedef struct {
+    uint32_t num;
+    Command command[10];
+} Commands;
+
+
 #endif

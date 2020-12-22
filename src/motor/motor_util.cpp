@@ -12,7 +12,6 @@
 #include "motor_publisher.h"
 #include <sstream>
 
-struct cstr{char s[100];};
 class Statistics {
  public:
     Statistics(int size) : size_(size) {}
@@ -73,6 +72,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> devpaths = {};
     std::vector<std::string> serial_numbers = {};
     Command command = {};
+    bool subscribe = false;
     std::vector<std::pair<std::string, ModeDesired>> mode_map{
         {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
         {"position", ModeDesired::POSITION}, {"torque", ModeDesired::TORQUE}, {"impedance", ModeDesired::IMPEDANCE}, 
@@ -92,6 +92,7 @@ int main(int argc, char** argv) {
     set->add_option("--velocity", command.velocity_desired, "Velocity desired");
     set->add_option("--torque", command.torque_desired, "Torque desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
+    set->add_option("--subscribe", subscribe, "Subscribe to commands");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("-s,--timestamp-in-seconds", read_opts.timestamp_in_seconds, "Report motor timestamp as seconds since start and unwrap");
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
@@ -291,7 +292,7 @@ int main(int argc, char** argv) {
             int64_t period_ns = 1e9/read_opts.frequency_hz;
             Statistics exec(100), period(100);
             int i = 0;
-            MotorPublisher<cstr> pub;
+            MotorPublisher<Statuses> pub;
             while (!signal_exit) {
                 auto last_loop_start_time = loop_start_time;
                 loop_start_time = std::chrono::steady_clock::now();
@@ -306,14 +307,10 @@ int main(int argc, char** argv) {
                 auto exec_time = std::chrono::steady_clock::now();
 
                 if (read_opts.publish) {
-                    std::ostringstream oss;
-                    for (auto stat : status) {
-                        oss << stat.joint_position << " ";
-                    }
-                    oss << std::endl;
-                    cstr c;
-                    std::strncpy(c.s, oss.str().c_str(), 100);
-                    pub.publish(c);
+                    Statuses s;
+                    s.num = motors.size();
+                    std::copy(status.begin(), status.end(), s.status);
+                    pub.publish(s);
                 }
 
                 if (read_opts.statistics) {

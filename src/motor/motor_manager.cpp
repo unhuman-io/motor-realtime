@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <poll.h>
 #include <sstream>
+#include <thread>
+#include <chrono>
 
 // Returns a vector of strings that contain the dev file locations,
 // e.g. /dev/skel0
@@ -181,6 +183,12 @@ void MotorManager::set_command_torque(std::vector<float> torque) {
     }
 }
 
+void MotorManager::set_command_reserved(std::vector<float> reserved) {
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].reserved = reserved[i];
+    }
+}
+
 void MotorManager::write_saved_commands() {
     write(commands_);
 }
@@ -285,4 +293,18 @@ std::string MotorManager::status_headers() const {
         ss << "reserved2" << i << ", ";
     }
     return ss.str();
+}
+
+std::vector<std::vector<Status>> MotorManager::collect_data(double t_seconds, double frequency_hz) {
+    auto dt = std::chrono::nanoseconds((uint64_t) (1e9/frequency_hz));
+    auto start_time = std::chrono::steady_clock::now();
+    auto next_time = start_time;
+    std::vector<std::vector<Status>> status;
+    do {
+        next_time += dt;
+        poll();
+        status.push_back(read());
+        std::this_thread::sleep_until(next_time);
+    } while ((next_time - start_time) < std::chrono::nanoseconds((uint64_t) (t_seconds*1e9)));
+    return status;
 }

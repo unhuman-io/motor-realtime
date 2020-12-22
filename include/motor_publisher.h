@@ -20,7 +20,7 @@ class MotorPublisher {
                         MAP_SHARED, /* mapping visible to other processes */
                         fd_,         /* file descriptor */
                         0);
-        std::memset(memptr_, 0, 1000);
+        std::memset(memptr_, 0, sizeof(*data_));
         data_ = reinterpret_cast<CStack<T> *>(memptr_);
     }
     ~MotorPublisher() {
