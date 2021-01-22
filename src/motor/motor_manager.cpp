@@ -47,7 +47,9 @@ static std::vector<std::string> udev (bool user_space_driver=false)
         // TODO better way of identifying other than interface number 0
 		//if (std::string("00") == udev_device_get_sysattr_value(dev, "device/bInterfaceNumber")) {
 			devpath = udev_device_get_devnode(dev);
-            dev_paths.push_back(devpath);
+            if (devpath) {
+                dev_paths.push_back(devpath);
+            }
 		//}
 		
 
@@ -61,24 +63,25 @@ static std::vector<std::string> udev (bool user_space_driver=false)
 	return dev_paths;       
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors() {
+std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool connect) {
     auto dev_paths = udev(user_space_driver_);
     std::vector<std::shared_ptr<Motor>> m;
     for (auto dev_path : dev_paths) {
         if (user_space_driver_ == true) {
             m.push_back(std::make_shared<UserSpaceMotor>(dev_path));
         } else {
-             m.push_back(std::make_shared<Motor>(dev_path));
+            m.push_back(std::make_shared<Motor>(dev_path));
         }
     }
-    
-    motors_ = m;
-    commands_.resize(m.size());
-    return motors_;
+    if (connect) {
+        motors_ = m;
+        commands_.resize(m.size());
+    }
+    return m;
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const ) {
-    auto connected_motors = get_connected_motors();
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect) {
+    auto connected_motors = get_connected_motors(connect);
     std::vector<std::shared_ptr<Motor>> m(names.size());
     for (int i=0; i<names.size(); i++) {
         std::vector<std::shared_ptr<Motor>> found_motors;
@@ -86,34 +89,48 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(st
         if (found_motors.size() == 1) {
             m[i] = found_motors[0];
         } else {
-            std::cout << "Error: found " << found_motors.size() << " motors matching \"" << names[i] << "\"" << std::endl;
+            std::cerr << "Error: found " << found_motors.size() << " motors matching \"" << names[i] << "\"" << std::endl;
         }
     }
-    motors_ = m;
-    commands_.resize(m.size());
-    return motors_;
+    if (connect) {
+        motors_ = m;
+        commands_.resize(m.size());
+    }
+    return m;
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name(std::vector<std::string> names) {
-    return get_motors_by_name_function(names, &Motor::name);
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name(std::vector<std::string> names, bool connect) {
+    return get_motors_by_name_function(names, &Motor::name, connect);
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_serial_number(std::vector<std::string> serial_numbers) {
-    return get_motors_by_name_function(serial_numbers, &Motor::serial_number);
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_serial_number(std::vector<std::string> serial_numbers, bool connect) {
+    return get_motors_by_name_function(serial_numbers, &Motor::serial_number, connect);
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_path(std::vector<std::string> paths) {
-    return get_motors_by_name_function(paths, &Motor::base_path);
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_path(std::vector<std::string> paths, bool connect) {
+    return get_motors_by_name_function(paths, &Motor::base_path, connect);
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vector<std::string> devpaths) {
-    return get_motors_by_name_function(devpaths, &Motor::dev_path);
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vector<std::string> devpaths, bool connect) {
+    return get_motors_by_name_function(devpaths, &Motor::dev_path, connect);
 }
 
 std::vector<Status> MotorManager::read() {
     std::vector<Status> statuses(motors_.size());
     for (int i=0; i<motors_.size(); i++) {
-        motors_[i]->read();
+        auto size = motors_[i]->read();
+        if (size == -1) {
+            if (reconnect_) {
+                std::cerr << "reconnect " << motors_[i]->base_path() << std::endl;
+                auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
+                if (motors[0]) {
+                    std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
+                    motors_[i] = motors[0];
+                }
+            } else {
+                throw std::runtime_error("No data read from: " + motors_[i]->name());
+            }
+        }
         statuses[i] = *motors_[i]->status();
     }
     return statuses;

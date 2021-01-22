@@ -60,6 +60,7 @@ struct ReadOptions {
     bool host_time;
     bool publish;
     bool csv;
+    bool reconnect;
     bool reserved_float;
 };
 
@@ -83,7 +84,7 @@ int main(int argc, char** argv) {
     std::string set_api_data;
     bool api_mode = false;
     bool run_stats = false;
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false};
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false, .reconnect = false};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -103,6 +104,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
     read_option->add_flag("-f,--reserved-float", read_opts.reserved_float, "Interpret reserved 1 & 2 as floats rather than uint32");
+    read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
     app.add_flag("--no-list", no_list, "Do not list connected motors");
     app.add_flag("-v,--version", version, "Print version information");
@@ -260,7 +262,15 @@ int main(int argc, char** argv) {
         t.join();
     }
 
+    try {
+
+    m.set_reconnect(read_opts.reconnect);
+
     if (*read_option) {
+        if (m.motors().size() == 0) {
+            throw std::runtime_error("No motors connected");
+        }
+        
         if (read_opts.text) {
             while(!signal_exit) {
                 char data[64];
@@ -302,6 +312,7 @@ int main(int argc, char** argv) {
                 if (read_opts.poll) {
                     m.poll();
                 }
+                
                 auto status = m.read();
                 auto exec_time = std::chrono::steady_clock::now();
 
@@ -359,6 +370,10 @@ int main(int argc, char** argv) {
                 std::this_thread::sleep_until(next_time);
             }
         }
+    }
+
+    } catch (std::exception &e) {
+        std::cerr << e.what() << std::endl;
     }
 
     return 0;
