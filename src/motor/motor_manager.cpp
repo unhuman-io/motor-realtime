@@ -67,10 +67,14 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
     auto dev_paths = udev(user_space_driver_);
     std::vector<std::shared_ptr<Motor>> m;
     for (auto dev_path : dev_paths) {
-        if (user_space_driver_ == true) {
-            m.push_back(std::make_shared<UserSpaceMotor>(dev_path));
-        } else {
-            m.push_back(std::make_shared<Motor>(dev_path));
+        try {
+            if (user_space_driver_ == true) {
+                m.push_back(std::make_shared<UserSpaceMotor>(dev_path));
+            } else {
+                m.push_back(std::make_shared<Motor>(dev_path));
+            }
+        } catch (std::runtime_error &e) {
+            // There is a runtime_error if the motor is disconnected during this function
         }
     }
     if (connect) {
@@ -120,15 +124,18 @@ std::vector<Status> MotorManager::read() {
     for (int i=0; i<motors_.size(); i++) {
         auto size = motors_[i]->read();
         if (size == -1) {
+            // no data, error is in errno
+            std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
             if (reconnect_) {
-                std::cerr << "reconnect " << motors_[i]->base_path() << std::endl;
+                std::cerr << err << std::endl;
+                std::cerr << "trying to reconnect " << motors_[i]->base_path() << std::endl;
                 auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
                 if (motors[0]) {
                     std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
                     motors_[i] = motors[0];
                 }
             } else {
-                throw std::runtime_error("No data read from: " + motors_[i]->name());
+                throw std::runtime_error(err);
             }
         }
         statuses[i] = *motors_[i]->status();
