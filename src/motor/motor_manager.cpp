@@ -125,17 +125,19 @@ std::vector<Status> MotorManager::read() {
         auto size = motors_[i]->read();
         if (size == -1) {
             // no data, error is in errno
-            std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
-            if (reconnect_) {
-                std::cerr << err << std::endl;
-                std::cerr << "trying to reconnect " << motors_[i]->base_path() << std::endl;
-                auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
-                if (motors[0]) {
-                    std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
-                    motors_[i] = motors[0];
+            if (reconnect_rate_.run()) {
+                std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
+                if (reconnect_) {
+                    std::cerr << err << std::endl;
+                    std::cerr << "trying to reconnect " << motors_[i]->base_path() << std::endl;
+                    auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
+                    if (motors[0]) {
+                        std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
+                        motors_[i] = motors[0];
+                    }
+                } else {
+                    throw std::runtime_error(err);
                 }
-            } else {
-                throw std::runtime_error(err);
             }
         }
         statuses[i] = *motors_[i]->status();

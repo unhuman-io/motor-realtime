@@ -6,9 +6,30 @@
 #include <string>
 #include <ostream>
 #include <iomanip>
+#include <chrono>
 class Motor;
 
 #include "motor.h"
+
+class FrequencyLimiter {
+ public:
+    FrequencyLimiter(std::chrono::milliseconds t_diff) {
+        t_diff_ = t_diff;
+        last_time_ = std::chrono::steady_clock::now();
+    }
+    // returns true once for each time it is allowed to run
+    bool run() {
+        auto time = std::chrono::steady_clock::now();
+        if (time - last_time_ > t_diff_) {
+            last_time_ = time; //todo needs to account for time after t_diff
+            return true;
+        }
+        return false;
+    }
+ private:
+    std::chrono::milliseconds t_diff_;
+    std::chrono::time_point<std::chrono::steady_clock> last_time_;
+};
 
 class MotorManager {
  public:
@@ -50,6 +71,7 @@ class MotorManager {
     uint32_t count_ = 0;
     bool auto_count_ = false;
     bool reconnect_ = false;
+    FrequencyLimiter reconnect_rate_ = std::chrono::milliseconds(100);
 };
 
 inline std::vector<float> get_joint_position(std::vector<Status> statuses) {
