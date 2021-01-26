@@ -147,11 +147,6 @@ int main(int argc, char** argv) {
         auto tmp_motors = m.get_motors_by_serial_number(serial_numbers);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
-    m.set_motors(motors);
-    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size()) {
-        motors = m.get_connected_motors();
-    }
-
     // remove null motors
     auto i = std::begin(motors);
     while (i != std::end(motors)) {
@@ -160,6 +155,11 @@ int main(int argc, char** argv) {
         } else {
             ++i;
         }
+    }
+    m.set_motors(motors);
+    
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size()) {
+        motors = m.get_connected_motors();
     }
 
     if (version) {
@@ -264,12 +264,12 @@ int main(int argc, char** argv) {
 
     try {
 
-    m.set_reconnect(read_opts.reconnect);
-
     if (*read_option) {
         if (m.motors().size() == 0) {
             throw std::runtime_error("No motors connected");
         }
+        
+        m.set_reconnect(read_opts.reconnect);
         
         if (read_opts.text) {
             while(!signal_exit) {
