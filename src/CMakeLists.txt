@@ -1,3 +1,6 @@
 add_subdirectory(motor)
-pybind11_add_module(motor motor_python.cpp)
-target_link_libraries(motor PRIVATE motor_manager)
+if(BUILD_PYTHON_API)
+    pybind11_add_module(motor motor_python.cpp)
+    target_link_libraries(motor PRIVATE motor_manager)
+endif()
+#install(TARGETS motor LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})

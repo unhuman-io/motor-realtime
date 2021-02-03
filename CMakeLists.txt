@@ -23,6 +23,7 @@ INCLUDE(CPack)
 set (CMAKE_CXX_STANDARD 11)
 
 option(INSTALL_COMPLETION "install bash completion script" ON)
+option(BUILD_PYTHON_API "build a python api module" OFF)
 
 # the RPATH to be used when installing, but only if it's not a system directory
 list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
