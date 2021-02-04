@@ -61,6 +61,7 @@ struct ReadOptions {
     bool publish;
     bool csv;
     bool reconnect;
+    bool read_write_statistics;
     bool reserved_float;
 };
 
@@ -84,7 +85,7 @@ int main(int argc, char** argv) {
     std::string set_api_data;
     bool api_mode = false;
     bool run_stats = false;
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false, .reconnect = false};
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -99,6 +100,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
+    read_option->add_flag("--read-write-statistics", read_opts.read_write_statistics, "Perform read then write when doing statistics test");
     read_option->add_flag("--text",read_opts.text, "Read the text interface instead");
     read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
     read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
@@ -299,7 +301,7 @@ int main(int argc, char** argv) {
             auto next_time = start_time;
             auto loop_start_time = start_time;
             int64_t period_ns = 1e9/read_opts.frequency_hz;
-            Statistics exec(100), period(100);
+            Statistics exec(100), period(100), hops(100*m.motors().size());
             int i = 0;
             MotorPublisher<cstr> pub;
             while (!signal_exit) {
@@ -327,7 +329,7 @@ int main(int argc, char** argv) {
                     pub.publish(c);
                 }
 
-                if (read_opts.statistics) {
+                if (read_opts.statistics || read_opts.read_write_statistics) {
                     i++;
                     auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(exec_time - loop_start_time).count();
                     auto last_start = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count();
@@ -336,10 +338,21 @@ int main(int argc, char** argv) {
                     period.push(last_period);
                     if (i > 100) {
                         i = 0;
-                        auto width = 15;
+                        auto width = 12;
                         std::cout << std::fixed << std::setprecision(0) << std::setw(width) << last_start << std::setw(width) << floor(period.get_mean()) << std::setw(width) << 
                         period.get_stddev() << std::setw(width) << period.get_min()  << std::setw(width) << period.get_max() << std::setw(width) <<
-                        floor(exec.get_mean()) << std::setw(width) <<  exec.get_stddev() << std::setw(width) << exec.get_min() << std::setw(width) << exec.get_max()  << std::endl;
+                        floor(exec.get_mean()) << std::setw(width) <<  exec.get_stddev() << std::setw(width) << exec.get_min() << std::setw(width) << exec.get_max();
+                        if (read_opts.read_write_statistics) {
+                            std::cout << std::setprecision(3) << std::setw(width) << hops.get_mean();
+                        }
+                        std::cout << std::endl;
+                    }
+                    if (read_opts.read_write_statistics) { 
+                        for (auto s : status) {
+                            hops.push(m.get_auto_count() - s.host_timestamp_received);
+                        }
+                        m.set_auto_count();
+                        m.write_saved_commands();
                     }
                 } else {
                     std::cout << std::fixed;
