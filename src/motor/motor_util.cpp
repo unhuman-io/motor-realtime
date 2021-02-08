@@ -85,6 +85,7 @@ int main(int argc, char** argv) {
     std::string set_api_data;
     bool api_mode = false;
     bool run_stats = false;
+    bool allow_simulated = false;
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
@@ -115,7 +116,8 @@ int main(int argc, char** argv) {
     app.add_flag("--list-devpath-only", list_devpath, "Print only connected motor devpaths");
     app.add_flag("--list-serial-number-only", list_serial_number, "Print only connected motor serial numbers");
     app.add_flag("-u,--user-space", user_space_driver, "Connect through user space usb");
-    app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
+    auto name_option = app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
+    app.add_flag("--allow-simulated", allow_simulated, "Allow simulated motors if not connected")->needs(name_option);
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
@@ -135,7 +137,7 @@ int main(int argc, char** argv) {
     MotorManager m(user_space_driver);
     std::vector<std::shared_ptr<Motor>> motors;
     if (names.size()) {
-        motors = m.get_motors_by_name(names);
+        motors = m.get_motors_by_name(names, true, allow_simulated);
     }
     if (paths.size()) {
         auto tmp_motors = m.get_motors_by_path(paths);

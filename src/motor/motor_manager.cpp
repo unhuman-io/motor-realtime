@@ -84,7 +84,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
     return m;
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect) {
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect, bool allow_simulated) {
     auto connected_motors = get_connected_motors(connect);
     std::vector<std::shared_ptr<Motor>> m(names.size());
     for (int i=0; i<names.size(); i++) {
@@ -93,7 +93,15 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(st
         if (found_motors.size() == 1) {
             m[i] = found_motors[0];
         } else {
-            std::cerr << "Error: found " << found_motors.size() << " motors matching \"" << names[i] << "\"" << std::endl;
+            if (found_motors.size() > 1) {
+                throw std::runtime_error("Found too many motors matching: " + names[i]);
+            }
+            if (allow_simulated) {
+                std::cout << "Warning: found no motors matching \"" << names[i] << "\", using simulated motor" << std::endl;
+                m[i] = std::make_shared<SimulatedMotor>(names[i]);
+            } else {
+                throw std::runtime_error("Found no motors matching: " + names[i]);
+            }
         }
     }
     if (connect) {
@@ -103,20 +111,20 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(st
     return m;
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name(std::vector<std::string> names, bool connect) {
-    return get_motors_by_name_function(names, &Motor::name, connect);
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name(std::vector<std::string> names, bool connect, bool allow_simulated) {
+    return get_motors_by_name_function(names, &Motor::name, connect, allow_simulated);
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_serial_number(std::vector<std::string> serial_numbers, bool connect) {
-    return get_motors_by_name_function(serial_numbers, &Motor::serial_number, connect);
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_serial_number(std::vector<std::string> serial_numbers, bool connect, bool allow_simulated) {
+    return get_motors_by_name_function(serial_numbers, &Motor::serial_number, connect, allow_simulated);
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_path(std::vector<std::string> paths, bool connect) {
-    return get_motors_by_name_function(paths, &Motor::base_path, connect);
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_path(std::vector<std::string> paths, bool connect, bool allow_simulated) {
+    return get_motors_by_name_function(paths, &Motor::base_path, connect, allow_simulated);
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vector<std::string> devpaths, bool connect) {
-    return get_motors_by_name_function(devpaths, &Motor::dev_path, connect);
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vector<std::string> devpaths, bool connect, bool allow_simulated) {
+    return get_motors_by_name_function(devpaths, &Motor::dev_path, connect, allow_simulated);
 }
 
 std::vector<Status> MotorManager::read() {

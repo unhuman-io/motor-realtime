@@ -35,10 +35,10 @@ class MotorManager {
  public:
     MotorManager(bool user_space_driver = false) : user_space_driver_(user_space_driver) {}
     std::vector<std::shared_ptr<Motor>> get_connected_motors(bool connect = true);
-    std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool connect = true);
-    std::vector<std::shared_ptr<Motor>> get_motors_by_serial_number(std::vector<std::string> serial_numbers, bool connect = true);
-    std::vector<std::shared_ptr<Motor>> get_motors_by_path(std::vector<std::string> paths, bool connect = true);
-    std::vector<std::shared_ptr<Motor>> get_motors_by_devpath(std::vector<std::string> devpaths, bool connect = true);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool connect = true, bool allow_simulated = false);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_serial_number(std::vector<std::string> serial_numbers, bool connect = true, bool allow_simulated = false);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_path(std::vector<std::string> paths, bool connect = true, bool allow_simulated = false);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_devpath(std::vector<std::string> devpaths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
     void set_motors(std::vector<std::shared_ptr<Motor>> motors) { motors_ = motors; commands_.resize(motors_.size()); }
     std::vector<Command> commands() const { return commands_; }
@@ -65,7 +65,7 @@ class MotorManager {
     int serialize_saved_commands(char *data) const;
     bool deserialize_saved_commands(char *data);
  private:
-    std::vector<std::shared_ptr<Motor>> get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect = true);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;
     bool user_space_driver_;

@@ -22,8 +22,8 @@ class TextFile {
  public:
     virtual ~TextFile() {}
     virtual void flush() {}
-    virtual ssize_t read(char *data, unsigned int length) = 0;
-    virtual ssize_t write(const char *data, unsigned int length) = 0;
+    virtual ssize_t read(char *data, unsigned int length) { return 0; };
+    virtual ssize_t write(const char *data, unsigned int length) { return 0; };
 };
 
 class SysfsFile : public TextFile {
@@ -200,6 +200,24 @@ class Motor {
     Status status_ = {};
     Command command_ = {};
     TextFile *motor_txt_;
+};
+
+class SimulatedMotor : public Motor {
+ public:
+   SimulatedMotor(std::string name) { name_ = name; motor_txt_ =  new TextFile(); }
+   virtual ~SimulatedMotor() {}
+   virtual ssize_t read() {
+       status_.mcu_timestamp++;
+       return sizeof(status_);
+   };
+   virtual ssize_t write() {
+       status_.host_timestamp_received = command_.host_timestamp;
+       if (command_.mode_desired == POSITION) {
+           status_.motor_position = command_.position_desired;
+           status_.joint_position = 1*command_.position_desired;
+       }
+       return sizeof(command_); 
+   };
 };
 
 class UserSpaceMotor : public Motor {

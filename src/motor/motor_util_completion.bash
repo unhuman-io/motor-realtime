@@ -26,7 +26,7 @@ _motor_util_completion()
 
     COMREPLY=()
     local words
-    local base_words="-l --list --no-list --list-names-only --list-path-only --list-devpath-only --list-serial-number-only -n --names -p --paths -d --devpaths -s --serial_numbers set read --set_api --api --run-stats -v --version -u --user-space -h --help";
+    local base_words="-l --list --no-list --list-names-only --list-path-only --list-devpath-only --list-serial-number-only -n --names -p --paths -d --devpaths -s --serial_numbers set read --set_api --api --run-stats -v --version -u --user-space --allow-simulated -h --help";
     case $subcommand in
         set) words="--host_time --mode --current --position --velocity --torque --reserved read -h --help";
             case $last in
