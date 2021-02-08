@@ -190,6 +190,12 @@ void MotorManager::set_command_mode(uint8_t mode) {
         c.mode_desired = mode;
     }
 }
+
+void MotorManager::set_command_mode(std::vector<uint8_t> mode) {
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].mode_desired = mode[i];
+    }
+}
     
 void MotorManager::set_command_current(std::vector<float> current) {
     for (int i=0; i<commands_.size(); i++) {
