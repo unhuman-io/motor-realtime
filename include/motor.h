@@ -214,10 +214,13 @@ class SimulatedMotor : public Motor {
        status_.host_timestamp_received = command_.host_timestamp;
        if (command_.mode_desired == POSITION) {
            status_.motor_position = command_.position_desired;
-           status_.joint_position = 1*command_.position_desired;
+           status_.joint_position = command_.position_desired/gear_ratio_;
        }
        return sizeof(command_); 
    };
+   void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
+ private:
+    double gear_ratio_ = 1;
 };
 
 class UserSpaceMotor : public Motor {
