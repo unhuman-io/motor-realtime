@@ -22,6 +22,7 @@ INCLUDE(CPack)
 
 set (CMAKE_CXX_STANDARD 11)
 
+option(BUILD_SHARED_LIBS "Build libraries shared" ON)
 option(INSTALL_COMPLETION "install bash completion script" ON)
 option(BUILD_PYTHON_API "build a python api module" OFF)
 
