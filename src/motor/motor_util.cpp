@@ -55,7 +55,7 @@ struct ReadOptions {
     bool aread;
     double frequency_hz;
     bool statistics;
-    bool text;
+    std::string text;
     bool timestamp_in_seconds;
     bool host_time;
     bool publish;
@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
     bool api_mode = false;
     bool run_stats = false;
     bool allow_simulated = false;
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = false , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false};
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = "log" , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
     read_option->add_flag("--read-write-statistics", read_opts.read_write_statistics, "Perform read then write when doing statistics test");
-    read_option->add_flag("--text",read_opts.text, "Read the text interface instead");
+    auto text_read = read_option->add_option("--text",read_opts.text, "Read the text api for variable", true)->expected(0, 1);
     read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
     read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
@@ -233,7 +233,7 @@ int main(int argc, char** argv) {
         m.write(commands);
     }
 
-    if (*set_api || api_mode || *read_option && read_opts.text) {
+    if (*set_api || api_mode || *read_option && *text_read) {
         if (motors.size() != 1) {
             std::cout << "Select one motor to use api mode" << std::endl;
             return 1;
@@ -241,8 +241,10 @@ int main(int argc, char** argv) {
     }
 
     if (*set_api && motors.size()) {
-        auto nbytes = m.motors()[0]->motor_text()->write(set_api_data.c_str(), set_api_data.size());
-        std::cout << "wrote " << nbytes << " bytes: " << set_api_data << std::endl;
+        char c[65];
+        auto nbytes = m.motors()[0]->motor_text()->writeread(set_api_data.c_str(), set_api_data.size(), c, 64);
+        c[nbytes] = 0;
+        std::cout << c << std::endl;
     }
 
     if (api_mode) {
@@ -250,17 +252,14 @@ int main(int argc, char** argv) {
         bool sin = false;
         std::thread t([&s,&sin]() { while(!signal_exit) { std::cin >> s; sin = true; } });
         while(!signal_exit) {
-            char data[64];
-            auto nbytes = m.motors()[0]->motor_text()->read(data,64);
-            if (nbytes > 0) {
+            char data[65];
+            if (sin) {
+                auto nbytes = m.motors()[0]->motor_text()->writeread(s.c_str(), s.size(), data, 64);
                 data[nbytes] = 0;
                 std::cout << data << std::endl;
-            }
-            if (sin) {
-               // std::cout << "s: " << s << "n: " << s.size() << std::endl;
-                m.motors()[0]->motor_text()->write(s.c_str(), s.size());
                 sin = false;
             }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         pthread_cancel(t.native_handle());
         t.join();
@@ -275,16 +274,20 @@ int main(int argc, char** argv) {
         
         m.set_reconnect(read_opts.reconnect);
         
-        if (read_opts.text) {
+        if (*text_read) {
+            auto log = (*m.motors()[0])[read_opts.text];
+            auto str = log.get();
             while(!signal_exit) {
-                char data[64];
-                auto nbytes = m.motors()[0]->motor_text()->read(data,64);
-                if (nbytes > 0) {
-                    data[nbytes] = 0;
-                    std::cout << data << std::endl;
+                if (str != "log end") {
+                    std::cout << str << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                } else {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
+                str = log.get();
             }
         } else {
+            std::vector<double> cpu_frequency_hz(motors.size());
             if (read_opts.statistics) {
                 std::cout << "period_avg std_dev min max read_time_avg std_dev min max";
             } else {
@@ -294,6 +297,7 @@ int main(int argc, char** argv) {
                 if (read_opts.timestamp_in_seconds) {
                     int length = motors.size();
                     for (int i=0;i<length;i++) {
+                        cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get());
                         std::cout << "t_seconds" << i << ", ";
                     }
                 }
@@ -363,7 +367,7 @@ int main(int argc, char** argv) {
                         std::cout << reserved_uint32;
                     }
                     if (read_opts.host_time) {
-                        std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count()/1e9 << ",";
+                        std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count()/1e9 << ", ";
                     }
                     if (read_opts.timestamp_in_seconds) {
                         
@@ -371,7 +375,7 @@ int main(int argc, char** argv) {
                         static double *t_seconds = new double[status.size()]();
                         for (int i = 0; i < status.size(); i++) {
                             uint32_t dt = status[i].mcu_timestamp - last_status[i].mcu_timestamp;
-                            t_seconds[i] += dt/170.0e6;
+                            t_seconds[i] += dt/cpu_frequency_hz[i];
                             std::cout << t_seconds[i] << ", ";
                         }
                         last_status = status;
