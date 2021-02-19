@@ -86,6 +86,7 @@ int main(int argc, char** argv) {
     bool api_mode = false;
     bool run_stats = false;
     bool allow_simulated = false;
+    bool check_messages_version = false;
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = "log" , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
@@ -109,6 +110,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("-f,--reserved-float", read_opts.reserved_float, "Interpret reserved 1 & 2 as floats rather than uint32");
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
+    app.add_flag("-c,--check-messages-version", check_messages_version, "Check motor messages version");
     app.add_flag("--no-list", no_list, "Do not list connected motors");
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
@@ -121,7 +123,7 @@ int main(int argc, char** argv) {
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
-    auto set_api = app.add_option("--set_api", set_api_data, "Send API data (to set parameters)");
+    auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)");
     app.add_flag("--api", api_mode, "Enter API mode");
     app.add_flag("--run-stats", run_stats, "Check firmware run timing");
     CLI11_PARSE(app, argc, argv);
@@ -205,6 +207,20 @@ int main(int argc, char** argv) {
                             << std::setw(version_width) << (verbose_list ? m->version() : m->short_version())
                             << std::setw(path_width) << m->base_path() << std::endl;
                 }
+            }
+        }
+    }
+
+    if (check_messages_version) {
+        for (auto m : motors) {
+            bool error = false;
+            if (!m->check_messages_version()) {
+                error = true;
+                std::cerr << "Messages version incorrect: " << m->name() << ": " << 
+                    (*m)["messages_version"] << ", motor_util: " << MOTOR_MESSAGES_VERSION << std::endl;
+            }
+            if (error) {
+                return 1;
             }
         }
     }

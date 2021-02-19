@@ -1,6 +1,8 @@
 #ifndef MOTOR_MESSAGES_H
 #define MOTOR_MESSAGES_H
 
+#define MOTOR_MESSAGES_VERSION  "1.0"
+
 typedef struct {
     uint32_t mcu_timestamp;             // timestamp in microcontroller clock cycles
     uint32_t host_timestamp_received;   // return of host_timestamp from ReceiveData

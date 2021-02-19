@@ -196,6 +196,7 @@ class Motor {
     std::string base_path() const {return base_path_; }
     std::string dev_path() const { return dev_path_; }
     std::string version() const { return version_; }
+    bool check_messages_version() { return MOTOR_MESSAGES_VERSION == operator[]("messages_version").get(); }
     std::string short_version() const {
         std::string s = version();
         auto pos = s.find("-g");
