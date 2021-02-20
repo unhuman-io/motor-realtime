@@ -256,8 +256,8 @@ int main(int argc, char** argv) {
         if (command.mode_desired == ModeDesired::POSITION_TUNING) {
             double sign_amplitude = tuning_mode == TuningMode::SINE || tuning_mode == TuningMode::CHIRP ? 1 : -1;
             double sign_frequency = tuning_mode == TuningMode::SQUARE || tuning_mode == TuningMode::SINE ? 1 : -1;
-            command.position_tuning.amplitude = sign_amplitude * tuning_amplitude;
-            command.position_tuning.frequency_hz = sign_frequency * tuning_frequency;
+            command.position_desired = sign_amplitude * tuning_amplitude;
+            command.reserved = sign_frequency * tuning_frequency;
         }
         if (command.mode_desired == ModeDesired::CURRENT_TUNING) {
             command.current_desired = (tuning_mode == TuningMode::CHIRP ? -1 : 1) * tuning_amplitude;
