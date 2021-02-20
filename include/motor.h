@@ -24,36 +24,44 @@ class TextFile {
     virtual void flush() {}
     virtual ssize_t read(char *data, unsigned int length) { return 0; };
     virtual ssize_t write(const char *data, unsigned int length) { return 0; };
+    virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) { return 0; }
 };
 
 class SysfsFile : public TextFile {
  public:
     SysfsFile (std::string path) {
         path_ = path;
-    }
-    int open() {
-        int fd = ::open(path_.c_str(), O_RDWR);
-        if (fd >= 0) {
-            return fd;
-        } else {
+        fd_ = ::open(path_.c_str(), O_RDWR);
+        if (fd_ < 0) {
             throw std::runtime_error("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + path_.c_str());
         }
     }
-    void close(int fd) {
-        int retval = ::close(fd);
+    ~SysfsFile() {
+        int retval = ::close(fd_);
         if (retval) {
-            throw std::runtime_error("Sysfs close error " + std::to_string(errno) + ": " + strerror(errno));
+            std::cerr << "Sysfs close error " + std::to_string(errno) + ": " + strerror(errno) << std::endl;
         }
     }
     virtual void flush() {
         char c[64];
         while(read(c, 64));
     }
+    // locked/blocked to one caller so that a read is a response to write
+    ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) {
+        ::lseek(fd_, 0, SEEK_SET);
+        lockf(fd_, F_LOCK, 0);
+        write(data_out, length_out);
+        ::lseek(fd_, 0, SEEK_SET);
+        auto retval = read(data_in, length_in);
+        ::lseek(fd_, 0, SEEK_SET);
+        lockf(fd_, F_ULOCK, 0);
+        return retval;
+    }
     ssize_t read(char *data, unsigned int length) {
-        // sysfs file needs to be opened and closed to read new values
-        int fd = open();
-        auto retval = ::read(fd, data, length);
-        close(fd);
+        // sysfs file needs to closed and opened or lseek to beginning.
+        ::lseek(fd_, 0, SEEK_SET);
+        auto retval = ::read(fd_, data, length);
+
         if (retval < 0) {
             if (errno == ETIMEDOUT) {
                 return 0;
@@ -64,17 +72,15 @@ class SysfsFile : public TextFile {
         return retval;
     }
     ssize_t write(const char *data, unsigned int length) {
-        int fd = open();
-        auto retval = ::write(fd, data, length);
-        close(fd);
+        auto retval = ::write(fd_, data, length);
         if (retval < 0) {
             throw std::runtime_error("Sysfs write error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
-    ~SysfsFile() {}
  private:
     std::string path_;
+    int fd_;
 };
 
 class USBFile : public TextFile {
@@ -88,7 +94,7 @@ class USBFile : public TextFile {
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_IN,
             .len = length,
-            .timeout = 100,
+            .timeout = 1000,
             .data = data
         };
 
@@ -118,6 +124,17 @@ class USBFile : public TextFile {
         }
         return retval;
     }
+    // locked/blocked to one caller so that a read is a response to write
+    ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) {
+        ::lseek(fd_, 0, SEEK_SET);
+        lockf(fd_, F_LOCK, 0);
+        write(data_out, length_out);
+        ::lseek(fd_, 0, SEEK_SET);
+        auto retval = read(data_in, length_in);
+        ::lseek(fd_, 0, SEEK_SET);
+        lockf(fd_, F_ULOCK, 0);
+        return retval;
+    }
  private:
     unsigned int ep_num_;
     int fd_;
@@ -125,20 +142,19 @@ class USBFile : public TextFile {
 
 class TextAPIItem {
  public:
-    TextAPIItem(TextFile *motor_txt, std::string name) : motor_txt_(motor_txt), name_(name) { 
-        motor_txt_->flush();
-    }
+    TextAPIItem(TextFile *motor_txt, std::string name) : motor_txt_(motor_txt), name_(name) {}
 
-    void set(std::string s) {
+    std::string set(std::string s) {
         std::string s2 = name_ + "=" + s;
-        motor_txt_->write(s2.c_str(), s2.size());
         char c[64];
-        motor_txt_->read(c, 64);
+        auto nbytes = motor_txt_->writeread(s2.c_str(), s2.size(), c, 64);
+        c[nbytes] = 0;
+        return c;
     }
-    std::string get() const {
-        motor_txt_->write(name_.c_str(), name_.size());
+    std::string get() const {        
         char c[64] = {};
-        motor_txt_->read(c, 64);
+        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, 64);
+        c[nbytes] = 0;
         return c;
     }
     void operator=(const std::string s) {
@@ -180,6 +196,7 @@ class Motor {
     std::string base_path() const {return base_path_; }
     std::string dev_path() const { return dev_path_; }
     std::string version() const { return version_; }
+    bool check_messages_version() { return MOTOR_MESSAGES_VERSION == operator[]("messages_version").get(); }
     std::string short_version() const {
         std::string s = version();
         auto pos = s.find("-g");
