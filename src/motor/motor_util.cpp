@@ -277,10 +277,10 @@ int main(int argc, char** argv) {
 
     if (*set_api && motors.size()) {
         char c[65];
-        for (auto m : m.motors()) {
-            auto nbytes = m->motor_text()->writeread(set_api_data.c_str(), set_api_data.size(), c, 64);
+        for (auto motor : m.motors()) {
+            auto nbytes = motor->motor_text()->writeread(set_api_data.c_str(), set_api_data.size(), c, 64);
             c[nbytes] = 0;
-            std::cout << m->name() << ": " << c << std::endl;
+            std::cout << motor->name() << ": " << c << std::endl;
         }
     }
 
