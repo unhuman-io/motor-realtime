@@ -55,6 +55,15 @@ jobs:
 
   build_arm:
     runs-on: ubuntu-18.04
+    name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
+
+    strategy:
+      matrix:
+        include:
+          - arch: aarch64
+            distro: ubuntu18.04
+          - arch: armv6
+            distro: buster
     steps:
     - uses: actions/checkout@master
       with:
@@ -64,8 +73,8 @@ jobs:
       name: Run commands
       id: runcmd
       with:
-        arch: aarch64
-        distro: ubuntu18.04
+        arch: ${{ matrix.arch }}
+        distro: ${{ matrix.distro }}
         githubToken: ${{ github.token }}
         setup: |
           mkdir -p "${PWD}/packages"
