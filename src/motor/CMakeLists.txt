@@ -4,7 +4,6 @@ target_include_directories(motor_manager PUBLIC ${CMAKE_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
     ${CMAKE_SOURCE_DIR}/include/motor_manager.h
     ${CMAKE_SOURCE_DIR}/include/motor_messages.h
-    ${CMAKE_SOURCE_DIR}/include/motor_messages/motor_messages.h
     ${CMAKE_SOURCE_DIR}/include/motor.h
     ${CMAKE_SOURCE_DIR}/include/realtime_thread.h
     ${CMAKE_SOURCE_DIR}/include/motor_thread.h
@@ -17,6 +16,8 @@ set_target_properties(motor_manager PROPERTIES PUBLIC_HEADER
 install(TARGETS motor_manager
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES ${CMAKE_SOURCE_DIR}/include/motor_messages/motor_messages.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/motor_messages)
 
 add_executable(motor_util motor_util.cpp)
 target_link_libraries(motor_util motor_manager cli11 pthread rt)
