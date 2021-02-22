@@ -268,7 +268,7 @@ int main(int argc, char** argv) {
         m.write(commands);
     }
 
-    if (*set_api || api_mode || *read_option && *text_read) {
+    if (api_mode || *read_option && *text_read) {
         if (motors.size() != 1) {
             std::cout << "Select one motor to use api mode" << std::endl;
             return 1;
@@ -277,9 +277,11 @@ int main(int argc, char** argv) {
 
     if (*set_api && motors.size()) {
         char c[65];
-        auto nbytes = m.motors()[0]->motor_text()->writeread(set_api_data.c_str(), set_api_data.size(), c, 64);
-        c[nbytes] = 0;
-        std::cout << c << std::endl;
+        for (auto m : m.motors()) {
+            auto nbytes = m->motor_text()->writeread(set_api_data.c_str(), set_api_data.size(), c, 64);
+            c[nbytes] = 0;
+            std::cout << m->name() << ": " << c << std::endl;
+        }
     }
 
     if (api_mode) {
