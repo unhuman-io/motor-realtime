@@ -19,15 +19,18 @@ install(TARGETS motor_manager
 install(FILES ${CMAKE_SOURCE_DIR}/include/motor_messages/motor_messages.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/motor_messages)
 
-add_executable(motor_util motor_util.cpp)
-target_link_libraries(motor_util motor_manager cli11 pthread rt)
-target_include_directories(motor_util PUBLIC ${CMAKE_BINARY_DIR})
+if(BUILD_MOTOR_UTIL)
+    add_executable(motor_util motor_util.cpp)
+    target_link_libraries(motor_util motor_manager cli11 pthread rt)
+    target_include_directories(motor_util PUBLIC ${CMAKE_BINARY_DIR})
+    install(TARGETS motor_util DESTINATION bin)
+endif()
 
 add_executable(motor_data_echo motor_data_echo.cpp)
 target_include_directories(motor_data_echo PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(motor_data_echo rt pthread)
 
-install(TARGETS motor_util DESTINATION bin)
+
 # can't seem to use ${CMAKE_INSTALL_SYSCONFDIR} below instead of /etc with cpack
 if(INSTALL_COMPLETION)
     install(FILES motor_util_completion.bash DESTINATION /etc/bash_completion.d)

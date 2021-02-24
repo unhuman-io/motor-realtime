@@ -4,7 +4,8 @@ include(GNUInstallDirs)
 
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libudev1, dkms, usb_rt_driver")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libudev1")
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "usb_rt_driver")
 execute_process(COMMAND bash -c "git describe --dirty --always --tags" OUTPUT_VARIABLE GIT_VERSION)
 string(STRIP ${GIT_VERSION} GIT_VERSION)
 execute_process(COMMAND bash -c "git describe --dirty --long --tags" OUTPUT_VARIABLE GIT_VERSION_LONG)
@@ -23,8 +24,9 @@ INCLUDE(CPack)
 set (CMAKE_CXX_STANDARD 11)
 
 option(BUILD_SHARED_LIBS "Build libraries shared" ON)
-option(INSTALL_COMPLETION "install bash completion script" ON)
 option(BUILD_PYTHON_API "build a python api module" OFF)
+option(BUILD_MOTOR_UTIL "build motor util command line program" ON)
+option(INSTALL_COMPLETION "install bash completion script" ON)
 
 # the RPATH to be used when installing, but only if it's not a system directory
 list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
