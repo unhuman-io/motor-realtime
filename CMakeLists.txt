@@ -12,7 +12,7 @@ execute_process(COMMAND bash -c "git describe --dirty --long --tags" OUTPUT_VARI
 string(STRIP ${GIT_VERSION_LONG} GIT_VERSION_LONG)
 execute_process(COMMAND bash -c "git rev-list 0.. --count" OUTPUT_VARIABLE GIT_REV)
 string(STRIP ${GIT_REV} GIT_REV)
-set(CPACK_PACKAGE_VERSION "0.4.${GIT_REV}")
+set(CPACK_PACKAGE_VERSION "0.5.${GIT_REV}")
 set(VERSION ${GIT_VERSION_LONG})
 set(CPACK_OUTPUT_FILE_PREFIX packages)
 EXECUTE_PROCESS( COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCH)
