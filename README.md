@@ -1,12 +1,12 @@
-# realtime-tmp
+# motor-realtime
 
 This project contains helps interface with a kernel driver to communicate to motor 
 controllers over USB and an API to help communicate with the motor 
 controllers. The kernel driver is available at github at unhuman-io/usb_rt_driver. 
 The API will install a shared library motor_manager.so and include files: motor.h 
-and motor_manager.h. An example is installed in `share/realtime-tmp/example`. A 
+and motor_manager.h. An example is installed in `share/motor-realtime/example`. A 
 very minimal python interface that is compatible with the NVidia Jetbot demo is 
-installed in `share/realtime-tmp/python`.
+installed in `share/motor-realtime/python`.
 
 `motor_util` is a command line utility that is also installed. It uses 
 the motor_manager library and enumerates any connected devices. 
