@@ -5,39 +5,92 @@
 #include <memory>
 #include <string>
 #include <ostream>
+#include <iomanip>
+#include <chrono>
 class Motor;
 
 #include "motor.h"
 
+class FrequencyLimiter {
+ public:
+    FrequencyLimiter(std::chrono::milliseconds t_diff) {
+        t_diff_ = t_diff;
+        last_time_ = std::chrono::steady_clock::now();
+    }
+    // returns true once for each time it is allowed to run
+    bool run() {
+        auto time = std::chrono::steady_clock::now();
+        if (time - last_time_ > t_diff_) {
+            last_time_ = time; //todo needs to account for time after t_diff
+            return true;
+        }
+        return false;
+    }
+ private:
+    std::chrono::milliseconds t_diff_;
+    std::chrono::time_point<std::chrono::steady_clock> last_time_;
+};
+
 class MotorManager {
  public:
-    std::vector<std::shared_ptr<Motor>> get_connected_motors(bool user_space_driver=false);
-    std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool user_space_driver=false);
+    MotorManager(bool user_space_driver = false) : user_space_driver_(user_space_driver) {}
+    std::vector<std::shared_ptr<Motor>> get_connected_motors(bool connect = true);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool connect = true, bool allow_simulated = false);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_serial_number(std::vector<std::string> serial_numbers, bool connect = true, bool allow_simulated = false);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_path(std::vector<std::string> paths, bool connect = true, bool allow_simulated = false);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_devpath(std::vector<std::string> devpaths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
+    void set_motors(std::vector<std::shared_ptr<Motor>> motors) { motors_ = motors; commands_.resize(motors_.size()); }
     std::vector<Command> commands() const { return commands_; }
-    void open();
     std::vector<Status> read();
     void write(std::vector<Command>);
     void write_saved_commands();
     void aread();
     int poll();
-    void close();
 
+    void set_auto_count(bool on=true) { auto_count_ = on; }
+    uint32_t get_auto_count() const { return count_; }
+    void set_reconnect(bool reconnect=true) { reconnect_ = reconnect; }
     void set_commands(std::vector<Command> commands);
     void set_command_count(int32_t count);
     void set_command_mode(uint8_t mode);
+    void set_command_mode(std::vector<uint8_t> mode);
     void set_command_current(std::vector<float> current);
     void set_command_position(std::vector<float> position);
     void set_command_velocity(std::vector<float> velocity);
+    void set_command_torque(std::vector<float> torque);
+
     std::string command_headers() const;
     std::string status_headers() const;
     int serialize_command_size() const;
     int serialize_saved_commands(char *data) const;
     bool deserialize_saved_commands(char *data);
  private:
+    std::vector<std::shared_ptr<Motor>> get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;
+    bool user_space_driver_;
+    uint32_t count_ = 0;
+    bool auto_count_ = false;
+    bool reconnect_ = false;
+    FrequencyLimiter reconnect_rate_ = std::chrono::milliseconds(100);
 };
+
+inline std::vector<float> get_joint_position(std::vector<Status> statuses) {
+   std::vector<float> out;
+   for (auto stat : statuses) {
+      out.push_back(stat.joint_position);
+   }
+   return out;
+}
+
+inline std::vector<float> get_motor_position(std::vector<Status> statuses) {
+   std::vector<float> out;
+   for (auto stat : statuses) {
+      out.push_back(stat.motor_position);
+   }
+   return out;
+}
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> command)
 {
@@ -96,25 +149,36 @@ inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
    return is;
 }
 
+inline int geti() { 
+    static int i = std::ios_base::xalloc();
+    return i;
+}
+
+inline std::ostream& reserved_uint32(std::ostream &os) {
+    os.iword(geti()) = 1; 
+    return os;
+}
+
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
 {
+
    for (auto s : status) {
-      os << s.mcu_timestamp << ", ";
+      os << std::setw(10) << s.mcu_timestamp << ", ";
    }
    for (auto s : status) {
       os << s.host_timestamp_received << ", ";
    }
    for (auto s : status) {
-      os << s.motor_position << ", ";
+      os << std::setw(8) << s.motor_position << ", ";
    }
    for (auto s : status) {
-      os << s.joint_position << ", ";
+      os << std::setw(8) << s.joint_position << ", ";
    }
    for (auto s : status) {
-      os << s.iq << ", ";
+      os << std::setw(8) << s.iq << ", ";
    }
    for (auto s : status) {
-      os << s.torque << ", ";
+      os << std::setw(8) << s.torque << ", ";
    }
    for (auto s : status) {
       os << s.motor_encoder << ", ";
@@ -122,7 +186,24 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    for (auto s : status) {
       os << s.reserved[0] << ", ";
    }
+   if (os.iword(geti()) == 1) {
+      for (auto s : status) {
+         os << *reinterpret_cast<uint32_t *>(&s.reserved[1]) << ", ";
+      }
+      for (auto s : status) {
+         os << *reinterpret_cast<uint32_t *>(&s.reserved[2]) << ", ";
+      }
+   } else {
+      for (auto s : status) {
+         os << s.reserved[1] << ", ";
+      }
+      for (auto s : status) {
+         os << s.reserved[2] << ", ";
+      }
+   }
    return os;
 }
+
+
 
 #endif

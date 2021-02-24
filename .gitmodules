@@ -1,0 +1,7 @@
+[submodule "3rdparty/pybind11"]
+	path = 3rdparty/pybind11
+	url = ../../pybind/pybind11
+[submodule "include/motor_messages"]
+	path = include/motor_messages
+	url = ../motor_messages
+	branch = main

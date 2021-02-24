@@ -3,6 +3,7 @@
 #include <vector>
 #include "motor.h"
 #include "motor_manager.h"
+#include <atomic>
 
 class MotorManager;
 
@@ -12,24 +13,24 @@ struct Data {
     std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end, aread_time, read_time, control_time, write_time;
 };
 
-// A circular stack. If data is written by one thread and read by one other thread, data is read from the top without worrying about thread safety.
+// A circular stack. If data is written by one thread and read by one other thread then data is read from the top without worrying about thread safety.
 template <class T>
 class CStack {
  public:
-    void push(T &t) {
-		int future_pos = pos_ + 1;
+    void push(T const &t) {
+		int future_pos = pos_.load(std::memory_order_acquire) + 1;
 		if (future_pos >= 100) {
 			future_pos = 0;
 		}
 		data_[future_pos] = t;
-		pos_ = future_pos;
+		pos_.store(future_pos, std::memory_order_release);
 	}
-	T top() const {
-		return data_[pos_];
+	T top() const { // return a copy of the data
+		return data_[pos_.load(std::memory_order_acquire)];
 	}
  private:
-	T data_[100];
-	int pos_ = 0;
+	T data_[100] = {};
+	std::atomic<int> pos_ = {0};
 };
 
 class MotorThread : public RealtimeThread {

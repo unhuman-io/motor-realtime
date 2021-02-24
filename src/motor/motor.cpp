@@ -4,6 +4,9 @@ Motor::Motor(std::string dev_path) {
     dev_path_ = dev_path; 
     struct udev *udev = udev_new();
     struct udev_device *dev = udev_device_new_from_subsystem_sysname(udev, "usbmisc", basename(const_cast<char *>(dev_path.c_str())));
+    if (!dev) {
+        throw std::runtime_error("No device: " + dev_path);
+    }
     const char * name = udev_device_get_sysattr_value(dev, "device/interface");
     if (name != NULL) {
         name_ = name;
@@ -32,7 +35,8 @@ Motor::Motor(std::string dev_path) {
     // motor_txt_ = new USBFile(parent_dev_path, 0);
     
     udev_device_unref(dev);
-    udev_unref(udev);  
+    udev_unref(udev);
+    open();
 }
 
  Motor::~Motor() { close(); delete motor_txt_; }

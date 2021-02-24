@@ -16,61 +16,52 @@
 #include <errno.h>
 #include <stdexcept>
 #include <cstring>
-
-typedef struct {
-    uint32_t mcu_timestamp;             // timestamp in microcontroller clock cycles
-    uint32_t host_timestamp_received;   // return of host_timestamp from ReceiveData
-    float motor_position;               // motor position in radians
-    float joint_position;               // joint position in radians
-    float iq;                           // Measured motor current in A line-line
-    float torque;                       // measured torque in Nm
-    int32_t motor_encoder;              // motor position in raw counts
-    float reserved[2];
-} Status;
-
-enum ModeDesired {OPEN, DAMPED, CURRENT, POSITION, TORQUE, IMPEDANCE, VELOCITY, CURRENT_TUNING, POSITION_TUNING, VOLTAGE, PHASE_LOCK, RESET=255};
-
-typedef struct {
-    uint32_t host_timestamp;            // Value from host
-    uint8_t mode_desired;               // \sa ModeDesired
-    float current_desired;              // motor current desired in A line-line
-    float position_desired;             // motor position desired in rad
-    float velocity_desired;             // motor velocity desired in rad/s
-    float torque_desired;
-    float reserved;                     // reserved option
-} Command;
+#include "motor_messages.h"
 
 class TextFile {
  public:
-    virtual ~TextFile() {};
-    virtual ssize_t read(char *data, unsigned int length) = 0;
-    virtual ssize_t write(const char *data, unsigned int length) = 0;
+    virtual ~TextFile() {}
+    virtual void flush() {}
+    virtual ssize_t read(char *data, unsigned int length) { return 0; };
+    virtual ssize_t write(const char *data, unsigned int length) { return 0; };
+    virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) { return 0; }
 };
 
 class SysfsFile : public TextFile {
  public:
     SysfsFile (std::string path) {
         path_ = path;
-    }
-    int open() {
-        int fd = ::open(path_.c_str(), O_RDWR);
-        if (fd > 0) {
-            return fd;
-        } else {
-            throw std::runtime_error("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno));
+        fd_ = ::open(path_.c_str(), O_RDWR);
+        if (fd_ < 0) {
+            throw std::runtime_error("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + path_.c_str());
         }
     }
-    void close(int fd) {
-        int retval = ::close(fd);
+    ~SysfsFile() {
+        int retval = ::close(fd_);
         if (retval) {
-            throw std::runtime_error("Sysfs close error " + std::to_string(errno) + ": " + strerror(errno));
+            std::cerr << "Sysfs close error " + std::to_string(errno) + ": " + strerror(errno) << std::endl;
         }
+    }
+    virtual void flush() {
+        char c[64];
+        while(read(c, 64));
+    }
+    // locked/blocked to one caller so that a read is a response to write
+    ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) {
+        ::lseek(fd_, 0, SEEK_SET);
+        lockf(fd_, F_LOCK, 0);
+        write(data_out, length_out);
+        ::lseek(fd_, 0, SEEK_SET);
+        auto retval = read(data_in, length_in);
+        ::lseek(fd_, 0, SEEK_SET);
+        lockf(fd_, F_ULOCK, 0);
+        return retval;
     }
     ssize_t read(char *data, unsigned int length) {
-        // sysfs file needs to be opened and closed to read new values
-        int fd = open();
-        auto retval = ::read(fd, data, length);
-        close(fd);
+        // sysfs file needs to closed and opened or lseek to beginning.
+        ::lseek(fd_, 0, SEEK_SET);
+        auto retval = ::read(fd_, data, length);
+
         if (retval < 0) {
             if (errno == ETIMEDOUT) {
                 return 0;
@@ -81,40 +72,39 @@ class SysfsFile : public TextFile {
         return retval;
     }
     ssize_t write(const char *data, unsigned int length) {
-        int fd = open();
-        auto retval = ::write(fd, data, length);
-        close(fd);
+        auto retval = ::write(fd_, data, length);
         if (retval < 0) {
             throw std::runtime_error("Sysfs write error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
-    ~SysfsFile() {}
  private:
     std::string path_;
+    int fd_;
 };
 
 class USBFile : public TextFile {
  public:
-    USBFile (std::string dev_path, uint8_t ep_num = 2) { 
+    // file fd should be opened already - it can only have one open reference
+    USBFile (int fd, uint8_t ep_num = 1) { 
         ep_num_ = ep_num;
-        dev_path_ = dev_path; 
-        fid_ = ::open(dev_path_.c_str(), O_RDWR); 
-        open();
-        fid_flags_ = fcntl(fid_, F_GETFL);
+        fd_ = fd;
     }
-    ~USBFile() { close(); ::close(fid_);  }
-     ssize_t read(char *data, unsigned int length) { 
+    ssize_t read(char *data, unsigned int length) { 
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_IN,
             .len = length,
-            .timeout = 100,
+            .timeout = 1000,
             .data = data
         };
 
-        int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
+        int retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
-            throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+            if (errno == ETIMEDOUT) {
+                return 0;
+            } else {
+                throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+            }
         }
         return retval;
     }
@@ -128,50 +118,71 @@ class USBFile : public TextFile {
             .data = buf
         };
 
-        std::cout << fid_ << std::endl;
-        int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
+        int retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
             throw std::runtime_error("USB write error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
-    int open() {
-        struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
-        int ioval = ::ioctl(fid_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
-        if (ioval < 0) {
-            throw std::runtime_error("USB open error " + std::to_string(errno) + ": " + strerror(errno));
-        }
-        return 0;
-    }
-    int close() {
-        int ep = ep_num_;
-        int ioval = ::ioctl(fid_, USBDEVFS_RELEASEINTERFACE, &ep); 
-        if (ioval < 0) {
-            throw std::runtime_error("USB release interface error " + std::to_string(errno));
-        }
-        struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
-        ioval = ::ioctl(fid_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
-        if (ioval < 0) {
-            throw std::runtime_error("USB close error " + std::to_string(errno));
-        }
-        return 0;
+    // locked/blocked to one caller so that a read is a response to write
+    ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) {
+        ::lseek(fd_, 0, SEEK_SET);
+        lockf(fd_, F_LOCK, 0);
+        write(data_out, length_out);
+        ::lseek(fd_, 0, SEEK_SET);
+        auto retval = read(data_in, length_in);
+        ::lseek(fd_, 0, SEEK_SET);
+        lockf(fd_, F_ULOCK, 0);
+        return retval;
     }
  private:
-    std::string dev_path_;
     unsigned int ep_num_;
-    int fid_, fid_flags_;
+    int fd_;
 };
+
+class TextAPIItem {
+ public:
+    TextAPIItem(TextFile *motor_txt, std::string name) : motor_txt_(motor_txt), name_(name) {}
+
+    std::string set(std::string s) {
+        std::string s2 = name_ + "=" + s;
+        char c[64];
+        auto nbytes = motor_txt_->writeread(s2.c_str(), s2.size(), c, 64);
+        c[nbytes] = 0;
+        return c;
+    }
+    std::string get() const {        
+        char c[64] = {};
+        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, 64);
+        c[nbytes] = 0;
+        return c;
+    }
+    void operator=(const std::string s) {
+        set(s);
+    }
+ private:
+    TextFile *motor_txt_;
+    std::string name_;
+};
+
+inline std::ostream& operator<<(std::ostream& os, TextAPIItem const& item) {
+    os << item.get();
+    return os;
+}
+inline double& operator<<(double& d, TextAPIItem const& item) {
+    d = std::stod(item.get());
+    return d;
+}
 class Motor {
  public:
     Motor() {}
     Motor(std::string dev_path);
     virtual ~Motor();
-    virtual int open() { fid_ = ::open(dev_path_.c_str(), O_RDWR); fid_flags_ = fcntl(fid_, F_GETFL); return fid_; }
-    virtual ssize_t read() { return ::read(fid_, &status_, sizeof(status_)); };
-    virtual ssize_t write() { return ::write(fid_, &command_, sizeof(command_)); };
-    ssize_t aread() { int fcntl_error = fcntl(fid_, F_SETFL, fid_flags_ | O_NONBLOCK);
+    virtual ssize_t read() { return ::read(fd_, &status_, sizeof(status_)); };
+    virtual ssize_t write() { return ::write(fd_, &command_, sizeof(command_)); };
+    ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
 			ssize_t read_error = read(); 
-            fcntl_error = fcntl(fid_, F_SETFL, fid_flags_);
+            fcntl_error = fcntl(fd_, F_SETFL, fd_flags_);
             if (read_error != -1) {
                 std::cout << "Nonzero aread" << std::endl;
             } else {
@@ -185,18 +196,48 @@ class Motor {
     std::string base_path() const {return base_path_; }
     std::string dev_path() const { return dev_path_; }
     std::string version() const { return version_; }
-    virtual int close() { return ::close(fid_); }
-    int fd() const { return fid_; }
+    bool check_messages_version() { return MOTOR_MESSAGES_VERSION == operator[]("messages_version").get(); }
+    std::string short_version() const {
+        std::string s = version();
+        auto pos = s.find("-g");
+        return s.substr(0,pos);
+    }
+    // note will probably not be the final interface
+    TextAPIItem operator[](const std::string s) { TextAPIItem t(motor_txt_, s); return t; };
+    int fd() const { return fd_; }
     const Status *const status() const { return &status_; }
     Command *const command() { return &command_; }
     TextFile* motor_text() { return motor_txt_; }
  protected:
-    int fid_ = 0;
-    int fid_flags_;
+    int open() { fd_ = ::open(dev_path_.c_str(), O_RDWR); fd_flags_ = fcntl(fd_, F_GETFL); return fd_; }
+    int close() { return ::close(fd_); }
+    int fd_ = 0;
+    int fd_flags_;
     std::string serial_number_, name_, dev_path_, base_path_, version_;
     Status status_ = {};
     Command command_ = {};
     TextFile *motor_txt_;
+};
+
+class SimulatedMotor : public Motor {
+ public:
+   SimulatedMotor(std::string name) { name_ = name; motor_txt_ =  new TextFile(); }
+   virtual ~SimulatedMotor() {}
+   virtual ssize_t read() {
+       status_.mcu_timestamp++;
+       return sizeof(status_);
+   };
+   virtual ssize_t write() {
+       status_.host_timestamp_received = command_.host_timestamp;
+       if (command_.mode_desired == POSITION) {
+           status_.motor_position = command_.position_desired;
+           status_.joint_position = command_.position_desired/gear_ratio_;
+       }
+       return sizeof(command_); 
+   };
+   void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
+ private:
+    double gear_ratio_ = 1;
 };
 
 class UserSpaceMotor : public Motor {
@@ -207,7 +248,7 @@ class UserSpaceMotor : public Motor {
         struct udev *udev = udev_new();
         struct stat st;
         if (stat(dev_path.c_str(), &st) < 0) {
-            throw std::runtime_error("Motor stat error " + std::to_string(errno));
+            throw std::runtime_error("Motor stat error " + std::to_string(errno) + ": " + strerror(errno));
         }
         struct udev_device *dev = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
                 const char * sysname = udev_device_get_sysname(dev);
@@ -236,11 +277,13 @@ class UserSpaceMotor : public Motor {
         } else {
             version_ = "";
         }
-        motor_txt_ = new USBFile(dev_path, 1);
+        
         udev_device_unref(dev);
         udev_unref(udev);  
+        open();
+        motor_txt_ = new USBFile(fd_, 1);
     }
-    virtual ~UserSpaceMotor() {  }
+    virtual ~UserSpaceMotor() { close(); }
     virtual ssize_t read() { 
         char data[64];
         struct usbdevfs_bulktransfer transfer = {
@@ -250,9 +293,9 @@ class UserSpaceMotor : public Motor {
             .data = &status_
         };
 
-        int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
+        int retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
-            throw std::runtime_error("Motor read error " + std::to_string(errno));
+            throw std::runtime_error("Motor read error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
@@ -265,36 +308,36 @@ class UserSpaceMotor : public Motor {
             .data = &command_
         };
 
-        int retval = ::ioctl(fid_, USBDEVFS_BULK, &transfer);
+        int retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
-            throw std::runtime_error("Motor write error " + std::to_string(errno));
+            throw std::runtime_error("Motor write error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
-    }
-
-    virtual int open() {
-        int retval = Motor::open();
-        struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
-        int ioval = ::ioctl(fid_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
-        if (ioval < 0) {
-            throw std::runtime_error("Motor open error " + std::to_string(errno));
-        }
-        return retval;
-    }
-    virtual int close() {
-        int ep = 0;
-        int ioval = ::ioctl(fid_, USBDEVFS_RELEASEINTERFACE, &ep); 
-        if (ioval < 0) {
-            throw std::runtime_error("Motor release interface error " + std::to_string(errno));
-        }
-        struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
-        ioval = ::ioctl(fid_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
-        if (ioval < 0) {
-            throw std::runtime_error("Motor close error " + std::to_string(errno));
-        }
-        return Motor::close();
     }
  private:
+    int open() {
+        int retval = Motor::open();
+        struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
+        int ioval = ::ioctl(fd_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
+        if (ioval < 0) {
+            throw std::runtime_error("Motor open error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        return retval;
+    }
+    int close() {
+        int interface_num = 0;
+        int ioval = ::ioctl(fd_, USBDEVFS_RELEASEINTERFACE, &interface_num); 
+        if (ioval < 0) {
+            throw std::runtime_error("Motor release interface error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
+        ioval = ::ioctl(fd_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
+        if (ioval < 0) {
+            throw std::runtime_error("Motor close error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        // fd_ closed by base
+        return 0;
+    }
     unsigned int ep_num_;
 };
 

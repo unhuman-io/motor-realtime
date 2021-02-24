@@ -8,11 +8,14 @@ jobs:
     runs-on: ubuntu-16.04
     
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@master
+      with:
+        submodules: true
+        fetch-depth: 0
     - name: install libudev-dev
       run: sudo apt-get install libudev-dev
     - name: cmake
-      run: cmake .
+      run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .
     - name: make
       run: make VERBOSE=1
     - name: make package
@@ -22,3 +25,77 @@ jobs:
       with:
         name: packages
         path: packages
+    - uses: eine/tip@master
+      if: contains(github.ref, 'develop')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./packages/*
+        tag: develop
+    - name: cmake2
+      run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
+    - name: make2
+      run: make VERBOSE=1
+    - name: make install
+      run: make install
+    - name: archive
+      run: tar -czf artifacts.tgz artifacts/ 
+    - name: Archive production artifacts2
+      uses: actions/upload-artifact@v1
+      with:
+        name: artifacts
+        path: artifacts.tgz
+    - uses: eine/tip@master
+      if: contains(github.ref, 'develop')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./artifacts.tgz
+        tag: develop
+
+  build_arm:
+    runs-on: ubuntu-18.04
+    name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
+
+    strategy:
+      matrix:
+        include:
+          - arch: aarch64
+            distro: ubuntu18.04
+          - arch: armv6
+            distro: buster
+    steps:
+    - uses: actions/checkout@master
+      with:
+        submodules: true
+        fetch-depth: 0
+    - uses: uraimo/run-on-arch-action@v2.0.7
+      name: Run commands
+      id: runcmd
+      with:
+        arch: ${{ matrix.arch }}
+        distro: ${{ matrix.distro }}
+        githubToken: ${{ github.token }}
+        setup: |
+          mkdir -p "${PWD}/packages"
+        dockerRunArgs: |
+          --volume "${PWD}/packages:/packages"
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release .
+          make -j
+          make package
+        install: |
+          apt-get update -q -y
+          apt-get install -y cmake build-essential libudev-dev git python3-dev
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: packages
+        path: packages
+    - uses: eine/tip@master
+      if: contains(github.ref, 'develop')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./packages/*
+        tag: develop
