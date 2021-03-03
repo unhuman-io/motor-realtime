@@ -32,7 +32,7 @@ _motor_util_completion()
         set) words="--host_time --mode --current --position --velocity --torque --reserved read -h --help";
             case $last in
                 --host_time|--current|--position|--velocity|--reserved) return 0 ;;
-                --mode) words="open damped current position velocity torque impedance current_tuning position_tuning voltage phase_lock stepper_tuning reset" ;;
+                --mode) words="open damped current position velocity torque impedance current_tuning position_tuning voltage phase_lock stepper_tuning crash reset" ;;
             esac ;;
         read) words="--poll --aread --frequency --statistics --read-write-statistics --text -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f --reserved-float -r --reconnect set -h --help";
             case $last in

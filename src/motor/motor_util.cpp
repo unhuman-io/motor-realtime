@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
         {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
         {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, 
         {"phase_lock", ModeDesired::PHASE_LOCK}, {"stepper_tuning", ModeDesired::STEPPER_TUNING},
-        {"reset", ModeDesired::RESET}};
+        {"crash", ModeDesired::CRASH}, {"reset", ModeDesired::RESET}};
     enum TuningMode {SINE, SQUARE, TRIANGLE, CHIRP} tuning_mode = TuningMode::SINE;
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
