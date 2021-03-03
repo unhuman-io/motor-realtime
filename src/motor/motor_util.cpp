@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
         {"chirp", TuningMode::CHIRP}};
     std::string set_api_data;
     bool api_mode = false;
-    bool run_stats = false;
+    int run_stats = 100;
     bool allow_simulated = false;
     bool check_messages_version = false;
     double tuning_amplitude = 0;
@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)");
     app.add_flag("--api", api_mode, "Enter API mode");
-    app.add_flag("--run-stats", run_stats, "Check firmware run timing");
+    auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing", true)->type_name("NUM_SAMPLES")->expected(0,1);
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int signum){signal_exit = true;});
@@ -234,13 +234,21 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (run_stats && motors.size()) {
-        std::cout << "name, fast_loop_cycles, fast_loop_period, main_loop_cycles, main_loop_period" << std::endl;
+    if (*run_stats_option && motors.size()) {
+        std::cout << "name, max_fast_loop_cycles, max_fast_loop_period, max_main_loop_cycles, max_main_loop_period, " << 
+                "mean_fast_loop_cycles, mean_fast_loop_period, mean_main_loop_cycles, mean_main_loop_period" << std::endl;
         for (auto m : motors) {
-            auto max_api_val = [](TextAPIItem a, int num = 100) {
+            auto max_api_val = [run_stats](TextAPIItem a) {
                 int out = 0;
-                for (int i=0;i<num;i++) {
+                for (int i=0;i<run_stats;i++) {
                     out = std::max(std::atoi(a.get().c_str()), out);
+                } 
+                return out;
+            };
+            auto mean_api_val = [run_stats](TextAPIItem a) {
+                double out = 0;
+                for (int i=0;i<run_stats;i++) {
+                    out += (double) std::atoi(a.get().c_str())/run_stats;
                 } 
                 return out;
             };
@@ -248,7 +256,11 @@ int main(int argc, char** argv) {
             std::cout << max_api_val((*m)["t_exec_fastloop"]) << ", ";
             std::cout << max_api_val((*m)["t_period_fastloop"]) << ", ";
             std::cout << max_api_val((*m)["t_exec_mainloop"]) << ", ";
-            std::cout << max_api_val((*m)["t_period_mainloop"]) << std::endl;
+            std::cout << max_api_val((*m)["t_period_mainloop"]) << ", ";
+            std::cout << mean_api_val((*m)["t_exec_fastloop"]) << ", ";
+            std::cout << mean_api_val((*m)["t_period_fastloop"]) << ", ";
+            std::cout << mean_api_val((*m)["t_exec_mainloop"]) << ", ";
+            std::cout << mean_api_val((*m)["t_period_mainloop"]) << std::endl;
         }
     }
 
