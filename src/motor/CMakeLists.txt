@@ -35,3 +35,34 @@ target_link_libraries(motor_data_echo rt pthread)
 if(INSTALL_COMPLETION)
     install(FILES motor_util_completion.bash DESTINATION /etc/bash_completion.d)
 endif()
+
+if(BUILD_MOTOR_SERVER)
+    set(_PROTOBUF_LIBPROTOBUF libprotobuf)
+    set(_REFLECTION grpc++_reflection)
+    set(_PROTOBUF_PROTOC $<TARGET_FILE:protoc>)
+    set(_GRPC_GRPCPP grpc++)
+    set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:grpc_cpp_plugin>)
+
+    set(motor_server_proto_srcs ${CMAKE_CURRENT_BINARY_DIR}/motor_server.pb.cc)
+    set(motor_server_proto_hdrs ${CMAKE_CURRENT_BINARY_DIR}/motor_server.pb.h)
+    add_custom_command(
+    OUTPUT "${motor_server_proto_srcs}" "${motor_server_proto_hdrs}"
+    COMMAND ${_PROTOBUF_PROTOC}
+    ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
+    --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
+    -I ${CMAKE_SOURCE_DIR}/protos
+    --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/protos/motor_server.proto"
+    DEPENDS "${CMAKE_SOURCE_DIR}/protos/motor_server.proto")
+
+    add_library(motor_server_proto ${motor_server_proto_srcs} ${motor_server_protor_hdrs})
+    target_link_libraries(motor_server_proto
+        ${_REFLECTION}
+        ${_GRPC_GRPCPP}
+        ${_PROTOBUF_LIBPROTOBUF})
+
+    add_executable(motor_server motor_server.cpp)
+    target_link_libraries(motor_server motor_manager cli11 grpc++ motor_server_proto)
+    target_include_directories(motor_server PUBLIC ${CMAKE_BINARY_DIR})
+    install(TARGETS motor_server DESTINATION bin)
+endif()

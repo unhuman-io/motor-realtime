@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package motorserver;
+
+message MotorInfo {
+    string name = 1;
+}
+
+//service MotorServer {
+//    rpc GetMotorInfo () returns (MotorInfo) {}
+//}

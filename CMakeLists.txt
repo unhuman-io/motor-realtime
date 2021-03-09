@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.11)
 project(motor-realtime)
 include(GNUInstallDirs)
+include(FetchContent)
 
 set(VERSION_MAJOR "0.5")
 set(VERSION_MINOR "0")
@@ -30,6 +31,7 @@ set (CMAKE_CXX_STANDARD 11)
 option(BUILD_SHARED_LIBS "Build libraries shared" ON)
 option(BUILD_PYTHON_API "build a python api module" OFF)
 option(BUILD_MOTOR_UTIL "build motor util command line program" ON)
+option(BUILD_MOTOR_SERVER "build gRPC motor server" ON)
 option(INSTALL_COMPLETION "install bash completion script" ON)
 
 # the RPATH to be used when installing, but only if it's not a system directory
@@ -38,6 +40,18 @@ if("${isSystemDir}" STREQUAL "-1")
     set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 endif("${isSystemDir}" STREQUAL "-1")
 
+if(BUILD_MOTOR_SERVER)
+    include(FetchContent)
+    FetchContent_Declare(
+    gRPC
+    GIT_REPOSITORY https://github.com/grpc/grpc
+    GIT_TAG        v1.36.2
+    GIT_SHALLOW    TRUE
+    GIT_PROGRESS   TRUE
+    )
+    set(FETCHCONTENT_QUIET OFF)
+    FetchContent_MakeAvailable(gRPC)
+endif()
 
 add_subdirectory(3rdparty)
 add_subdirectory(src)
