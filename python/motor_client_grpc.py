@@ -22,8 +22,14 @@ def run():
         response = stub.GetMotorInfo(motor_server_pb2.MotorInfoRequest(name='you'))
         print(str(len(response.motor_info)) + " motors connected")
         for info in response.motor_info:
-            print(" ".join([info.name, info.devpath, info.path, info.serial_number, info.version]))
+            print(", ".join([info.name, info.devpath, info.path, info.serial_number, info.version]))
+        print()
 
+        response = stub.GetMotorStatus(motor_server_pb2.MotorStatusRequest(name='you'))
+        for s in response.motor_status:
+            print(", ".join([str(s.mcu_timestamp), str(s.host_timestamp_received), 
+                str(s.motor_position), str(s.joint_position), str(s.iq), 
+                str(s.torque), str(s.motor_encoder)]))
 
 if __name__ == '__main__':
     logging.basicConfig()

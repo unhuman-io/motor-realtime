@@ -4,6 +4,7 @@ syntax = "proto3";
 
 service MotorServer {
     rpc GetMotorInfo (MotorInfoRequest) returns (MotorInfoResponse) {}
+    rpc GetMotorStatus (MotorStatusRequest) returns (MotorStatusResponse) {}
 }
 
 message MotorInfoRequest {
@@ -22,4 +23,21 @@ message MotorInfo {
     string version = 5;
 }
 
+message MotorStatusRequest {
+    string name = 1;
+}
 
+message MotorStatusResponse {
+    repeated MotorStatusMessage motor_status = 1;
+}
+
+message MotorStatusMessage {
+    uint32 mcu_timestamp = 1;             // timestamp in microcontroller clock cycles
+    uint32 host_timestamp_received = 2;   // return of host_timestamp from ReceiveData
+    float motor_position = 3;               // motor position in radians
+    float joint_position = 4;               // joint position in radians
+    float iq = 5;                           // Measured motor current in A line-line
+    float torque = 6;                       // measured torque in Nm
+    int32 motor_encoder = 7;              // motor position in raw counts
+    repeated float reserved = 8;
+}

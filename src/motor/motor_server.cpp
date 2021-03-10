@@ -19,6 +19,24 @@ class MotorServerImpl final : public MotorServer::Service {
         }
         return grpc::Status::OK;
     }
+    grpc::Status GetMotorStatus(grpc::ServerContext* context, const MotorStatusRequest* request, MotorStatusResponse* reply) override {
+        auto status = m_.read();
+        for (auto s : status) {
+            auto motor_status = reply->add_motor_status();
+            motor_status->set_mcu_timestamp(s.mcu_timestamp);
+            motor_status->set_host_timestamp_received(s.host_timestamp_received);
+            motor_status->set_iq(s.iq);
+            motor_status->set_joint_position(s.joint_position);
+            motor_status->set_motor_encoder(s.motor_encoder);
+            motor_status->set_motor_position(s.motor_position);
+            motor_status->set_torque(s.torque);
+            for (int i=0; i<3; i++) {
+                motor_status->add_reserved(s.reserved[i]);
+            }
+    
+        }
+        return grpc::Status::OK;
+    }
  private:
     MotorManager m_;
 };
