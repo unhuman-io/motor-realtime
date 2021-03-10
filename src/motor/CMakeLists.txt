@@ -45,8 +45,10 @@ if(BUILD_MOTOR_SERVER)
 
     set(motor_server_proto_srcs ${CMAKE_CURRENT_BINARY_DIR}/motor_server.pb.cc)
     set(motor_server_proto_hdrs ${CMAKE_CURRENT_BINARY_DIR}/motor_server.pb.h)
+    set(motor_server_grpc_srcs ${CMAKE_CURRENT_BINARY_DIR}/motor_server.grpc.pb.cc)
+    set(motor_server_grpc_hdrs ${CMAKE_CURRENT_BINARY_DIR}/motor_server.grpc.pb.h)
     add_custom_command(
-    OUTPUT "${motor_server_proto_srcs}" "${motor_server_proto_hdrs}"
+    OUTPUT "${motor_server_proto_srcs}" "${motor_server_proto_hdrs}" "${motor_server_grpc_srcs}" "${motor_server_grpc_hdrs}"
     COMMAND ${_PROTOBUF_PROTOC}
     ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
     --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
@@ -55,14 +57,15 @@ if(BUILD_MOTOR_SERVER)
     "${CMAKE_SOURCE_DIR}/protos/motor_server.proto"
     DEPENDS "${CMAKE_SOURCE_DIR}/protos/motor_server.proto")
 
-    add_library(motor_server_proto ${motor_server_proto_srcs} ${motor_server_protor_hdrs})
+    add_library(motor_server_proto ${motor_server_proto_srcs} ${motor_server_proto_hdrs} ${motor_server_grpc_srcs} ${motor_server_grpc_hdrs})
     target_link_libraries(motor_server_proto
         ${_REFLECTION}
         ${_GRPC_GRPCPP}
         ${_PROTOBUF_LIBPROTOBUF})
+    target_include_directories(motor_server_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 
     add_executable(motor_server motor_server.cpp)
     target_link_libraries(motor_server motor_manager cli11 grpc++ motor_server_proto)
-    target_include_directories(motor_server PUBLIC ${CMAKE_BINARY_DIR})
+    target_include_directories(motor_server PRIVATE ${CMAKE_BINARY_DIR})
     install(TARGETS motor_server DESTINATION bin)
 endif()

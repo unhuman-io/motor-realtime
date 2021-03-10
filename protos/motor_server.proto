@@ -1,11 +1,25 @@
 syntax = "proto3";
 
-package motorserver;
+//package motorserver;
 
-message MotorInfo {
+service MotorServer {
+    rpc GetMotorInfo (MotorInfoRequest) returns (MotorInfoResponse) {}
+}
+
+message MotorInfoRequest {
     string name = 1;
 }
 
-//service MotorServer {
-//    rpc GetMotorInfo () returns (MotorInfo) {}
-//}
+message MotorInfoResponse {
+    repeated MotorInfo motor_info = 1;
+}
+
+message MotorInfo {
+    string name = 1;
+    string devpath = 2;
+    string path = 3;
+    string serial_number = 4;
+    string version = 5;
+}
+
+

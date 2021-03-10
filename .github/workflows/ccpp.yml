@@ -33,7 +33,7 @@ jobs:
           ./packages/*
         tag: develop
     - name: cmake2
-      run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
+      run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off -DgRPC_ZLIB_PROVIDER=package .
     - name: make2
       run: make VERBOSE=1
     - name: make install
@@ -58,6 +58,7 @@ jobs:
     name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
 
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: aarch64
