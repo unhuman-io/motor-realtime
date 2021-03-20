@@ -17,7 +17,7 @@ jobs:
     - name: cmake
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .
     - name: make
-      run: make VERBOSE=1
+      run: make VERBOSE=1 -j2
     - name: make package
       run: make package
     - name: Archive production artifacts
@@ -35,7 +35,7 @@ jobs:
     - name: cmake2
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
     - name: make2
-      run: make VERBOSE=1
+      run: make VERBOSE=1 -j2
     - name: make install
       run: make install
     - name: archive
@@ -83,11 +83,16 @@ jobs:
           --volume "${PWD}/packages:/packages"
         run: |
           cmake -DCMAKE_BUILD_TYPE=Release .
-          make -j
+          make -j2
           make package
         install: |
           apt-get update -q -y
           apt-get install -y cmake build-essential libudev-dev git python3-dev
+          if [ ${{ matrix.arch }} = "armv6" ]; then
+            # cmake 3.16 has problems
+            apt-get remove -y cmake-data
+            apt-get install -y cmake-data=3.13.4-1 cmake=3.13.4-1
+          fi
     - name: Archive production artifacts
       uses: actions/upload-artifact@v1
       with:
