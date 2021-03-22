@@ -20,7 +20,7 @@ _motor_util_completion()
             -p|--paths) subcommand=paths ; break ;;
             -d|--devpaths) subcommand=devpaths ; break ;;
             -s|--serial_numbers) subcommand=serial_numbers ; break ;;
-            position_tuning|current_tuning) subcommand=tuning ; break ;;
+            position_tuning|current_tuning|stepper_tuning) subcommand=tuning ; break ;;
         esac
         (( i-- ))
     done
