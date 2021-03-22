@@ -265,7 +265,7 @@ int main(int argc, char** argv) {
     }
 
     if (*set && motors.size()) {
-        if (command.mode_desired == ModeDesired::POSITION_TUNING) {
+        if (command.mode_desired == ModeDesired::POSITION_TUNING || command.mode_desired == ModeDesired::STEPPER_TUNING) {
             double sign_amplitude = tuning_mode == TuningMode::SINE || tuning_mode == TuningMode::CHIRP ? 1 : -1;
             double sign_frequency = tuning_mode == TuningMode::SQUARE || tuning_mode == TuningMode::SINE ? 1 : -1;
             command.position_desired = sign_amplitude * tuning_amplitude;
