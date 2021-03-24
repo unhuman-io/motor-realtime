@@ -57,6 +57,7 @@ class SysfsFile : public TextFile {
         lockf(fd_, F_ULOCK, 0);
         return retval;
     }
+ private:
     ssize_t read(char *data, unsigned int length) {
         // sysfs file needs to closed and opened or lseek to beginning.
         ::lseek(fd_, 0, SEEK_SET);
@@ -78,7 +79,6 @@ class SysfsFile : public TextFile {
         }
         return retval;
     }
- private:
     std::string path_;
     int fd_;
 };
@@ -90,6 +90,18 @@ class USBFile : public TextFile {
         ep_num_ = ep_num;
         fd_ = fd;
     }
+    // locked/blocked to one caller so that a read is a response to write
+    ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) {
+        ::lseek(fd_, 0, SEEK_SET);
+        lockf(fd_, F_LOCK, 0);
+        write(data_out, length_out);
+        ::lseek(fd_, 0, SEEK_SET);
+        auto retval = read(data_in, length_in);
+        ::lseek(fd_, 0, SEEK_SET);
+        lockf(fd_, F_ULOCK, 0);
+        return retval;
+    }
+ private:
     ssize_t read(char *data, unsigned int length) { 
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_IN,
@@ -124,18 +136,6 @@ class USBFile : public TextFile {
         }
         return retval;
     }
-    // locked/blocked to one caller so that a read is a response to write
-    ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) {
-        ::lseek(fd_, 0, SEEK_SET);
-        lockf(fd_, F_LOCK, 0);
-        write(data_out, length_out);
-        ::lseek(fd_, 0, SEEK_SET);
-        auto retval = read(data_in, length_in);
-        ::lseek(fd_, 0, SEEK_SET);
-        lockf(fd_, F_ULOCK, 0);
-        return retval;
-    }
- private:
     unsigned int ep_num_;
     int fd_;
 };
