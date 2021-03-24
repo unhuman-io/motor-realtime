@@ -138,10 +138,14 @@ std::vector<Status> MotorManager::read() {
                 if (reconnect_) {
                     std::cerr << err << std::endl;
                     std::cerr << "trying to reconnect " << motors_[i]->base_path() << std::endl;
-                    auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
-                    if (motors[0]) {
-                        std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
-                        motors_[i] = motors[0];
+                    try {
+                        auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
+                        if (motors[0]) {
+                            std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
+                            motors_[i] = motors[0];
+                        }
+                    } catch (std::runtime_error &e) {
+                        std::cerr << e.what() << std::endl;
                     }
                 } else {
                     throw std::runtime_error(err);

@@ -346,7 +346,7 @@ int main(int argc, char** argv) {
                 if (read_opts.timestamp_in_seconds) {
                     int length = motors.size();
                     for (int i=0;i<length;i++) {
-                        cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get());
+                        cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get()); // TODO has issues if you run it in first few seconds
                         std::cout << "t_seconds" << i << ", ";
                     }
                 }
