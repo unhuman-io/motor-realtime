@@ -63,6 +63,7 @@ struct ReadOptions {
     bool reconnect;
     bool read_write_statistics;
     bool reserved_float;
+    bool bits;
 };
 
 bool signal_exit = false;
@@ -118,6 +119,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
     read_option->add_flag("-f,--reserved-float", read_opts.reserved_float, "Interpret reserved 1 & 2 as floats rather than uint32");
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
+    read_option->add_flag("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]");
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
     app.add_flag("-c,--check-messages-version", check_messages_version, "Check motor messages version");
     app.add_flag("--no-list", no_list, "Do not list connected motors");
@@ -338,7 +340,9 @@ int main(int argc, char** argv) {
         } else {
             std::vector<double> cpu_frequency_hz(motors.size());
             if (read_opts.statistics) {
-                std::cout << "period_avg std_dev min max read_time_avg std_dev min max";
+                std::cout << "period_avg std_dev min max read_time_avg std_dev min max" << std::endl;
+            } else if (read_opts.bits) {
+                std::cout << "motor_encoder, output_encoder, iq" << std::endl;
             } else {
                 if (read_opts.host_time) {
                     std::cout << "t_host,";
@@ -384,7 +388,18 @@ int main(int argc, char** argv) {
                     pub.publish(c);
                 }
 
-                if (read_opts.statistics || read_opts.read_write_statistics) {
+                if (read_opts.bits) {
+                    static Statistics motor_encoder(100), output_encoder(100), iq(100);
+                    static double mcpr = fabs(std::stod((*m.motors()[i])["mcpr"].get()));
+                    static double ocpr = fabs(std::stod((*m.motors()[i])["ocpr"].get()));
+                    static double irange = fabs(std::stod((*m.motors()[i])["irange"].get()));
+                    motor_encoder.push(status[0].motor_encoder);
+                    output_encoder.push(status[0].joint_position);
+                    iq.push(status[0].iq);
+                    std::cout << log2(mcpr/6/motor_encoder.get_stddev()) << ", "
+                              << log2(2*M_PI/ocpr/6/output_encoder.get_stddev()) << ", "
+                              << log2(irange/6/iq.get_stddev()) << std::endl;
+                } else if (read_opts.statistics || read_opts.read_write_statistics) {
                     i++;
                     auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(exec_time - loop_start_time).count();
                     auto last_start = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count();
