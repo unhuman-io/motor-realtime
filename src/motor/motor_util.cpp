@@ -397,7 +397,7 @@ int main(int argc, char** argv) {
                     output_encoder.push(status[0].joint_position);
                     iq.push(status[0].iq);
                     std::cout << log2(mcpr/6/motor_encoder.get_stddev()) << ", "
-                              << log2(2*M_PI/ocpr/6/output_encoder.get_stddev()) << ", "
+                              << log2(2*M_PI/6/output_encoder.get_stddev()) << ", "
                               << log2(irange/6/iq.get_stddev()) << std::endl;
                 } else if (read_opts.statistics || read_opts.read_write_statistics) {
                     i++;
