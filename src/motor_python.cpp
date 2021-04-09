@@ -16,7 +16,7 @@ PYBIND11_MODULE(motor, m) {
                 s += motor->name() + " ";
             }
             return "<MotorManager connected to: " + s + ">"; })
-        .def("get_connected_motors", &MotorManager::get_connected_motors)
+        .def("get_connected_motors", &MotorManager::get_connected_motors, py::arg("connect") = true)
         .def("get_motors_by_name", &MotorManager::get_motors_by_name)
         .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number)
         .def("motors", &MotorManager::motors)
@@ -35,7 +35,8 @@ PYBIND11_MODULE(motor, m) {
         .def("set_command_current", &MotorManager::set_command_current)
         .def("set_command_position", &MotorManager::set_command_position)
         .def("set_command_velocity", &MotorManager::set_command_velocity)
-        .def("set_command_torque", &MotorManager::set_command_torque);
+        .def("set_command_torque", &MotorManager::set_command_torque)
+        .def("set_command_reserved", &MotorManager::set_command_reserved);
 
     py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
         .def(py::init<const std::string&>())
@@ -59,6 +60,8 @@ PYBIND11_MODULE(motor, m) {
         .value("Current", ModeDesired::CURRENT)
         .value("Position", ModeDesired::POSITION)
         .value("Torque", ModeDesired::TORQUE)
+        .value("Velocity", ModeDesired::VELOCITY)
+        .value("CurrentTuning", ModeDesired::CURRENT_TUNING)
         .value("Reset", ModeDesired::RESET)
         .export_values();
 

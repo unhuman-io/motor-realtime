@@ -225,6 +225,12 @@ void MotorManager::set_command_torque(std::vector<float> torque) {
     }
 }
 
+void MotorManager::set_command_reserved(std::vector<float> reserved) {
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].reserved = reserved[i];
+    }
+}
+
 void MotorManager::write_saved_commands() {
     write(commands_);
 }

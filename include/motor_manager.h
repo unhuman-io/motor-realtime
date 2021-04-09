@@ -59,6 +59,7 @@ class MotorManager {
     void set_command_position(std::vector<float> position);
     void set_command_velocity(std::vector<float> velocity);
     void set_command_torque(std::vector<float> torque);
+    void set_command_reserved(std::vector<float> reserved);
 
     std::string command_headers() const;
     std::string status_headers() const;
