@@ -47,18 +47,18 @@ jobs:
     - name: make install
       run: make install
     - name: archive
-      run: tar -czf artifacts.tgz artifacts/ 
+      run: tar -czf artifacts_${{ matrix.distro }}.tgz artifacts/ 
     - name: Archive production artifacts2
       uses: actions/upload-artifact@v1
       with:
         name: artifacts
-        path: artifacts.tgz
+        path: artifacts_${{ matrix.distro }}.tgz
     - uses: eine/tip@master
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
-          ./artifacts.tgz
+          ./artifacts_${{ matrix.distro }}.tgz
         tag: develop
 
   build_arm:
