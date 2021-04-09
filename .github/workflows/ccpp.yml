@@ -4,8 +4,11 @@ on: [push]
 
 jobs:
   build:
-
-    runs-on: ubuntu-16.04
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu-16.04, ubuntu-18.04, ubuntu-20.04]
+    runs-on: ${{ matrix.distro }}
     
     steps:
     - uses: actions/checkout@master
@@ -20,6 +23,9 @@ jobs:
       run: make VERBOSE=1 -j2
     - name: make package
       run: make package
+    - name: rename
+      if: ${{ !(matrix.distro == ubuntu-16.04) }}
+      run: for f in packages/*.deb; do mv $f ${f%.deb}_${{ matrix.distro }}.deb; done
     - name: Archive production artifacts
       uses: actions/upload-artifact@v1
       with:
