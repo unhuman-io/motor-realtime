@@ -16,7 +16,9 @@ jobs:
         submodules: true
         fetch-depth: 0
     - name: install libudev-dev
-      run: sudo apt-get install libudev-dev
+      run: |
+        apt-get update
+        apt-get install -y libudev-dev
     - name: cmake
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_PYTHON_API=1 .
     - name: make
