@@ -17,8 +17,10 @@ PYBIND11_MODULE(motor, m) {
             }
             return "<MotorManager connected to: " + s + ">"; })
         .def("get_connected_motors", &MotorManager::get_connected_motors, py::arg("connect") = true)
-        .def("get_motors_by_name", &MotorManager::get_motors_by_name)
-        .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number)
+        .def("get_motors_by_name", &MotorManager::get_motors_by_name, py::arg("names"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number, py::arg("serial_numbers"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_path", &MotorManager::get_motors_by_path, py::arg("pathss"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_devpath", &MotorManager::get_motors_by_devpath, py::arg("devpaths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("motors", &MotorManager::motors)
         .def("set_motors", &MotorManager::set_motors)
         .def("read", &MotorManager::read)
