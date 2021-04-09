@@ -65,7 +65,7 @@ class TestMotor(unittest.TestCase):
         i = np.argmax(b[skip:]<.15)
         bw = (skip + i)/float(n) * 200*10
         print("bandwidth = " + str(bw))
-        self.f.write("Benchmarkbandwidth " + str(int(round(bw))) + " 300 Hz\n")
+        self.f.write("Benchmarkbandwidth 300 " + str(bw) + " Hz\n")
         self.assertTrue(abs(bw - 800) < 300)
 
         self.m.set_command_mode(motor.ModeDesired.Open)
