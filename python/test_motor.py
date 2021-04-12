@@ -35,17 +35,26 @@ class TestMotor(unittest.TestCase):
         self.assertEqual(self.m.read()[0].host_timestamp_received, 1)
 
     def test_velocity_mode(self):
-        pos_start = self.m.read()[0].motor_position
+        t = 10.0
+        v = 5.0
+        n = 5.4
+        status_start = self.m.read()[0]
+        pos_start = status_start.motor_position
+        output_start = status_start.joint_position
         self.m.set_command_mode(motor.ModeDesired.Velocity)
+        self.m.set_command_velocity([v])
+        self.m.write_saved_commands()
+        time.sleep(t)
         self.m.set_command_velocity([1])
         self.m.write_saved_commands()
-        time.sleep(10)
-        self.m.set_command_velocity([1])
-        self.m.write_saved_commands()
-        pos_end = self.m.read()[0].motor_position
+        status_end = self.m.read()[0]
+        pos_end = status_end.motor_position
         pos_diff = pos_end-pos_start
+        output_diff = status_end.joint_position - output_start
         print("pos diff = " + str(pos_diff))
-        self.assertTrue(abs(pos_diff - 10) < .1)
+        print("output_diff = " + str(output_diff*n))
+        self.assertTrue(abs(pos_diff - t*v) < .1)
+        self.assertTrue(abs(output_diff*n - t*v) < 1.4*n)
 
     def test_current_bandwidth(self):
         self.m.set_command_mode(motor.ModeDesired.CurrentTuning)
