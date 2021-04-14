@@ -38,7 +38,8 @@ PYBIND11_MODULE(motor, m) {
         .def("set_command_position", &MotorManager::set_command_position)
         .def("set_command_velocity", &MotorManager::set_command_velocity)
         .def("set_command_torque", &MotorManager::set_command_torque)
-        .def("set_command_reserved", &MotorManager::set_command_reserved);
+        .def("set_command_reserved", &MotorManager::set_command_reserved)
+        .def("set_command_tuning", &MotorManager::set_command_tuning);
 
     py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
         .def(py::init<const std::string&>())
@@ -65,6 +66,13 @@ PYBIND11_MODULE(motor, m) {
         .value("Velocity", ModeDesired::VELOCITY)
         .value("CurrentTuning", ModeDesired::CURRENT_TUNING)
         .value("Reset", ModeDesired::RESET)
+        .export_values();
+    
+    py::enum_<TuningMode>(m, "TuningMode")
+        .value("Sine", TuningMode::SINE)
+        .value("Square", TuningMode::SQUARE)
+        .value("Triangle", TuningMode::TRIANGLE)
+        .value("Chirp", TuningMode::CHIRP)
         .export_values();
 
     py::class_<Command>(m, "Command")
