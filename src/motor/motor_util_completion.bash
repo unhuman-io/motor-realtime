@@ -43,7 +43,7 @@ _motor_util_completion()
         devpaths) words="$(motor_util --list-devpath-only) $base_words" ;;
         serial_numbers) words="$(motor_util --list-serial-number-only) $base_words" ;;
         set_api) return 0 ;;
-        tuning) words="--tuning-amplitude --tuning-frequency --tuning-mode read -h --help";
+        tuning) words="--tuning-amplitude --tuning-frequency --tuning-mode --tuning-bias read -h --help";
             case $last in
                 --tuning-amplitude|--tuning-frequency) return 0 ;;
                 --tuning-mode) words="sine square triangle chirp" ;;

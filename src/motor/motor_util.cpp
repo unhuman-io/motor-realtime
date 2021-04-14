@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
         {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, 
         {"phase_lock", ModeDesired::PHASE_LOCK}, {"stepper_tuning", ModeDesired::STEPPER_TUNING},
         {"crash", ModeDesired::CRASH}, {"reset", ModeDesired::RESET}};
-    enum TuningMode {SINE, SQUARE, TRIANGLE, CHIRP} tuning_mode = TuningMode::SINE;
+    TuningMode tuning_mode = TuningMode::SINE;
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
         {"chirp", TuningMode::CHIRP}};
@@ -94,6 +94,7 @@ int main(int argc, char** argv) {
     bool check_messages_version = false;
     double tuning_amplitude = 0;
     double tuning_frequency = 0;
+    double tuning_bias = 0;
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = "log" , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
@@ -106,6 +107,7 @@ int main(int argc, char** argv) {
     set->add_option("--tuning-amplitude", tuning_amplitude, "Position/current tuning amplitude");
     set->add_option("--tuning-frequency", tuning_frequency, "Position/current tuning frequency hz");
     set->add_option("--tuning-mode", tuning_mode, "Position/current tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
+    set->add_option("--tuning-bias", tuning_bias, "Position/current tuning bias (trajetory offset)");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("-s,--timestamp-in-seconds", read_opts.timestamp_in_seconds, "Report motor timestamp as seconds since start and unwrap");
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
@@ -267,19 +269,9 @@ int main(int argc, char** argv) {
     }
 
     if (*set && motors.size()) {
-        if (command.mode_desired == ModeDesired::POSITION_TUNING || command.mode_desired == ModeDesired::STEPPER_TUNING) {
-            double sign_amplitude = tuning_mode == TuningMode::SINE || tuning_mode == TuningMode::CHIRP ? 1 : -1;
-            double sign_frequency = tuning_mode == TuningMode::SQUARE || tuning_mode == TuningMode::SINE ? 1 : -1;
-            command.position_desired = sign_amplitude * tuning_amplitude;
-            command.reserved = sign_frequency * tuning_frequency;
-        }
-        if (command.mode_desired == ModeDesired::CURRENT_TUNING) {
-            command.current_desired = (tuning_mode == TuningMode::CHIRP ? -1 : 1) * tuning_amplitude;
-            command.reserved = (tuning_mode == TuningMode::SQUARE ? -1 : 1) * tuning_frequency;
-        }
-        auto commands = std::vector<Command>(motors.size(), command);
-        std::cout << "Writing commands: \n" << m.command_headers() << std::endl << commands << std::endl;
-        m.write(commands);
+        m.set_command_tuning((ModeDesired) command.mode_desired, tuning_mode, tuning_amplitude, tuning_frequency, tuning_bias);
+        std::cout << "Writing commands: \n" << m.command_headers() << std::endl << m.commands() << std::endl;
+        m.write_saved_commands();
     }
 
     if (api_mode || *read_option && *text_read) {

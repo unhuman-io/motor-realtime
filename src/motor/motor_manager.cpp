@@ -231,6 +231,23 @@ void MotorManager::set_command_reserved(std::vector<float> reserved) {
     }
 }
 
+void MotorManager::set_command_tuning(ModeDesired mode_desired, 
+    TuningMode tuning_mode, double tuning_amplitude, double tuning_frequency, 
+    double tuning_bias) {
+    set_command_mode(mode_desired);
+    set_command_torque(std::vector<float>(commands_.size(), tuning_bias));
+    if (mode_desired == ModeDesired::POSITION_TUNING || mode_desired == ModeDesired::STEPPER_TUNING) {
+        double sign_amplitude = tuning_mode == TuningMode::SINE || tuning_mode == TuningMode::CHIRP ? 1 : -1;
+        double sign_frequency = tuning_mode == TuningMode::SQUARE || tuning_mode == TuningMode::SINE ? 1 : -1;
+        set_command_position(std::vector<float>(commands_.size(), sign_amplitude * tuning_amplitude));
+        set_command_reserved(std::vector<float>(commands_.size(), sign_frequency * tuning_frequency));
+    }
+    if (mode_desired == ModeDesired::CURRENT_TUNING) {
+        set_command_current(std::vector<float>(commands_.size(), (tuning_mode == TuningMode::CHIRP ? -1 : 1) * tuning_amplitude));
+        set_command_reserved(std::vector<float>(commands_.size(), (tuning_mode == TuningMode::SQUARE ? -1 : 1) * tuning_frequency));
+    }
+}
+
 void MotorManager::write_saved_commands() {
     write(commands_);
 }

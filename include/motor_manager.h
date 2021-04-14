@@ -60,6 +60,8 @@ class MotorManager {
     void set_command_velocity(std::vector<float> velocity);
     void set_command_torque(std::vector<float> torque);
     void set_command_reserved(std::vector<float> reserved);
+    void set_command_tuning(ModeDesired mode_desired, TuningMode tuning_mode, 
+         double tuning_amplitude, double tuning_frequency, double tuning_bias);
 
     std::string command_headers() const;
     std::string status_headers() const;
