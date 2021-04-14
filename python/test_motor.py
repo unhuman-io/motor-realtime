@@ -54,7 +54,7 @@ class TestMotor(unittest.TestCase):
         print("pos diff = " + str(pos_diff))
         print("output_diff = " + str(output_diff*n))
         self.assertTrue(abs(pos_diff - t*v) < .1)
-        self.assertTrue(abs(output_diff*n - t*v) < 1.4*n)
+        self.assertTrue(abs(output_diff*n - t*v) < 0.16*n)
 
     def test_current_bandwidth(self):
         self.m.set_command_mode(motor.ModeDesired.CurrentTuning)
