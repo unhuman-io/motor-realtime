@@ -55,7 +55,7 @@ struct ReadOptions {
     bool aread;
     double frequency_hz;
     bool statistics;
-    std::string text;
+    std::vector<std::string> text;
     bool timestamp_in_seconds;
     bool host_time;
     bool publish;
@@ -63,7 +63,7 @@ struct ReadOptions {
     bool reconnect;
     bool read_write_statistics;
     bool reserved_float;
-    bool bits;
+    uint32_t bits;
 };
 
 bool signal_exit = false;
@@ -95,7 +95,10 @@ int main(int argc, char** argv) {
     double tuning_amplitude = 0;
     double tuning_frequency = 0;
     double tuning_bias = 0;
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = "log" , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false};
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, 
+        .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
+        .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
+        .reserved_float = false, .bits=100};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -115,13 +118,13 @@ int main(int argc, char** argv) {
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
     read_option->add_flag("--read-write-statistics", read_opts.read_write_statistics, "Perform read then write when doing statistics test");
-    auto text_read = read_option->add_option("--text",read_opts.text, "Read the text api for variable", true)->expected(0, 1);
+    auto text_read = read_option->add_option("--text",read_opts.text, "Read the text api for variable", true)->expected(0, -1);
     read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
     read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
     read_option->add_flag("-f,--reserved-float", read_opts.reserved_float, "Interpret reserved 1 & 2 as floats rather than uint32");
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
-    read_option->add_flag("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]");
+    auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]", true)->type_name("NUM_SAMPLES")->expected(0,1);
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
     app.add_flag("-c,--check-messages-version", check_messages_version, "Check motor messages version");
     app.add_flag("--no-list", no_list, "Do not list connected motors");
@@ -324,22 +327,34 @@ int main(int argc, char** argv) {
         m.set_reconnect(read_opts.reconnect);
         
         if (*text_read) {
-            auto log = (*m.motors()[0])[read_opts.text];
-            auto str = log.get();
-            while(!signal_exit) {
-                if (str != "log end") {
-                    std::cout << str << std::endl;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                } else {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::vector<TextAPIItem> log;
+            for (auto s : read_opts.text) {
+                if (s == "log") {
+                    // only log
+                    log = {(*m.motors()[0])[s]};
+                    break;
                 }
-                str = log.get();
+                log.push_back((*m.motors()[0])[s]);
+            }
+            while(!signal_exit) {
+                for (auto &l : log) {
+                    auto str = l.get();
+                    if (str != "log end") {
+                        std::cout << str;
+                        if (&l == &log.back()) {
+                            std::cout << std::endl;
+                        } else {
+                            std::cout << ", ";
+                        }
+                    }
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds((int) (1000.0/read_opts.frequency_hz)));
             }
         } else {
             std::vector<double> cpu_frequency_hz(motors.size());
             if (read_opts.statistics) {
                 std::cout << "period_avg std_dev min max read_time_avg std_dev min max" << std::endl;
-            } else if (read_opts.bits) {
+            } else if (*bits_option) {
                 std::cout << "motor_encoder, output_encoder, iq" << std::endl;
             } else {
                 if (read_opts.host_time) {
@@ -386,8 +401,8 @@ int main(int argc, char** argv) {
                     pub.publish(c);
                 }
 
-                if (read_opts.bits) {
-                    static Statistics motor_encoder(100), output_encoder(100), iq(100);
+                if (*bits_option) {
+                    static Statistics motor_encoder(read_opts.bits), output_encoder(read_opts.bits), iq(read_opts.bits);
                     static double mcpr = fabs(std::stod((*m.motors()[i])["mcpr"].get()));
                     static double ocpr = fabs(std::stod((*m.motors()[i])["ocpr"].get()));
                     static double irange = fabs(std::stod((*m.motors()[i])["irange"].get()));
