@@ -11,6 +11,7 @@
 #include <string>
 #include "motor_publisher.h"
 #include <sstream>
+#include "realtime_thread.h"
 
 struct cstr{char s[100];};
 class Statistics {
@@ -336,7 +337,7 @@ int main(int argc, char** argv) {
                 }
                 log.push_back((*m.motors()[0])[s]);
             }
-            while(!signal_exit) {
+            RealtimeThread text_thread(read_opts.frequency_hz, [&log](){
                 for (auto &l : log) {
                     auto str = l.get();
                     if (str != "log end") {
@@ -348,8 +349,12 @@ int main(int argc, char** argv) {
                         }
                     }
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds((int) (1000.0/read_opts.frequency_hz)));
+            });
+            text_thread.run();
+            while(!signal_exit) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
+            text_thread.done();
         } else {
             std::vector<double> cpu_frequency_hz(motors.size());
             if (read_opts.statistics) {
