@@ -269,7 +269,13 @@ int main(int argc, char** argv) {
     }
 
     if (*set && motors.size()) {
-        m.set_command_tuning((ModeDesired) command.mode_desired, tuning_mode, tuning_amplitude, tuning_frequency, tuning_bias);
+        if (command.mode_desired == ModeDesired::POSITION_TUNING || 
+            command.mode_desired == ModeDesired::STEPPER_TUNING ||
+            command.mode_desired == ModeDesired::CURRENT_TUNING) {
+            m.set_command_tuning((ModeDesired) command.mode_desired, tuning_mode, tuning_amplitude, tuning_frequency, tuning_bias);
+        } else {
+            m.set_commands(std::vector<Command>(motors.size(), command));
+        }
         std::cout << "Writing commands: \n" << m.command_headers() << std::endl << m.commands() << std::endl;
         m.write_saved_commands();
     }
