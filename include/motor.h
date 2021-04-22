@@ -199,7 +199,7 @@ class Motor {
     bool check_messages_version() { return MOTOR_MESSAGES_VERSION == operator[]("messages_version").get(); }
     std::string short_version() const {
         std::string s = version();
-        auto pos = s.find("-g");
+        auto pos = std::min(s.find(" "), s.find("-g"));
         return s.substr(0,pos);
     }
     // note will probably not be the final interface

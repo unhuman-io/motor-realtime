@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
     if (!no_list) {
         int name_width = 10;
         int serial_number_width = 15;
-        int version_width = verbose_list ? 45 : 12;
+        int version_width = verbose_list ? 45 : 15;
         int path_width = 15;
         int dev_path_width = 12;
         if (list_names || list_path || list_devpath || list_serial_number) {
