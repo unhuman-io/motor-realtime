@@ -57,10 +57,7 @@ class TestMotor(unittest.TestCase):
         self.assertTrue(abs(output_diff*n - t*v) < 0.16*n)
 
     def test_current_bandwidth(self):
-        self.m.set_command_mode(motor.ModeDesired.CurrentTuning)
-        # todo current tuning mode uses hacked parameters
-        self.m.set_command_current([-.3])
-        self.m.set_command_reserved([200])
+        self.m.set_command_current_tuning(motor.TuningMode.Chirp, .3, 200, 0)
         self.m.write_saved_commands()
         time_start = time.time()
         a = np.array([])

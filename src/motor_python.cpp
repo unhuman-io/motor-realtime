@@ -39,7 +39,10 @@ PYBIND11_MODULE(motor, m) {
         .def("set_command_velocity", &MotorManager::set_command_velocity)
         .def("set_command_torque", &MotorManager::set_command_torque)
         .def("set_command_reserved", &MotorManager::set_command_reserved)
-        .def("set_command_tuning", &MotorManager::set_command_tuning);
+        .def("set_command_stepper_tuning", &MotorManager::set_command_stepper_tuning)
+        .def("set_command_stepper_velocity", &MotorManager::set_command_stepper_velocity)
+        .def("set_command_position_tuning", &MotorManager::set_command_position_tuning)
+        .def("set_command_current_tuning", &MotorManager::set_command_current_tuning);
 
     py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
         .def(py::init<const std::string&>())

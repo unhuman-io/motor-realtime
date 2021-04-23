@@ -231,20 +231,45 @@ void MotorManager::set_command_reserved(std::vector<float> reserved) {
     }
 }
 
-void MotorManager::set_command_tuning(ModeDesired mode_desired, 
-    TuningMode tuning_mode, double tuning_amplitude, double tuning_frequency, 
-    double tuning_bias) {
-    set_command_mode(mode_desired);
-    set_command_torque(std::vector<float>(commands_.size(), tuning_bias));
-    if (mode_desired == ModeDesired::POSITION_TUNING || mode_desired == ModeDesired::STEPPER_TUNING) {
-        double sign_amplitude = tuning_mode == TuningMode::SINE || tuning_mode == TuningMode::CHIRP ? 1 : -1;
-        double sign_frequency = tuning_mode == TuningMode::SQUARE || tuning_mode == TuningMode::SINE ? 1 : -1;
-        set_command_position(std::vector<float>(commands_.size(), sign_amplitude * tuning_amplitude));
-        set_command_reserved(std::vector<float>(commands_.size(), sign_frequency * tuning_frequency));
+void MotorManager::set_command_stepper_tuning(TuningMode mode, double amplitude, double frequency, 
+    double bias, double kv) {
+    set_command_mode(ModeDesired::STEPPER_TUNING);
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].stepper_tuning.amplitude = amplitude;
+        commands_[i].stepper_tuning.mode = mode;
+        commands_[i].stepper_tuning.bias = bias;
+        commands_[i].stepper_tuning.frequency = frequency;
+        commands_[i].stepper_tuning.kv = kv;
     }
-    if (mode_desired == ModeDesired::CURRENT_TUNING) {
-        set_command_current(std::vector<float>(commands_.size(), (tuning_mode == TuningMode::CHIRP ? -1 : 1) * tuning_amplitude));
-        set_command_reserved(std::vector<float>(commands_.size(), (tuning_mode == TuningMode::SQUARE ? -1 : 1) * tuning_frequency));
+}
+
+void MotorManager::set_command_stepper_velocity(double voltage, double velocity) {
+    set_command_mode(ModeDesired::STEPPER_VELOCITY);
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].stepper_velocity.voltage = voltage;
+        commands_[i].stepper_velocity.velocity = velocity;
+    }
+}
+
+void MotorManager::set_command_position_tuning(TuningMode mode, double amplitude, double frequency, 
+    double bias) {
+    set_command_mode(ModeDesired::POSITION_TUNING);
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].position_tuning.amplitude = amplitude;
+        commands_[i].position_tuning.mode = mode;
+        commands_[i].position_tuning.bias = bias;
+        commands_[i].position_tuning.frequency = frequency;
+    }
+}
+
+void MotorManager::set_command_current_tuning(TuningMode mode, double amplitude, double frequency, 
+    double bias) {
+    set_command_mode(ModeDesired::CURRENT_TUNING);
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].current_tuning.amplitude = amplitude;
+        commands_[i].current_tuning.mode = mode;
+        commands_[i].current_tuning.bias = bias;
+        commands_[i].current_tuning.frequency = frequency;
     }
 }
 

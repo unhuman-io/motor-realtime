@@ -83,6 +83,7 @@ int main(int argc, char** argv) {
         {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
         {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, 
         {"phase_lock", ModeDesired::PHASE_LOCK}, {"stepper_tuning", ModeDesired::STEPPER_TUNING},
+        {"stepper_velocity", ModeDesired::STEPPER_VELOCITY},
         {"crash", ModeDesired::CRASH}, {"reset", ModeDesired::RESET}};
     TuningMode tuning_mode = TuningMode::SINE;
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
@@ -93,9 +94,6 @@ int main(int argc, char** argv) {
     int run_stats = 100;
     bool allow_simulated = false;
     bool check_messages_version = false;
-    double tuning_amplitude = 0;
-    double tuning_frequency = 0;
-    double tuning_bias = 0;
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
@@ -108,10 +106,26 @@ int main(int argc, char** argv) {
     set->add_option("--velocity", command.velocity_desired, "Velocity desired");
     set->add_option("--torque", command.torque_desired, "Torque desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
-    set->add_option("--tuning-amplitude", tuning_amplitude, "Position/current tuning amplitude");
-    set->add_option("--tuning-frequency", tuning_frequency, "Position/current tuning frequency hz");
-    set->add_option("--tuning-mode", tuning_mode, "Position/current tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
-    set->add_option("--tuning-bias", tuning_bias, "Position/current tuning bias (trajetory offset)");
+    auto stepper_tuning_mode = set->add_subcommand("stepper_tuning", "Stepper tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_TUNING;});
+    stepper_tuning_mode->add_option("--amplitude", command.stepper_tuning.amplitude, "Phase position tuning amplitude");
+    stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp");
+    stepper_tuning_mode->add_option("--mode", command.stepper_tuning.mode, "Phase tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
+    stepper_tuning_mode->add_option("--kv", command.stepper_tuning.kv, "Motor kv (rad/s)");
+    auto position_tuning_mode = set->add_subcommand("position_tuning", "Position tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::POSITION_TUNING;});;
+    position_tuning_mode->add_option("--amplitude", command.position_tuning.amplitude, "Position tuning amplitude");
+    position_tuning_mode->add_option("--frequency", command.position_tuning.frequency, "Position tuning frequency hz, or hz/s for chirp");
+    position_tuning_mode->add_option("--mode", command.position_tuning.mode, "Position tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
+    position_tuning_mode->add_option("--bias", command.position_tuning.bias, "Position trajectory offset");
+    auto current_tuning_mode = set->add_subcommand("current_tuning", "Current tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::CURRENT_TUNING;});;
+    current_tuning_mode->add_option("--amplitude", command.current_tuning.amplitude, "Current tuning amplitude");
+    current_tuning_mode->add_option("--frequency", command.current_tuning.frequency, "Current tuning frequency hz, or hz/s for chirp");
+    current_tuning_mode->add_option("--mode", command.current_tuning.mode, "Current tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
+    current_tuning_mode->add_option("--bias", command.current_tuning.bias, "Current trajectory offset");
+    auto stepper_velocity_mode = set->add_subcommand("stepper_velocity", "Stepper velocity mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_VELOCITY;});;
+    stepper_velocity_mode->add_option("--voltage", command.stepper_velocity.voltage, "Phase voltage amplitude");
+    stepper_velocity_mode->add_option("--velocity", command.stepper_velocity.velocity, "Phase velocity");
+    auto voltage_mode = set->add_subcommand("voltage", "Voltage mode")->final_callback([&](){command.mode_desired = ModeDesired::VOLTAGE;});;
+    voltage_mode->add_option("--voltage", command.voltage.voltage_desired, "Vq voltage desired");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("-s,--timestamp-in-seconds", read_opts.timestamp_in_seconds, "Report motor timestamp as seconds since start and unwrap");
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
@@ -273,13 +287,7 @@ int main(int argc, char** argv) {
     }
 
     if (*set && motors.size()) {
-        if (command.mode_desired == ModeDesired::POSITION_TUNING || 
-            command.mode_desired == ModeDesired::STEPPER_TUNING ||
-            command.mode_desired == ModeDesired::CURRENT_TUNING) {
-            m.set_command_tuning((ModeDesired) command.mode_desired, tuning_mode, tuning_amplitude, tuning_frequency, tuning_bias);
-        } else {
-            m.set_commands(std::vector<Command>(motors.size(), command));
-        }
+        m.set_commands(std::vector<Command>(motors.size(), command));
         std::cout << "Writing commands: \n" << m.command_headers() << std::endl << m.commands() << std::endl;
         m.write_saved_commands();
     }

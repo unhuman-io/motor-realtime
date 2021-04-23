@@ -21,6 +21,7 @@ _motor_util_completion()
             -d|--devpaths) subcommand=devpaths ; break ;;
             -s|--serial_numbers) subcommand=serial_numbers ; break ;;
             position_tuning|current_tuning|stepper_tuning) subcommand=tuning ; break ;;
+            stepper_voltage|voltage) subcommand=voltage ; break ;;
         esac
         (( i-- ))
     done
@@ -29,7 +30,7 @@ _motor_util_completion()
     local words
     local base_words="-l --list -c --check-messages-version --no-list --list-names-only --list-path-only --list-devpath-only --list-serial-number-only -n --names -p --paths -d --devpaths -s --serial_numbers set read --set-api --api --run-stats -v --version -u --user-space --allow-simulated -h --help";
     case $subcommand in
-        set) words="--host_time --mode --current --position --velocity --torque --reserved read -h --help";
+        set) words="--host_time --mode --current --position --velocity --torque --reserved  position_tuning current_tuning stepper_tuning voltage stepper_voltage read -h --help";
             case $last in
                 --host_time|--current|--position|--velocity|--reserved) return 0 ;;
                 --mode) words="open damped current position velocity torque impedance current_tuning position_tuning voltage phase_lock stepper_tuning crash reset" ;;
@@ -43,10 +44,11 @@ _motor_util_completion()
         devpaths) words="$(motor_util --list-devpath-only) $base_words" ;;
         serial_numbers) words="$(motor_util --list-serial-number-only) $base_words" ;;
         set_api) return 0 ;;
-        tuning) words="--tuning-amplitude --tuning-frequency --tuning-mode --tuning-bias read -h --help";
+        voltage) words="--voltage --velocity read -h --help" ;;
+        tuning) words="--amplitude --frequency --mode --bias --kv read -h --help";
             case $last in
-                --tuning-amplitude|--tuning-frequency) return 0 ;;
-                --tuning-mode) words="sine square triangle chirp" ;;
+                --amplitude|--frequency|--bias) return 0 ;;
+                --mode) words="sine square triangle chirp" ;;
             esac ;;
         *) words=$base_words ;;
     esac
