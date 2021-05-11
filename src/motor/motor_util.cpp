@@ -365,8 +365,12 @@ int main(int argc, char** argv) {
             text_thread.done();
         } else {
             std::vector<double> cpu_frequency_hz(motors.size());
-            if (read_opts.statistics) {
-                std::cout << "period_avg std_dev min max read_time_avg std_dev min max" << std::endl;
+            if (read_opts.statistics || read_opts.read_write_statistics) {
+                std::cout << "host_time_ns period_avg_ns period_std_dev_ns period_min_ns period_max_ns read_time_avg_ns read_time_std_dev_ns read_time_min_ns read_time_max_ns";
+                if (read_opts.read_write_statistics) {
+                   std::cout << " avg_hops";
+                }
+                std::cout << std::endl;
             } else if (*bits_option) {
                 std::cout << "motor_encoder, output_encoder, iq" << std::endl;
             } else {
