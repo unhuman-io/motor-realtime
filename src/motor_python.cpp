@@ -67,6 +67,7 @@ PYBIND11_MODULE(motor, m) {
         .value("Position", ModeDesired::POSITION)
         .value("Torque", ModeDesired::TORQUE)
         .value("Velocity", ModeDesired::VELOCITY)
+        .value("PhaseLock", ModeDesired::PHASE_LOCK)
         .value("CurrentTuning", ModeDesired::CURRENT_TUNING)
         .value("Reset", ModeDesired::RESET)
         .export_values();
@@ -108,4 +109,7 @@ PYBIND11_MODULE(motor, m) {
             return f;
         } )
         .def("__repr__", [](const Status &s) { return "<Status at: " + std::to_string(s.mcu_timestamp) + ">"; });
+
+    m.def("diff_mcu_time", [](uint32_t t1, uint32_t t2) { return t1-t2; });
+    m.def("diff_encoder", [](int32_t p1, int32_t p2) { return (int32_t) ((uint32_t) p1 - (uint32_t) p2); });
 }
