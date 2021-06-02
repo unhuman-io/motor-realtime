@@ -37,5 +37,5 @@ target_link_libraries(motor_data_echo rt pthread)
 
 # can't seem to use ${CMAKE_INSTALL_SYSCONFDIR} below instead of /etc with cpack
 if(INSTALL_COMPLETION)
-    install(FILES motor_util_completion.bash DESTINATION /etc/bash_completion.d)
+    install(FILES motor_util_completion.bash DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/bash_completion.d)
 endif()
