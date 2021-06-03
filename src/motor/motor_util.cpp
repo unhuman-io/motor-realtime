@@ -16,7 +16,7 @@
 struct cstr{char s[100];};
 class Statistics {
  public:
-    Statistics(int size) : size_(size) {}
+    Statistics(int size = 100) : size_(size) {}
     void push(double value) {
         double old_value = 0;
         if (queue_.size() >= size_) {
@@ -64,7 +64,7 @@ struct ReadOptions {
     bool reconnect;
     bool read_write_statistics;
     bool reserved_float;
-    uint32_t bits;
+    std::vector<double> bits;
 };
 
 bool signal_exit = false;
@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
-        .reserved_float = false, .bits=100};
+        .reserved_float = false, .bits={100,1}};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
     read_option->add_flag("-f,--reserved-float", read_opts.reserved_float, "Interpret reserved 1 & 2 as floats rather than uint32");
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
-    auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]", true)->type_name("NUM_SAMPLES")->expected(0,1);
+    auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]", true)->type_name("NUM_SAMPLES RANGE")->expected(0,2);
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
     app.add_flag("-c,--check-messages-version", check_messages_version, "Check motor messages version");
     app.add_flag("--no-list", no_list, "Do not list connected motors");
@@ -345,11 +345,18 @@ int main(int argc, char** argv) {
                 }
                 log.push_back((*m.motors()[0])[s]);
             }
-            RealtimeThread text_thread(read_opts.frequency_hz, [&log](){
+            RealtimeThread text_thread(read_opts.frequency_hz, [&](){
                 for (auto &l : log) {
                     auto str = l.get();
                     if (str != "log end") {
                         std::cout << str;
+                        if (*bits_option) {
+                            static std::map<TextAPIItem*, Statistics> s;
+                            s.insert({&l, read_opts.bits[0]});
+                            double range = read_opts.bits[1];
+                            s[&l].push(fabs(std::stod(str)));
+                            std::cout << ", " << log2(range/6/s[&l].get_stddev());
+                        }
                         if (&l == &log.back()) {
                             std::cout << std::endl;
                         } else {
@@ -419,7 +426,7 @@ int main(int argc, char** argv) {
                 }
 
                 if (*bits_option) {
-                    static Statistics motor_encoder(read_opts.bits), output_encoder(read_opts.bits), iq(read_opts.bits);
+                    static Statistics motor_encoder(read_opts.bits[0]), output_encoder(read_opts.bits[0]), iq(read_opts.bits[0]);
                     static double mcpr = fabs(std::stod((*m.motors()[i])["mcpr"].get()));
                     static double ocpr = fabs(std::stod((*m.motors()[i])["ocpr"].get()));
                     static double irange = fabs(std::stod((*m.motors()[i])["irange"].get()));
