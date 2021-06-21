@@ -3,7 +3,7 @@ Description=Torque demo
 
 [Service]
 Environment="PYTHONPATH=/usr/share/motor-realtime"
-ExecStart=python3 /usr/share/motor-realtime/python/torque_demo.py
+ExecStart=python3 -u /usr/share/motor-realtime/python/torque_demo.py
 Restart=always
 RestartSec=5
 
