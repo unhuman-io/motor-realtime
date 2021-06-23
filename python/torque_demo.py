@@ -2,15 +2,21 @@
 
 import motor
 import time
+import math
+import signal
+import sys
 
 
+def sigterm_handler(_signo, _stack_frame):
+    # Raises SystemExit(0):
+    sys.exit(0)
 
 class TorqueDemo:
-    torque_value = .3    # Nm output
-    velocity_limit = 2  # rad/s output
+    torque_value = 1    # Nm output
+    velocity_limit = 6  # rad/s output
     wait_time = 1       # seconds
     dt = 0.1           # seconds run frequency
-    motor_cpr = 2048*100    # counts per output revolution
+    motor_cpr = 4*2048*100    # counts per output revolution
 
     def __init__(self):
         self.m = motor.MotorManager()
@@ -39,6 +45,7 @@ class TorqueDemo:
 
     def run(self):
         print("Starting torque demo")
+        signal.signal(signal.SIGTERM, sigterm_handler)
         
         status = self.m.read()[0]
         last_encoder = status.motor_encoder
@@ -48,7 +55,7 @@ class TorqueDemo:
                 # read motor
                 status = self.m.read()[0]
                 velocity = float(motor.diff_encoder(status.motor_encoder, last_encoder))/self.motor_cpr/ \
-                    float(motor.diff_mcu_time(status.mcu_timestamp, last_mcu_time))*170e6
+                    float(motor.diff_mcu_time(status.mcu_timestamp, last_mcu_time))*170.0e6*2*math.pi
                 last_mcu_time = status.mcu_timestamp
                 last_encoder = status.motor_encoder
 
@@ -68,8 +75,8 @@ class TorqueDemo:
                     
                 self.m.write_saved_commands()
                 time.sleep(self.dt)
-        except KeyboardInterrupt:
-            print("keyboard interrupt, setting mode open")
+        finally:
+            print("Exception, setting mode open")
             self.m.set_command_mode(motor.ModeDesired.Open)
             self.m.write_saved_commands()
 
