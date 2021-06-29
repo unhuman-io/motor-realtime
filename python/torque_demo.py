@@ -12,8 +12,9 @@ def sigterm_handler(_signo, _stack_frame):
     sys.exit(0)
 
 class TorqueDemo:
-    torque_value = 1    # Nm output
+    torque_value = 4    # Nm output
     velocity_limit = 6  # rad/s output
+    velocity_limit_time = 0.5 # seconds for velocity overspeed limit
     wait_time = 1       # seconds
     dt = 0.1           # seconds run frequency
     motor_cpr = 4*2048*100    # counts per output revolution
@@ -50,6 +51,7 @@ class TorqueDemo:
         status = self.m.read()[0]
         last_encoder = status.motor_encoder
         last_mcu_time = status.mcu_timestamp
+        velocity_limit_start_time = time.time()
         try:
             while(True):
                 # read motor
@@ -66,9 +68,13 @@ class TorqueDemo:
                     if (abs(status.torque) > self.torque_value):
                         self.torque_sign = 1.0 if status.torque > 0 else -1.0
                         self.set_torque_mode()
+                        velocity_limit_start_time = time.time()
                 elif (self.state == "torque"):
                     if (abs(velocity) > self.velocity_limit):
-                        self.set_wait_mode()
+                        if (time.time() - velocity_limit_start_time > self.velocity_limit_time):
+                            self.set_wait_mode()
+                    else:
+                        velocity_limit_start_time = time.time()
                 elif (self.state == "wait"):
                     if (time.time() - self.t_start > self.wait_time):
                         self.set_hold_mode()
