@@ -84,6 +84,7 @@ int main(int argc, char** argv) {
         {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, 
         {"phase_lock", ModeDesired::PHASE_LOCK}, {"stepper_tuning", ModeDesired::STEPPER_TUNING},
         {"stepper_velocity", ModeDesired::STEPPER_VELOCITY},
+        {"sleep", ModeDesired::SLEEP},
         {"crash", ModeDesired::CRASH}, {"reset", ModeDesired::RESET}};
     TuningMode tuning_mode = TuningMode::SINE;
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{

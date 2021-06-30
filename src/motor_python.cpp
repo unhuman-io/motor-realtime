@@ -69,6 +69,7 @@ PYBIND11_MODULE(motor, m) {
         .value("Velocity", ModeDesired::VELOCITY)
         .value("PhaseLock", ModeDesired::PHASE_LOCK)
         .value("CurrentTuning", ModeDesired::CURRENT_TUNING)
+        .value("Sleep", ModeDesired::SLEEP)
         .value("Reset", ModeDesired::RESET)
         .export_values();
     
