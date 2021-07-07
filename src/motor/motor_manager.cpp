@@ -133,9 +133,11 @@ std::vector<Status> MotorManager::read() {
         auto size = motors_[i]->read();
         if (size == -1) {
             // no data, error is in errno
-            if (reconnect_rate_.run()) {
-                std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
-                if (reconnect_) {
+            std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
+            if (!reconnect_) {
+                throw std::runtime_error(err);
+            } else {
+                if (reconnect_rate_.run()) {
                     std::cerr << err << std::endl;
                     std::cerr << "trying to reconnect " << motors_[i]->base_path() << std::endl;
                     try {
@@ -147,8 +149,6 @@ std::vector<Status> MotorManager::read() {
                     } catch (std::runtime_error &e) {
                         std::cerr << e.what() << std::endl;
                     }
-                } else {
-                    throw std::runtime_error(err);
                 }
             }
         }
