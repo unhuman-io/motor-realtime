@@ -34,6 +34,18 @@ class TestMotor(unittest.TestCase):
         time.sleep(0.001)
         self.assertEqual(self.m.read()[0].host_timestamp_received, 1)
 
+    def test_2sleep(self):
+        self.m.set_command_mode(motor.ModeDesired.Sleep)
+        self.m.write_saved_commands()
+        tstart = self.m.read()[0].host_timestamp_received # it will return last data before sleep
+        time.sleep(1)
+        try:
+            self.m.read() # should timeout
+            self.assertTrue(False)
+        except RuntimeError as e:
+            # todo I don't know how constat this text will be
+            self.assertTrue(str(e).endswith("Connection timed out"))
+
     def test_velocity_mode(self):
         t = 10.0
         v = 5.0
