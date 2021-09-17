@@ -301,9 +301,9 @@ int main(int argc, char** argv) {
     }
 
     if (*set_api && motors.size()) {
-        char c[65];
+        char c[MAX_API_DATA_SIZE];
         for (auto motor : m.motors()) {
-            auto nbytes = motor->motor_text()->writeread(set_api_data.c_str(), set_api_data.size(), c, 64);
+            auto nbytes = motor->motor_text()->writeread(set_api_data.c_str(), set_api_data.size(), c, MAX_API_DATA_SIZE);
             c[nbytes] = 0;
             std::cout << motor->name() << ": " << c << std::endl;
         }
@@ -314,9 +314,9 @@ int main(int argc, char** argv) {
         bool sin = false;
         std::thread t([&s,&sin]() { while(!signal_exit) { std::cin >> s; sin = true; } });
         while(!signal_exit) {
-            char data[65];
+            char data[MAX_API_DATA_SIZE];
             if (sin) {
-                auto nbytes = m.motors()[0]->motor_text()->writeread(s.c_str(), s.size(), data, 64);
+                auto nbytes = m.motors()[0]->motor_text()->writeread(s.c_str(), s.size(), data, MAX_API_DATA_SIZE);
                 data[nbytes] = 0;
                 std::cout << data << std::endl;
                 sin = false;
