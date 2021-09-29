@@ -65,6 +65,8 @@ struct ReadOptions {
     bool read_write_statistics;
     bool reserved_float;
     std::vector<double> bits;
+    bool compute_velocity;
+    double timestamp_frequency_hz;
 };
 
 bool signal_exit = false;
@@ -98,7 +100,7 @@ int main(int argc, char** argv) {
     ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
-        .reserved_float = false, .bits={100,1}};
+        .reserved_float = false, .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -140,6 +142,8 @@ int main(int argc, char** argv) {
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
     read_option->add_flag("-f,--reserved-float", read_opts.reserved_float, "Interpret reserved 1 & 2 as floats rather than uint32");
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
+    read_option->add_flag("-v,--compute_velocity", read_opts.compute_velocity, "Compute velocity from motor position");
+    auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]", true)->type_name("NUM_SAMPLES RANGE")->expected(0,2);
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
     app.add_flag("-c,--check-messages-version", check_messages_version, "Check motor messages version");
@@ -385,14 +389,26 @@ int main(int argc, char** argv) {
                 if (read_opts.host_time) {
                     std::cout << "t_host,";
                 }
+                for (int i=0;i<motors.size();i++) {
+                    if (*timestamp_frequency_option) {
+                        cpu_frequency_hz[i] = read_opts.timestamp_frequency_hz;
+                    } else {
+                        cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get()); // TODO has issues if you run it in first few seconds
+                    }
+                }
                 if (read_opts.timestamp_in_seconds) {
                     int length = motors.size();
                     for (int i=0;i<length;i++) {
-                        cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get()); // TODO has issues if you run it in first few seconds
                         std::cout << "t_seconds" << i << ", ";
                     }
                 }
-                std::cout << m.status_headers() << std::endl;
+                std::cout << m.status_headers();
+                if (read_opts.compute_velocity) {
+                    for (int i=0;i<motors.size();i++) {
+                        std::cout << "motor_velocity" << i << ", ";
+                    }
+                }
+                std::cout << std::endl;
             }
             auto start_time = std::chrono::steady_clock::now();
             auto next_time = start_time;
@@ -472,7 +488,6 @@ int main(int argc, char** argv) {
                         std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count()/1e9 << ", ";
                     }
                     if (read_opts.timestamp_in_seconds) {
-                        
                         static auto last_status = status;
                         static double *t_seconds = new double[status.size()]();
                         for (int i = 0; i < status.size(); i++) {
@@ -483,7 +498,17 @@ int main(int argc, char** argv) {
                         last_status = status;
                     }
                     std::cout << std::setprecision(5);
-                    std::cout << status << std::endl;
+                    std::cout << status;
+                    if (read_opts.compute_velocity) {
+                        static auto last_status = status;
+                        for (int i = 0; i < status.size(); i++) {
+                            double dt = (status[i].mcu_timestamp - last_status[i].mcu_timestamp)/cpu_frequency_hz[i];
+                            double velocity = (status[i].motor_position - last_status[i].motor_position)/dt;
+                            std::cout << std::setw(8) << velocity << ", ";
+                        }
+                        last_status = status;
+                    }
+                    std::cout << std::endl;
                 }
 
                 // option to not sleep
