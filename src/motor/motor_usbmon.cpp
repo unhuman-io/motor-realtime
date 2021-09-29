@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
             std::cerr << "ioctl error " <<  ERRNO_STR  << std::endl;
         }
         if (std::find(device_numbers.begin(), device_numbers.end(), hdr.devnum) != device_numbers.end()) {
-            std::cout << hdr.type << (is_in(hdr.xfer_flags) ? 'i' : 'o') << ", " << std::setw(6) << hdr.ts_usec << ", ";
+            std::cout << std::setw(3) << (int) hdr.devnum << " " << hdr.type << (is_in(hdr.xfer_flags) ? 'i' : 'o') << ", " << std::setw(6) << hdr.ts_usec << ", ";
             if (is_in(hdr.xfer_flags)) {
                 if (hdr.type == 'C') {
                     std::vector<Status> status = {*(Status *) data};
