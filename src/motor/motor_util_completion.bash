@@ -35,9 +35,9 @@ _motor_util_completion()
                 --host_time|--current|--position|--velocity|--reserved) return 0 ;;
                 --mode) words="open damped current position velocity torque impedance current_tuning position_tuning voltage phase_lock stepper_tuning sleep crash reset" ;;
             esac ;;
-        read) words="--poll --aread --frequency --statistics --read-write-statistics --text -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f --reserved-float -r --reconnect --bits -v --compute-velocity --timestamp_frequency set -h --help";
+        read) words="--poll --aread --frequency --statistics --read-write-statistics --text -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f --reserved-float -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision set -h --help";
             case $last in
-                --frequency|--timestamp_frequency) return 0 ;;
+                --frequency|--timestamp_frequency|-p|--precision) return 0 ;;
             esac ;;
         names) words="$(motor_util --list-names-only) $base_words" ;;
         paths) words="$(motor_util --list-path-only) $base_words" ;;
