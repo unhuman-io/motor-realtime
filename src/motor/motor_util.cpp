@@ -12,6 +12,7 @@
 #include "motor_publisher.h"
 #include <sstream>
 #include "realtime_thread.h"
+#include "keyboard.h"
 
 struct cstr{char s[100];};
 class Statistics {
@@ -316,21 +317,17 @@ int main(int argc, char** argv) {
     }
 
     if (api_mode) {
-        std::string s;
-        bool sin = false;
-        std::thread t([&s,&sin]() { while(!signal_exit) { std::cin >> s; sin = true; } });
+        Keyboard k;
+        char data[MAX_API_DATA_SIZE];
         while(!signal_exit) {
-            char data[MAX_API_DATA_SIZE];
-            if (sin) {
-                auto nbytes = m.motors()[0]->motor_text()->writeread(s.c_str(), s.size(), data, MAX_API_DATA_SIZE);
+            if (k.new_key()) {
+                char c = k.get_char();
+                auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_DATA_SIZE);
                 data[nbytes] = 0;
-                std::cout << data << std::endl;
-                sin = false;
+                std::cout << data << std::flush;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        pthread_cancel(t.native_handle());
-        t.join();
     }
 
     try {
