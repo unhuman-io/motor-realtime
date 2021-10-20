@@ -388,11 +388,13 @@ int main(int argc, char** argv) {
                 if (read_opts.host_time) {
                     std::cout << "t_host,";
                 }
-                for (int i=0;i<motors.size();i++) {
-                    if (*timestamp_frequency_option) {
-                        cpu_frequency_hz[i] = read_opts.timestamp_frequency_hz;
-                    } else {
-                        cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get()); // TODO has issues if you run it in first few seconds
+                if (read_opts.timestamp_in_seconds || read_opts.compute_velocity) {
+                    for (int i=0;i<motors.size();i++) {
+                        if (*timestamp_frequency_option) {
+                            cpu_frequency_hz[i] = read_opts.timestamp_frequency_hz;
+                        } else {
+                            cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get()); // TODO has issues if you run it in first few seconds
+                        }
                     }
                 }
                 if (read_opts.timestamp_in_seconds) {
