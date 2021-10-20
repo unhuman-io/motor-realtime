@@ -4,8 +4,11 @@ on: [push]
 
 jobs:
   build:
-
-    runs-on: ubuntu-16.04
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu-18.04, ubuntu-20.04]
+    runs-on: ${{ matrix.distro }}
     
     steps:
     - uses: actions/checkout@master
@@ -13,13 +16,18 @@ jobs:
         submodules: true
         fetch-depth: 0
     - name: install libudev-dev
-      run: sudo apt-get install libudev-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libudev-dev
     - name: cmake
-      run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .
+      run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_PYTHON_API=1 .
     - name: make
-      run: make VERBOSE=1
+      run: make VERBOSE=1 -j2
     - name: make package
       run: make package
+    - name: rename
+      if: ${{ !(matrix.distro == 'ubuntu-18.04') }}
+      run: for f in packages/*.deb; do mv $f ${f%.deb}_${{ matrix.distro }}.deb; done
     - name: Archive production artifacts
       uses: actions/upload-artifact@v1
       with:
@@ -35,22 +43,22 @@ jobs:
     - name: cmake2
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
     - name: make2
-      run: make VERBOSE=1
+      run: make VERBOSE=1 -j2
     - name: make install
       run: make install
     - name: archive
-      run: tar -czf artifacts.tgz artifacts/ 
+      run: tar -czf artifacts_${{ matrix.distro }}.tgz artifacts/ 
     - name: Archive production artifacts2
       uses: actions/upload-artifact@v1
       with:
         name: artifacts
-        path: artifacts.tgz
+        path: artifacts_${{ matrix.distro }}.tgz
     - uses: eine/tip@master
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
-          ./artifacts.tgz
+          ./artifacts_${{ matrix.distro }}.tgz
         tag: develop
 
   build_arm:
@@ -58,6 +66,7 @@ jobs:
     name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
 
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: aarch64
@@ -81,12 +90,17 @@ jobs:
         dockerRunArgs: |
           --volume "${PWD}/packages:/packages"
         run: |
-          cmake -DCMAKE_BUILD_TYPE=Release .
-          make -j
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_API=1 .
+          make -j2
           make package
         install: |
           apt-get update -q -y
           apt-get install -y cmake build-essential libudev-dev git python3-dev
+          if [ ${{ matrix.arch }} = "armv6" ]; then
+            # cmake 3.16 has problems
+            apt-get remove -y cmake-data
+            apt-get install -y cmake-data=3.13.4-1 cmake=3.13.4-1
+          fi
     - name: Archive production artifacts
       uses: actions/upload-artifact@v1
       with:

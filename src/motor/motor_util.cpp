@@ -11,11 +11,12 @@
 #include <string>
 #include "motor_publisher.h"
 #include <sstream>
+#include "realtime_thread.h"
 
 struct cstr{char s[100];};
 class Statistics {
  public:
-    Statistics(int size) : size_(size) {}
+    Statistics(int size = 100) : size_(size) {}
     void push(double value) {
         double old_value = 0;
         if (queue_.size() >= size_) {
@@ -55,7 +56,7 @@ struct ReadOptions {
     bool aread;
     double frequency_hz;
     bool statistics;
-    std::string text;
+    std::vector<std::string> text;
     bool timestamp_in_seconds;
     bool host_time;
     bool publish;
@@ -63,6 +64,10 @@ struct ReadOptions {
     bool reconnect;
     bool read_write_statistics;
     bool reserved_float;
+    std::vector<double> bits;
+    bool compute_velocity;
+    double timestamp_frequency_hz;
+    int precision;
 };
 
 bool signal_exit = false;
@@ -81,19 +86,22 @@ int main(int argc, char** argv) {
         {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
         {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, 
         {"phase_lock", ModeDesired::PHASE_LOCK}, {"stepper_tuning", ModeDesired::STEPPER_TUNING},
-        {"reset", ModeDesired::RESET}};
-    enum TuningMode {SINE, SQUARE, TRIANGLE, CHIRP} tuning_mode = TuningMode::SINE;
+        {"stepper_velocity", ModeDesired::STEPPER_VELOCITY},
+        {"sleep", ModeDesired::SLEEP},
+        {"crash", ModeDesired::CRASH}, {"reset", ModeDesired::RESET}};
+    TuningMode tuning_mode = TuningMode::SINE;
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
         {"chirp", TuningMode::CHIRP}};
     std::string set_api_data;
     bool api_mode = false;
-    bool run_stats = false;
+    int run_stats = 100;
     bool allow_simulated = false;
     bool check_messages_version = false;
-    double tuning_amplitude = 0;
-    double tuning_frequency = 0;
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, .statistics = false, .text = "log" , .timestamp_in_seconds = false, .host_time = false, .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false};
+    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, 
+        .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
+        .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
+        .reserved_float = false, .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -102,9 +110,26 @@ int main(int argc, char** argv) {
     set->add_option("--velocity", command.velocity_desired, "Velocity desired");
     set->add_option("--torque", command.torque_desired, "Torque desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
-    set->add_option("--tuning-amplitude", tuning_amplitude, "Position/current tuning amplitude");
-    set->add_option("--tuning-frequency", tuning_frequency, "Position/current tuning frequency hz");
-    set->add_option("--tuning-mode", tuning_mode, "Position/current tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
+    auto stepper_tuning_mode = set->add_subcommand("stepper_tuning", "Stepper tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_TUNING;});
+    stepper_tuning_mode->add_option("--amplitude", command.stepper_tuning.amplitude, "Phase position tuning amplitude");
+    stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp");
+    stepper_tuning_mode->add_option("--mode", command.stepper_tuning.mode, "Phase tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
+    stepper_tuning_mode->add_option("--kv", command.stepper_tuning.kv, "Motor kv (rad/s)");
+    auto position_tuning_mode = set->add_subcommand("position_tuning", "Position tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::POSITION_TUNING;});;
+    position_tuning_mode->add_option("--amplitude", command.position_tuning.amplitude, "Position tuning amplitude");
+    position_tuning_mode->add_option("--frequency", command.position_tuning.frequency, "Position tuning frequency hz, or hz/s for chirp");
+    position_tuning_mode->add_option("--mode", command.position_tuning.mode, "Position tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
+    position_tuning_mode->add_option("--bias", command.position_tuning.bias, "Position trajectory offset");
+    auto current_tuning_mode = set->add_subcommand("current_tuning", "Current tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::CURRENT_TUNING;});;
+    current_tuning_mode->add_option("--amplitude", command.current_tuning.amplitude, "Current tuning amplitude");
+    current_tuning_mode->add_option("--frequency", command.current_tuning.frequency, "Current tuning frequency hz, or hz/s for chirp");
+    current_tuning_mode->add_option("--mode", command.current_tuning.mode, "Current tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
+    current_tuning_mode->add_option("--bias", command.current_tuning.bias, "Current trajectory offset");
+    auto stepper_velocity_mode = set->add_subcommand("stepper_velocity", "Stepper velocity mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_VELOCITY;});;
+    stepper_velocity_mode->add_option("--voltage", command.stepper_velocity.voltage, "Phase voltage amplitude");
+    stepper_velocity_mode->add_option("--velocity", command.stepper_velocity.velocity, "Phase velocity");
+    auto voltage_mode = set->add_subcommand("voltage", "Voltage mode")->final_callback([&](){command.mode_desired = ModeDesired::VOLTAGE;});;
+    voltage_mode->add_option("--voltage", command.voltage.voltage_desired, "Vq voltage desired");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("-s,--timestamp-in-seconds", read_opts.timestamp_in_seconds, "Report motor timestamp as seconds since start and unwrap");
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
@@ -112,12 +137,16 @@ int main(int argc, char** argv) {
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
     read_option->add_flag("--read-write-statistics", read_opts.read_write_statistics, "Perform read then write when doing statistics test");
-    auto text_read = read_option->add_option("--text",read_opts.text, "Read the text api for variable", true)->expected(0, 1);
+    auto text_read = read_option->add_option("--text",read_opts.text, "Read the text api for variable", true)->expected(0, -1);
     read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
     read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
     read_option->add_flag("-f,--reserved-float", read_opts.reserved_float, "Interpret reserved 1 & 2 as floats rather than uint32");
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
+    read_option->add_flag("-v,--compute_velocity", read_opts.compute_velocity, "Compute velocity from motor position");
+    read_option->add_option("-p,--precision", read_opts.precision, "floating point precision output")->expected(1);
+    auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
+    auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]", true)->type_name("NUM_SAMPLES RANGE")->expected(0,2);
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
     app.add_flag("-c,--check-messages-version", check_messages_version, "Check motor messages version");
     app.add_flag("--no-list", no_list, "Do not list connected motors");
@@ -134,7 +163,7 @@ int main(int argc, char** argv) {
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)");
     app.add_flag("--api", api_mode, "Enter API mode");
-    app.add_flag("--run-stats", run_stats, "Check firmware run timing");
+    auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing", true)->type_name("NUM_SAMPLES")->expected(0,1);
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int signum){signal_exit = true;});
@@ -184,7 +213,7 @@ int main(int argc, char** argv) {
     if (!no_list) {
         int name_width = 10;
         int serial_number_width = 15;
-        int version_width = verbose_list ? 45 : 12;
+        int version_width = verbose_list ? 45 : 15;
         int path_width = 15;
         int dev_path_width = 12;
         if (list_names || list_path || list_devpath || list_serial_number) {
@@ -234,13 +263,21 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (run_stats && motors.size()) {
-        std::cout << "name, fast_loop_cycles, fast_loop_period, main_loop_cycles, main_loop_period" << std::endl;
+    if (*run_stats_option && motors.size()) {
+        std::cout << "name, max_fast_loop_cycles, max_fast_loop_period, max_main_loop_cycles, max_main_loop_period, " << 
+                "mean_fast_loop_cycles, mean_fast_loop_period, mean_main_loop_cycles, mean_main_loop_period" << std::endl;
         for (auto m : motors) {
-            auto max_api_val = [](TextAPIItem a, int num = 100) {
+            auto max_api_val = [run_stats](TextAPIItem a) {
                 int out = 0;
-                for (int i=0;i<num;i++) {
+                for (int i=0;i<run_stats;i++) {
                     out = std::max(std::atoi(a.get().c_str()), out);
+                } 
+                return out;
+            };
+            auto mean_api_val = [run_stats](TextAPIItem a) {
+                double out = 0;
+                for (int i=0;i<run_stats;i++) {
+                    out += (double) std::atoi(a.get().c_str())/run_stats;
                 } 
                 return out;
             };
@@ -248,24 +285,18 @@ int main(int argc, char** argv) {
             std::cout << max_api_val((*m)["t_exec_fastloop"]) << ", ";
             std::cout << max_api_val((*m)["t_period_fastloop"]) << ", ";
             std::cout << max_api_val((*m)["t_exec_mainloop"]) << ", ";
-            std::cout << max_api_val((*m)["t_period_mainloop"]) << std::endl;
+            std::cout << max_api_val((*m)["t_period_mainloop"]) << ", ";
+            std::cout << mean_api_val((*m)["t_exec_fastloop"]) << ", ";
+            std::cout << mean_api_val((*m)["t_period_fastloop"]) << ", ";
+            std::cout << mean_api_val((*m)["t_exec_mainloop"]) << ", ";
+            std::cout << mean_api_val((*m)["t_period_mainloop"]) << std::endl;
         }
     }
 
     if (*set && motors.size()) {
-        if (command.mode_desired == ModeDesired::POSITION_TUNING) {
-            double sign_amplitude = tuning_mode == TuningMode::SINE || tuning_mode == TuningMode::CHIRP ? 1 : -1;
-            double sign_frequency = tuning_mode == TuningMode::SQUARE || tuning_mode == TuningMode::SINE ? 1 : -1;
-            command.position_desired = sign_amplitude * tuning_amplitude;
-            command.reserved = sign_frequency * tuning_frequency;
-        }
-        if (command.mode_desired == ModeDesired::CURRENT_TUNING) {
-            command.current_desired = (tuning_mode == TuningMode::CHIRP ? -1 : 1) * tuning_amplitude;
-            command.reserved = (tuning_mode == TuningMode::SQUARE ? -1 : 1) * tuning_frequency;
-        }
-        auto commands = std::vector<Command>(motors.size(), command);
-        std::cout << "Writing commands: \n" << m.command_headers() << std::endl << commands << std::endl;
-        m.write(commands);
+        m.set_commands(std::vector<Command>(motors.size(), command));
+        std::cout << "Writing commands: \n" << m.command_headers() << std::endl << m.commands() << std::endl;
+        m.write_saved_commands();
     }
 
     if (api_mode || *read_option && *text_read) {
@@ -276,9 +307,9 @@ int main(int argc, char** argv) {
     }
 
     if (*set_api && motors.size()) {
-        char c[65];
+        char c[MAX_API_DATA_SIZE];
         for (auto motor : m.motors()) {
-            auto nbytes = motor->motor_text()->writeread(set_api_data.c_str(), set_api_data.size(), c, 64);
+            auto nbytes = motor->motor_text()->writeread(set_api_data.c_str(), set_api_data.size(), c, MAX_API_DATA_SIZE);
             c[nbytes] = 0;
             std::cout << motor->name() << ": " << c << std::endl;
         }
@@ -289,9 +320,9 @@ int main(int argc, char** argv) {
         bool sin = false;
         std::thread t([&s,&sin]() { while(!signal_exit) { std::cin >> s; sin = true; } });
         while(!signal_exit) {
-            char data[65];
+            char data[MAX_API_DATA_SIZE];
             if (sin) {
-                auto nbytes = m.motors()[0]->motor_text()->writeread(s.c_str(), s.size(), data, 64);
+                auto nbytes = m.motors()[0]->motor_text()->writeread(s.c_str(), s.size(), data, MAX_API_DATA_SIZE);
                 data[nbytes] = 0;
                 std::cout << data << std::endl;
                 sin = false;
@@ -312,33 +343,74 @@ int main(int argc, char** argv) {
         m.set_reconnect(read_opts.reconnect);
         
         if (*text_read) {
-            auto log = (*m.motors()[0])[read_opts.text];
-            auto str = log.get();
-            while(!signal_exit) {
-                if (str != "log end") {
-                    std::cout << str << std::endl;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                } else {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::vector<TextAPIItem> log;
+            for (auto s : read_opts.text) {
+                if (s == "log") {
+                    // only log
+                    log = {(*m.motors()[0])[s]};
+                    break;
                 }
-                str = log.get();
+                log.push_back((*m.motors()[0])[s]);
             }
+            RealtimeThread text_thread(read_opts.frequency_hz, [&](){
+                for (auto &l : log) {
+                    auto str = l.get();
+                    if (str != "log end") {
+                        std::cout << str;
+                        if (*bits_option) {
+                            static std::map<TextAPIItem*, Statistics> s;
+                            s.insert({&l, read_opts.bits[0]});
+                            double range = read_opts.bits[1];
+                            s[&l].push(fabs(std::stod(str)));
+                            std::cout << ", " << log2(range/6/s[&l].get_stddev());
+                        }
+                        if (&l == &log.back()) {
+                            std::cout << std::endl;
+                        } else {
+                            std::cout << ", ";
+                        }
+                    }
+                }
+            });
+            text_thread.run();
+            while(!signal_exit) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            text_thread.done();
         } else {
             std::vector<double> cpu_frequency_hz(motors.size());
-            if (read_opts.statistics) {
-                std::cout << "period_avg std_dev min max read_time_avg std_dev min max";
+            if (read_opts.statistics || read_opts.read_write_statistics) {
+                std::cout << "host_time_ns period_avg_ns period_std_dev_ns period_min_ns period_max_ns read_time_avg_ns read_time_std_dev_ns read_time_min_ns read_time_max_ns";
+                if (read_opts.read_write_statistics) {
+                   std::cout << " avg_hops";
+                }
+                std::cout << std::endl;
+            } else if (*bits_option) {
+                std::cout << "motor_encoder, output_encoder, iq" << std::endl;
             } else {
                 if (read_opts.host_time) {
                     std::cout << "t_host,";
                 }
+                for (int i=0;i<motors.size();i++) {
+                    if (*timestamp_frequency_option) {
+                        cpu_frequency_hz[i] = read_opts.timestamp_frequency_hz;
+                    } else {
+                        cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get()); // TODO has issues if you run it in first few seconds
+                    }
+                }
                 if (read_opts.timestamp_in_seconds) {
                     int length = motors.size();
                     for (int i=0;i<length;i++) {
-                        cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get());
                         std::cout << "t_seconds" << i << ", ";
                     }
                 }
-                std::cout << m.status_headers() << std::endl;
+                std::cout << m.status_headers();
+                if (read_opts.compute_velocity) {
+                    for (int i=0;i<motors.size();i++) {
+                        std::cout << "motor_velocity" << i << ", ";
+                    }
+                }
+                std::cout << std::endl;
             }
             auto start_time = std::chrono::steady_clock::now();
             auto next_time = start_time;
@@ -372,7 +444,18 @@ int main(int argc, char** argv) {
                     pub.publish(c);
                 }
 
-                if (read_opts.statistics || read_opts.read_write_statistics) {
+                if (*bits_option) {
+                    static Statistics motor_encoder(read_opts.bits[0]), output_encoder(read_opts.bits[0]), iq(read_opts.bits[0]);
+                    static double mcpr = fabs(std::stod((*m.motors()[i])["mcpr"].get()));
+                    static double ocpr = fabs(std::stod((*m.motors()[i])["ocpr"].get()));
+                    static double irange = fabs(std::stod((*m.motors()[i])["irange"].get()));
+                    motor_encoder.push(status[0].motor_encoder);
+                    output_encoder.push(status[0].joint_position);
+                    iq.push(status[0].iq);
+                    std::cout << log2(mcpr/6/motor_encoder.get_stddev()) << ", "
+                              << log2(2*M_PI/6/output_encoder.get_stddev()) << ", "
+                              << log2(irange/6/iq.get_stddev()) << std::endl;
+                } else if (read_opts.statistics || read_opts.read_write_statistics) {
                     i++;
                     auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(exec_time - loop_start_time).count();
                     auto last_start = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count();
@@ -407,7 +490,6 @@ int main(int argc, char** argv) {
                         std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count()/1e9 << ", ";
                     }
                     if (read_opts.timestamp_in_seconds) {
-                        
                         static auto last_status = status;
                         static double *t_seconds = new double[status.size()]();
                         for (int i = 0; i < status.size(); i++) {
@@ -417,8 +499,18 @@ int main(int argc, char** argv) {
                         }
                         last_status = status;
                     }
-                    std::cout << std::setprecision(5);
-                    std::cout << status << std::endl;
+                    std::cout << std::setprecision(read_opts.precision);
+                    std::cout << status;
+                    if (read_opts.compute_velocity) {
+                        static auto last_status = status;
+                        for (int i = 0; i < status.size(); i++) {
+                            double dt = (status[i].mcu_timestamp - last_status[i].mcu_timestamp)/cpu_frequency_hz[i];
+                            double velocity = (status[i].motor_position - last_status[i].motor_position)/dt;
+                            std::cout << std::setw(8) << velocity << ", ";
+                        }
+                        last_status = status;
+                    }
+                    std::cout << std::endl;
                 }
 
                 // option to not sleep

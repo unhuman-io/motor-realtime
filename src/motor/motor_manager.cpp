@@ -133,18 +133,22 @@ std::vector<Status> MotorManager::read() {
         auto size = motors_[i]->read();
         if (size == -1) {
             // no data, error is in errno
-            if (reconnect_rate_.run()) {
-                std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
-                if (reconnect_) {
+            std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
+            if (!reconnect_) {
+                throw std::runtime_error(err);
+            } else {
+                if (reconnect_rate_.run()) {
                     std::cerr << err << std::endl;
                     std::cerr << "trying to reconnect " << motors_[i]->base_path() << std::endl;
-                    auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
-                    if (motors[0]) {
-                        std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
-                        motors_[i] = motors[0];
+                    try {
+                        auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
+                        if (motors[0]) {
+                            std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
+                            motors_[i] = motors[0];
+                        }
+                    } catch (std::runtime_error &e) {
+                        std::cerr << e.what() << std::endl;
                     }
-                } else {
-                    throw std::runtime_error(err);
                 }
             }
         }
@@ -218,6 +222,54 @@ void MotorManager::set_command_velocity(std::vector<float> velocity) {
 void MotorManager::set_command_torque(std::vector<float> torque) {
     for (int i=0; i<commands_.size(); i++) {
         commands_[i].torque_desired = torque[i];
+    }
+}
+
+void MotorManager::set_command_reserved(std::vector<float> reserved) {
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].reserved = reserved[i];
+    }
+}
+
+void MotorManager::set_command_stepper_tuning(TuningMode mode, double amplitude, double frequency, 
+    double bias, double kv) {
+    set_command_mode(ModeDesired::STEPPER_TUNING);
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].stepper_tuning.amplitude = amplitude;
+        commands_[i].stepper_tuning.mode = mode;
+        commands_[i].stepper_tuning.bias = bias;
+        commands_[i].stepper_tuning.frequency = frequency;
+        commands_[i].stepper_tuning.kv = kv;
+    }
+}
+
+void MotorManager::set_command_stepper_velocity(double voltage, double velocity) {
+    set_command_mode(ModeDesired::STEPPER_VELOCITY);
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].stepper_velocity.voltage = voltage;
+        commands_[i].stepper_velocity.velocity = velocity;
+    }
+}
+
+void MotorManager::set_command_position_tuning(TuningMode mode, double amplitude, double frequency, 
+    double bias) {
+    set_command_mode(ModeDesired::POSITION_TUNING);
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].position_tuning.amplitude = amplitude;
+        commands_[i].position_tuning.mode = mode;
+        commands_[i].position_tuning.bias = bias;
+        commands_[i].position_tuning.frequency = frequency;
+    }
+}
+
+void MotorManager::set_command_current_tuning(TuningMode mode, double amplitude, double frequency, 
+    double bias) {
+    set_command_mode(ModeDesired::CURRENT_TUNING);
+    for (int i=0; i<commands_.size(); i++) {
+        commands_[i].current_tuning.amplitude = amplitude;
+        commands_[i].current_tuning.mode = mode;
+        commands_[i].current_tuning.bias = bias;
+        commands_[i].current_tuning.frequency = frequency;
     }
 }
 

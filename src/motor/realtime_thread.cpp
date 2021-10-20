@@ -12,6 +12,7 @@
 
 #include <chrono>
 #include <thread>
+#include <iostream>
 
 #define gettid() syscall(__NR_gettid)
 
@@ -76,18 +77,18 @@ void RealtimeThread::run() {
 
 void RealtimeThread::done() {
 	done_ = true; 
-	if (exit_.get_future().wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
-		printf("Difficulty stopping realtime thread\n");
+	if (exit_.get_future().wait_for(std::chrono::nanoseconds(period_ns_)*2) == std::future_status::timeout) {
+		std::cerr << "Difficulty stopping realtime thread" << std::endl;
 	} else {
 		thread_->join();
-		printf("Realtime thread joined\n");
+		//printf("Realtime thread joined\n");
 	}
 	delete thread_;
 }
 
 void RealtimeThread::run_deadline()
 {
-	printf("realtime thread started period_ns = %d, [%ld]\n", period_ns_, gettid());
+	//printf("realtime thread started period_ns = %d, [%ld]\n", period_ns_, gettid());
 	exit_ = std::promise<void>();
 
 	struct sched_attr attr;
@@ -105,16 +106,16 @@ void RealtimeThread::run_deadline()
 	unsigned int flags = 0;
 	auto ret = sched_setattr(0, &attr, flags);
 	if (ret < 0) {
-		perror("sched_setattr");
+	//	perror("sched_setattr");
 		deadline_permissions = false;
-		printf("Running std::this_thread::sleep_until mode\n");
+	//	printf("Running std::this_thread::sleep_until mode\n");
 	} else {
-		printf("Running deadline scheduler\n");
+	//	printf("Running deadline scheduler\n");
 	}
 
 	ret = mlockall(MCL_CURRENT | MCL_FUTURE);
 	if (ret < 0) {
-		perror("Error locking memory");
+	//	perror("Error locking memory");
 	}
 
 	auto next_time = std::chrono::steady_clock::now();
@@ -132,5 +133,5 @@ void RealtimeThread::run_deadline()
 	}
 
 	exit_.set_value();
-	printf("realtime thread finish [%ld]\n", gettid());
+	//printf("realtime thread finish [%ld]\n", gettid());
 }

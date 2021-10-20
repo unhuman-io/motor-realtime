@@ -16,9 +16,11 @@ PYBIND11_MODULE(motor, m) {
                 s += motor->name() + " ";
             }
             return "<MotorManager connected to: " + s + ">"; })
-        .def("get_connected_motors", &MotorManager::get_connected_motors)
-        .def("get_motors_by_name", &MotorManager::get_motors_by_name)
-        .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number)
+        .def("get_connected_motors", &MotorManager::get_connected_motors, py::arg("connect") = true)
+        .def("get_motors_by_name", &MotorManager::get_motors_by_name, py::arg("names"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number, py::arg("serial_numbers"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_path", &MotorManager::get_motors_by_path, py::arg("pathss"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_devpath", &MotorManager::get_motors_by_devpath, py::arg("devpaths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("motors", &MotorManager::motors)
         .def("set_motors", &MotorManager::set_motors)
         .def("read", &MotorManager::read)
@@ -35,7 +37,12 @@ PYBIND11_MODULE(motor, m) {
         .def("set_command_current", &MotorManager::set_command_current)
         .def("set_command_position", &MotorManager::set_command_position)
         .def("set_command_velocity", &MotorManager::set_command_velocity)
-        .def("set_command_torque", &MotorManager::set_command_torque);
+        .def("set_command_torque", &MotorManager::set_command_torque)
+        .def("set_command_reserved", &MotorManager::set_command_reserved)
+        .def("set_command_stepper_tuning", &MotorManager::set_command_stepper_tuning)
+        .def("set_command_stepper_velocity", &MotorManager::set_command_stepper_velocity)
+        .def("set_command_position_tuning", &MotorManager::set_command_position_tuning)
+        .def("set_command_current_tuning", &MotorManager::set_command_current_tuning);
 
     py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
         .def(py::init<const std::string&>())
@@ -59,7 +66,18 @@ PYBIND11_MODULE(motor, m) {
         .value("Current", ModeDesired::CURRENT)
         .value("Position", ModeDesired::POSITION)
         .value("Torque", ModeDesired::TORQUE)
+        .value("Velocity", ModeDesired::VELOCITY)
+        .value("PhaseLock", ModeDesired::PHASE_LOCK)
+        .value("CurrentTuning", ModeDesired::CURRENT_TUNING)
+        .value("Sleep", ModeDesired::SLEEP)
         .value("Reset", ModeDesired::RESET)
+        .export_values();
+    
+    py::enum_<TuningMode>(m, "TuningMode")
+        .value("Sine", TuningMode::SINE)
+        .value("Square", TuningMode::SQUARE)
+        .value("Triangle", TuningMode::TRIANGLE)
+        .value("Chirp", TuningMode::CHIRP)
         .export_values();
 
     py::class_<Command>(m, "Command")
@@ -92,4 +110,7 @@ PYBIND11_MODULE(motor, m) {
             return f;
         } )
         .def("__repr__", [](const Status &s) { return "<Status at: " + std::to_string(s.mcu_timestamp) + ">"; });
+
+    m.def("diff_mcu_time", [](uint32_t t1, uint32_t t2) { return t1-t2; });
+    m.def("diff_encoder", [](int32_t p1, int32_t p2) { return (int32_t) ((uint32_t) p1 - (uint32_t) p2); });
 }
