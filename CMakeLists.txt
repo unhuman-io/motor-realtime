@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 project(motor-realtime)
 include(GNUInstallDirs)
 
-set(VERSION_MAJOR "0.5")
+set(VERSION_MAJOR "0.6")
 set(VERSION_MINOR "0")
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
