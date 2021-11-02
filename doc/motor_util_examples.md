@@ -1,4 +1,20 @@
 # Motor util examples
+- [Motor util examples](#motor-util-examples)
+  - [Help](#help)
+  - [Listing devices](#listing-devices)
+  - [Selection commands](#selection-commands)
+    - [By devname](#by-devname)
+    - [By name](#by-name)
+    - [By serial number](#by-serial-number)
+    - [By path](#by-path)
+  - [Reading status](#reading-status)
+    - [Commonly used read options](#commonly-used-read-options)
+    - [Reading to csv](#reading-to-csv)
+  - [Set](#set)
+    - [Set subcommands](#set-subcommands)
+  - [API](#api)
+  - [Performance](#performance)
+
 ## Help
 ```console
 $ motor_util -h
@@ -125,16 +141,32 @@ There is also a separate communication channel over USB that is used for tuning
 and debugging. It is referred to as the "text api" as it communicates using ASCII 
 text. `motor_util` can be used in an interactive `--api` mode with responses to 
 prompts or it can be used from command line arguments. In `--api` mode, tab 
-completion is supported and it can give the commands supported by typing `help`. 
+completion is supported and it can also give the commands supported by typing `help`. 
 Some api parameters can be both set and read. To set use `=` without a space as 
-sown below.
+shown below. Enter will repeat the last command.
 ```console
 $ motor_util --api
+3v3
+3.279755
+ia
+-1.587687
+t_exec_fastloop
+673
+kp=2  
+kp set 2
+t_exec_mainloop
+4480
+
+4541
+
+4479
 ```
-Api parameters can als be set or read one time from the command line as follows:
+Api parameters can also be set or read one time from the command line as follows:
 ```console
 $ motor_util --set-api kp
+wl: 200.000000
 $ motor_util --set-api kp=2
+wl: kp set 2
 ```
 Api can also be read using `read --text`. This allows for reading one or more values. 
 Also the `log` is a special api variable that stores multiple log messages and is the 
