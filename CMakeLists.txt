@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.9)
 project(motor-realtime)
 include(GNUInstallDirs)
 
@@ -26,6 +26,7 @@ set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA)
 INCLUDE(CPack)
 
 set (CMAKE_CXX_STANDARD 11)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 option(BUILD_SHARED_LIBS "Build libraries shared" ON)
 option(BUILD_PYTHON_API "build a python api module" OFF)
