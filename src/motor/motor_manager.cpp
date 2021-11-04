@@ -80,6 +80,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
     if (connect) {
         motors_ = m;
         commands_.resize(m.size());
+        statuses_.resize(m.size());
     }
     return m;
 }
@@ -107,6 +108,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(st
     if (connect) {
         motors_ = m;
         commands_.resize(m.size());
+        statuses_.resize(m.size());
     }
     return m;
 }
@@ -127,8 +129,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vec
     return get_motors_by_name_function(devpaths, &Motor::dev_path, connect, allow_simulated);
 }
 
-std::vector<Status> MotorManager::read() {
-    std::vector<Status> statuses(motors_.size());
+std::vector<Status> &MotorManager::read() {
     for (int i=0; i<motors_.size(); i++) {
         auto size = motors_[i]->read();
         if (size == -1) {
@@ -152,12 +153,12 @@ std::vector<Status> MotorManager::read() {
                 }
             }
         }
-        statuses[i] = *motors_[i]->status();
+        statuses_[i] = *motors_[i]->status();
     }
-    return statuses;
+    return statuses_;
 }
 
-void MotorManager::write(std::vector<Command> commands) {
+void MotorManager::write(std::vector<Command> &commands) {
     count_++;
     if (auto_count_) {
         set_command_count(count_);
@@ -177,7 +178,7 @@ void MotorManager::aread() {
     }
 }
 
-void MotorManager::set_commands(std::vector<Command> commands) {
+void MotorManager::set_commands(const std::vector<Command> &commands) {
     for (int i=0; i<commands_.size(); i++) {
         commands_[i] = commands[i];
     }
@@ -195,37 +196,37 @@ void MotorManager::set_command_mode(uint8_t mode) {
     }
 }
 
-void MotorManager::set_command_mode(std::vector<uint8_t> mode) {
+void MotorManager::set_command_mode(const std::vector<uint8_t> &mode) {
     for (int i=0; i<commands_.size(); i++) {
         commands_[i].mode_desired = mode[i];
     }
 }
     
-void MotorManager::set_command_current(std::vector<float> current) {
+void MotorManager::set_command_current(const std::vector<float> &current) {
     for (int i=0; i<commands_.size(); i++) {
         commands_[i].current_desired = current[i];
     }
 }
 
-void MotorManager::set_command_position(std::vector<float> position) {
+void MotorManager::set_command_position(const std::vector<float> &position) {
     for (int i=0; i<commands_.size(); i++) {
         commands_[i].position_desired = position[i];
     }
 }
 
-void MotorManager::set_command_velocity(std::vector<float> velocity) {
+void MotorManager::set_command_velocity(const std::vector<float> &velocity) {
     for (int i=0; i<commands_.size(); i++) {
         commands_[i].velocity_desired = velocity[i];
     }
 }
 
-void MotorManager::set_command_torque(std::vector<float> torque) {
+void MotorManager::set_command_torque(const std::vector<float> &torque) {
     for (int i=0; i<commands_.size(); i++) {
         commands_[i].torque_desired = torque[i];
     }
 }
 
-void MotorManager::set_command_reserved(std::vector<float> reserved) {
+void MotorManager::set_command_reserved(const std::vector<float> &reserved) {
     for (int i=0; i<commands_.size(); i++) {
         commands_[i].reserved = reserved[i];
     }
