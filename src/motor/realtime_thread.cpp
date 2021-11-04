@@ -86,6 +86,9 @@ void RealtimeThread::done() {
 	delete thread_;
 }
 
+void RealtimeThread::jitter_error(int32_t time_jitter_ns) {
+	fprintf(stderr, "jitter error %d ns\n", time_jitter_ns);
+}
 void RealtimeThread::run_deadline()
 {
 	//printf("realtime thread started period_ns = %d, [%ld]\n", period_ns_, gettid());
@@ -106,25 +109,35 @@ void RealtimeThread::run_deadline()
 	unsigned int flags = 0;
 	auto ret = sched_setattr(0, &attr, flags);
 	if (ret < 0) {
-	//	perror("sched_setattr");
+		perror("Error with sched_setattr");
 		deadline_permissions = false;
-	//	printf("Running std::this_thread::sleep_until mode\n");
+		printf("Running std::this_thread::sleep_until mode\n");
 	} else {
-	//	printf("Running deadline scheduler\n");
+		printf("Running deadline scheduler\n");
 	}
 
 	ret = mlockall(MCL_CURRENT | MCL_FUTURE);
 	if (ret < 0) {
-	//	perror("Error locking memory");
+		perror("Error locking memory");
 	}
 
 	auto next_time = std::chrono::steady_clock::now();
 	start_time_ = next_time;
+	auto last_loop_start_time = start_time_ - std::chrono::nanoseconds(period_ns_);
 	while (!done_) {
-		next_time += std::chrono::nanoseconds(period_ns_);
+		auto loop_start_time = std::chrono::steady_clock::now();
+		auto period = loop_start_time - last_loop_start_time;
+		int32_t time_jitter = std::chrono::duration_cast<std::chrono::nanoseconds>(period).count() - period_ns_;
+		
+		
+		if (abs(time_jitter) > max_jitter_ns_) {
+			jitter_error(time_jitter);
+		}
 
 		update();
 
+		last_loop_start_time = loop_start_time;
+		next_time += std::chrono::nanoseconds(period_ns_);
 		if(!deadline_permissions) {
 			std::this_thread::sleep_until(next_time);
 		} else {
