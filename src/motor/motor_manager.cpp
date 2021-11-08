@@ -324,9 +324,7 @@ int MotorManager::poll() {
 // Poll that will require data available from all or else timeout
 // returns < 0 for timedout or problem, motors_.size() if success
 int MotorManager::multipoll(uint32_t timeout_ns) {
-    struct timespec timeout = {
-        .tv_nsec = timeout_ns
-    };
+    struct timespec timeout = {};
     Timer t(timeout_ns);
     pollfd pollfds[motors_.size()];
     for (int i=0; i<motors_.size(); i++) {
