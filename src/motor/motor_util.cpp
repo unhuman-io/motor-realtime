@@ -54,6 +54,7 @@ class Statistics {
 
 struct ReadOptions {
     bool poll;
+    bool ppoll;
     bool aread;
     double frequency_hz;
     bool statistics;
@@ -99,7 +100,7 @@ int main(int argc, char** argv) {
     int run_stats = 100;
     bool allow_simulated = false;
     bool check_messages_version = false;
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, 
+    ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
         .reserved_float = false, .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
@@ -134,6 +135,7 @@ int main(int argc, char** argv) {
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("-s,--timestamp-in-seconds", read_opts.timestamp_in_seconds, "Report motor timestamp as seconds since start and unwrap");
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
+    read_option->add_flag("--ppoll", read_opts.ppoll, "Use multipoll before read");
     read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
@@ -427,6 +429,9 @@ int main(int argc, char** argv) {
                 }
                 if (read_opts.poll) {
                     m.poll();
+                }
+                if (read_opts.ppoll) {
+                    m.multipoll();
                 }
                 
                 auto status = m.read();

@@ -47,6 +47,7 @@ class MotorManager {
     void write_saved_commands();
     void aread();
     int poll();
+    int multipoll(uint32_t timeout_ns = 0);
 
     void set_auto_count(bool on=true) { auto_count_ = on; }
     uint32_t get_auto_count() const { return count_; }
