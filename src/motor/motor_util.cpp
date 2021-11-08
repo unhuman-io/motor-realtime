@@ -431,7 +431,10 @@ int main(int argc, char** argv) {
                     m.poll();
                 }
                 if (read_opts.ppoll) {
-                    m.multipoll();
+                    int retval = m.multipoll(1000*1000);
+                    if (retval < 0) {
+                        std::cerr << "multipoll time out " << retval << std::endl;
+                    }
                 }
                 
                 auto status = m.read();
