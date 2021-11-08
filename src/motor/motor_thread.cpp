@@ -9,8 +9,6 @@ void MotorThread::init() {
     for (auto m : motor_manager_.motors()) {
         std:: cout << m->name() << std::endl;
     }
-    data_.commands.resize(motor_manager_.motors().size());
-    data_.statuses.resize(motor_manager_.motors().size());
     post_init();
 }
 
@@ -24,14 +22,14 @@ void MotorThread::update() {
     // there is some time before data will return on USB, can do pre update work
     pre_update();
     // blocking io to get the data already set up and wait if not ready yet
-    data_.statuses = motor_manager_.read();
+    std::memcpy(data_.statuses, motor_manager_.read().data(), sizeof(data_.statuses));
     data_.read_time = std::chrono::steady_clock::now();
 
     controller_update();
     data_.control_time = std::chrono::steady_clock::now();
 
     motor_manager_.write_saved_commands();
-    data_.commands = motor_manager_.commands();
+    std::memcpy(data_.commands, motor_manager_.commands().data(), sizeof(data_.commands));
     data_.write_time = std::chrono::steady_clock::now();
 
     post_update();

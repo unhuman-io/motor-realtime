@@ -1,17 +1,18 @@
 #pragma once
 #include "realtime_thread.h"
-#include <vector>
 #include "motor.h"
 #include "motor_manager.h"
-#include <atomic>
 #include "cstack.h"
+#define MAX_MOTORS 10
 
 class MotorManager;
 
+
 struct Data {
-    std::vector<Status> statuses;
-    std::vector<Command> commands;
+    Status statuses[MAX_MOTORS];
+    Command commands[MAX_MOTORS];
     std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end, aread_time, read_time, control_time, write_time;
+    int size() const { return MAX_MOTORS; }
 };
 
 class MotorThread : public RealtimeThread {
@@ -25,7 +26,7 @@ class MotorThread : public RealtimeThread {
     virtual void pre_update() {}
     virtual void controller_update() {}
     virtual void post_update() {}
-    virtual void update();
+    virtual void update() final;
     Data data_;
     MotorManager motor_manager_;
     CStack<Data> cstack_;

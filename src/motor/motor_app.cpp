@@ -54,10 +54,10 @@ int MotorApp::run() {
 		Data data = cstack.top();
 		int32_t count = 0;
 		int32_t count_received = 0;
-		if(data.commands.size()) {
+		if(data.size()) {
 			count = data.commands[0].host_timestamp;
 		}
-		if(data.statuses.size()) {
+		if(data.size()) {
 			count_received = data.statuses[0].host_timestamp_received;
 		}
 		auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(data.last_time_end - data.last_time_start).count();
