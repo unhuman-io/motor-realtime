@@ -6,6 +6,7 @@
 #include <cstring>
 #include <algorithm>
 #include <poll.h>
+#include "motor_util_fun.h"
 #include <sstream>
 
 // Returns a vector of strings that contain the dev file locations,
@@ -317,6 +318,30 @@ int MotorManager::poll() {
     }
     int retval = ::poll(pollfds, motors_.size(), 1);
     delete [] pollfds;
+    return retval;
+}
+
+// Poll that will require data available from all or else timeout
+// returns < 0 for timedout or problem, motors_.size() if success
+int MotorManager::multipoll(uint32_t timeout_ns) {
+    struct timespec timeout = {};
+    Timer t(timeout_ns);
+    pollfd pollfds[motors_.size()];
+    for (int i=0; i<motors_.size(); i++) {
+        pollfds[i].fd = motors_[i]->fd();
+        pollfds[i].events = POLLIN;
+    }
+
+    int retval;
+    do {
+        timeout.tv_nsec = t.get_time_remaining_ns(); 
+        retval = ::ppoll(pollfds, motors_.size(), &timeout, NULL);
+        if (retval == 0) {
+            return -ETIMEDOUT;
+        } else if (retval < 0) {
+            return retval;
+        } 
+    } while (retval < motors_.size());
     return retval;
 }
 
