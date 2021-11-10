@@ -29,4 +29,5 @@ class RealtimeThread {
     bool done_ = false;
     std::function<void ()> update_fun_;
     std::promise<void> exit_;
+    uint32_t jitter_error_ = 0;
 };

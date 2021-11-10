@@ -87,7 +87,7 @@ void RealtimeThread::done() {
 }
 
 void RealtimeThread::jitter_error(int32_t time_jitter_ns) {
-	fprintf(stderr, "jitter error %d ns\n", time_jitter_ns);
+	jitter_error_++;
 }
 void RealtimeThread::run_deadline()
 {

@@ -18,6 +18,9 @@ struct Data {
 class MotorThread : public RealtimeThread {
  public:
     MotorThread(uint32_t frequency_hz = 1000);
+    virtual ~MotorThread() {
+        finish();
+    }
     const CStack<Data> &cstack() const { return cstack_; }
     void init();
     MotorManager& motor_manager() { return motor_manager_; }
@@ -26,8 +29,10 @@ class MotorThread : public RealtimeThread {
     virtual void pre_update() {}
     virtual void controller_update() {}
     virtual void post_update() {}
+    virtual void finish() {}
     virtual void update() final;
     Data data_;
     MotorManager motor_manager_;
     CStack<Data> cstack_;
+    uint32_t poll_timeout_ns_ = 500*1000;
 };
