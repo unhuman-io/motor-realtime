@@ -25,7 +25,7 @@ void MotorThread::update() {
     // poll with timeout
     int retval = motor_manager_.multipoll(poll_timeout_ns_);
     if (retval != motor_manager_.motors().size()) {
-        throw std::runtime_error("MotorThread poll error");
+        throw std::runtime_error("MotorThread poll error " + std::to_string(retval) + " " + strerror(-retval));
     }
 
     // blocking io to get the data already set up and wait if not ready yet

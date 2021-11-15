@@ -221,8 +221,14 @@ class Motor {
 
 class SimulatedMotor : public Motor {
  public:
-   SimulatedMotor(std::string name) { name_ = name; motor_txt_ =  new TextFile(); }
-   virtual ~SimulatedMotor() {}
+   SimulatedMotor(std::string name) { 
+       name_ = name; 
+       motor_txt_ =  new TextFile();
+       fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
+    }
+   virtual ~SimulatedMotor() {
+       ::close(fd_);
+   }
    virtual ssize_t read() {
        status_.mcu_timestamp++;
        return sizeof(status_);
