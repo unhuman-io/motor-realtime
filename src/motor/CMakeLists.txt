@@ -10,6 +10,7 @@ set(MOTOR_MANAGER_PUBLIC_HEADERS
     ${CMAKE_SOURCE_DIR}/include/motor_app.h
     ${CMAKE_SOURCE_DIR}/include/motor_publisher.h
     ${CMAKE_SOURCE_DIR}/include/motor_subscriber.h
+    ${CMAKE_SOURCE_DIR}/include/motor_chain_messages.h
     ${CMAKE_SOURCE_DIR}/include/cstack.h)
 set_target_properties(motor_manager PROPERTIES PUBLIC_HEADER 
     "${MOTOR_MANAGER_PUBLIC_HEADERS}")
