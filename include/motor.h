@@ -17,6 +17,7 @@
 #include <stdexcept>
 #include <cstring>
 #include "motor_messages.h"
+#include <time.h>
 
 class TextFile {
  public:
@@ -231,19 +232,43 @@ class SimulatedMotor : public Motor {
    }
    virtual ssize_t read() {
        status_.mcu_timestamp++;
+       timespec time;
+       clock_gettime(CLOCK_MONOTONIC, &time);
+       double dt = clock_diff(time, last_time_);
+       last_time_ = time;
+       switch (active_command_.mode_desired) {
+           case VELOCITY:
+                status_.motor_position += command_.velocity_desired*dt;
+                status_.joint_position = status_.motor_position/gear_ratio_;
+                break;
+       }
        return sizeof(status_);
    };
    virtual ssize_t write() {
        status_.host_timestamp_received = command_.host_timestamp;
-       if (command_.mode_desired == POSITION) {
-           status_.motor_position = command_.position_desired;
-           status_.joint_position = command_.position_desired/gear_ratio_;
+       switch (command_.mode_desired) {
+           case POSITION:
+               status_.motor_position = command_.position_desired;
+               status_.joint_position = command_.position_desired/gear_ratio_;
+               break;
+           case VELOCITY:
+               clock_gettime(CLOCK_MONOTONIC, &last_time_);
+               break;
+           default:
+               break; 
        }
+       active_command_ = command_;
        return sizeof(command_); 
    };
    void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
  private:
+    // a - b in seconds
+    double clock_diff(timespec &a, timespec &b) {
+        return a.tv_sec - b.tv_sec + a.tv_nsec*1e-9 - b.tv_nsec*1e-9;
+    }
     double gear_ratio_ = 1;
+    Command active_command_;
+    timespec last_time_;
 };
 
 class UserSpaceMotor : public Motor {
