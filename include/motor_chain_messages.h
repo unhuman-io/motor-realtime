@@ -3,6 +3,8 @@
 // plus some helpers like velocity
 // See motor_messages.h for value types
 
+#pragma once
+
 #include "motor_messages/motor_messages.h"
 #include <Eigen/Dense>
 #include <vector>
