@@ -254,6 +254,9 @@ class SimulatedMotor : public Motor {
            case VELOCITY:
                clock_gettime(CLOCK_MONOTONIC, &last_time_);
                break;
+           case TORQUE:
+               status_.torque = command_.torque_desired;
+               break;
            default:
                break; 
        }
