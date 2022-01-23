@@ -246,6 +246,12 @@ class SimulatedMotor : public Motor {
    };
    virtual ssize_t write() {
        status_.host_timestamp_received = command_.host_timestamp;
+       if (command_.mode_desired == POSITION || command_.mode_desired == CURRENT ||
+           command_.mode_desired == TORQUE) {
+           status_.iq = command_.current_desired;
+       } else {
+           status_.iq = 0;
+       }
        switch (command_.mode_desired) {
            case POSITION:
                status_.motor_position = command_.position_desired;
