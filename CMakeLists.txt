@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.9)
 project(motor-realtime)
 include(GNUInstallDirs)
+enable_testing()
 
 set(VERSION_MAJOR "0.6")
 set(VERSION_MINOR "0")
@@ -42,6 +43,7 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 add_subdirectory(3rdparty)
 add_subdirectory(src)
+add_subdirectory(test)
 
 add_subdirectory(example)
 install(DIRECTORY example 

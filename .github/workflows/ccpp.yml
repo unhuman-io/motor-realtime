@@ -44,6 +44,8 @@ jobs:
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
     - name: make2
       run: make VERBOSE=1 -j2
+    - name: test
+      run: make test
     - name: make install
       run: make install
     - name: archive
