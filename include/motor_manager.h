@@ -211,9 +211,15 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
          os << s.reserved[2] << ", ";
       }
    }
+   for (auto s : status) {
+      os << (int) s.flags.mode << ", ";
+   }
+   os << std::hex;
+   for (auto s : status) {
+      os << (int) *reinterpret_cast<uint8_t *>(&s.flags.error) << ", ";
+   }
+   os << std::dec;
    return os;
 }
-
-
 
 #endif
