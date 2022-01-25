@@ -33,7 +33,7 @@ jobs:
       with:
         name: packages
         path: packages
-    - uses: eine/tip@master
+    - uses: pyTooling/Actions/releaser@main
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -55,7 +55,7 @@ jobs:
       with:
         name: artifacts
         path: artifacts_${{ matrix.distro }}.tgz
-    - uses: eine/tip@master
+    - uses: pyTooling/Actions/releaser@main
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -108,7 +108,7 @@ jobs:
       with:
         name: packages
         path: packages
-    - uses: eine/tip@master
+    - uses: pyTooling/Actions/releaser@main
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
