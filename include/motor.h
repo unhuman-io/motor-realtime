@@ -26,6 +26,12 @@ class TextFile {
     virtual ssize_t read(char *data, unsigned int length) { return 0; };
     virtual ssize_t write(const char *data, unsigned int length) { return 0; };
     virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) { return 0; }
+    std::string writeread(const std::string str) {
+        char str_in[MAX_API_DATA_SIZE+1];
+        ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_DATA_SIZE);
+        str_in[s] = 0;
+        return str_in;
+    }
 };
 
 class SysfsFile : public TextFile {
