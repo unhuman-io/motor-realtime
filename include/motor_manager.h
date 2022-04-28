@@ -216,7 +216,16 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    }
    os << std::hex;
    for (auto s : status) {
-      os << (int) *reinterpret_cast<uint8_t *>(&s.flags.error) << ", ";
+      os << (int) s.flags.error.all << ", ";
+      if (s.flags.error.all) {
+         os << (s.flags.error.sequence ? "sequence " : "");
+         os << (s.flags.error.system ? "system " : "");
+         os << (s.flags.error.motor ? "motor " : "");
+         os << (s.flags.error.controller ? "controller " : "");
+         os << (s.flags.error.sensor ? "sensor " : "");
+         os << (s.flags.error.reserved ? "reserved " : "");
+      }
+      os << ", ";
    }
    os << std::dec;
    return os;
