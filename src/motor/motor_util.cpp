@@ -82,15 +82,10 @@ int main(int argc, char** argv) {
     std::vector<std::string> devpaths = {};
     std::vector<std::string> serial_numbers = {};
     Command command = {};
-    std::vector<std::pair<std::string, ModeDesired>> mode_map{
-        {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
-        {"position", ModeDesired::POSITION}, {"torque", ModeDesired::TORQUE}, {"impedance", ModeDesired::IMPEDANCE}, 
-        {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
-        {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, 
-        {"phase_lock", ModeDesired::PHASE_LOCK}, {"stepper_tuning", ModeDesired::STEPPER_TUNING},
-        {"stepper_velocity", ModeDesired::STEPPER_VELOCITY}, {"hardware_brake", ModeDesired::HARDWARE_BRAKE},
-        {"sleep", ModeDesired::SLEEP},
-        {"crash", ModeDesired::CRASH}, {"reset", ModeDesired::RESET}};
+    std::vector<std::pair<std::string, ModeDesired>> mode_map;
+    for (const std::pair<ModeDesired, std::string> &pair : MotorManager::mode_map) {
+        mode_map.push_back({pair.second, pair.first});
+    }
     TuningMode tuning_mode = TuningMode::SINE;
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 

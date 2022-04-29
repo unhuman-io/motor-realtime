@@ -7,6 +7,7 @@
 #include <ostream>
 #include <iomanip>
 #include <chrono>
+#include <map>
 class Motor;
 
 #include "motor.h"
@@ -33,6 +34,8 @@ class FrequencyLimiter {
 
 class MotorManager {
  public:
+    static std::map<const ModeDesired, const std::string> mode_map;
+
     MotorManager(bool user_space_driver = false) : user_space_driver_(user_space_driver) {}
     std::vector<std::shared_ptr<Motor>> get_connected_motors(bool connect = true);
     std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool connect = true, bool allow_simulated = false);
@@ -217,17 +220,21 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    os << std::hex;
    for (auto s : status) {
       os << (int) s.flags.error.all << ", ";
+   }
+   os << std::dec;
+   for (auto s : status) {
+      os << MotorManager::mode_map[static_cast<ModeDesired>(s.flags.mode)] << " ";
       if (s.flags.error.all) {
          os << (s.flags.error.sequence ? "sequence " : "");
          os << (s.flags.error.system ? "system " : "");
          os << (s.flags.error.motor ? "motor " : "");
          os << (s.flags.error.controller ? "controller " : "");
          os << (s.flags.error.sensor ? "sensor " : "");
+         os << (s.flags.error.host_fault ? "host_fault " : "");
          os << (s.flags.error.reserved ? "reserved " : "");
       }
       os << ", ";
    }
-   os << std::dec;
    return os;
 }
 
