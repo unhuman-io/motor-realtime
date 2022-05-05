@@ -106,7 +106,13 @@ int main(int argc, char** argv) {
     set->add_option("--position", command.position_desired, "Position desired");
     set->add_option("--velocity", command.velocity_desired, "Velocity desired");
     set->add_option("--torque", command.torque_desired, "Torque desired");
+    set->add_option("--torque_dot", command.torque_dot_desired, "Torque dot desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
+    auto state_mode = set->add_subcommand("state", "State control mode")->final_callback([&](){command.mode_desired = ModeDesired::STATE;})->fallthrough();
+    state_mode->add_option("--kp", command.state.kp, "Position error gain");
+    state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
+    state_mode->add_option("--kt", command.state.kt, "Torque error gain");
+    state_mode->add_option("--ks", command.state.ks, "Torque dot error gain");
     auto stepper_tuning_mode = set->add_subcommand("stepper_tuning", "Stepper tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_TUNING;});
     stepper_tuning_mode->add_option("--amplitude", command.stepper_tuning.amplitude, "Phase position tuning amplitude");
     stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp");

@@ -364,7 +364,22 @@ std::string MotorManager::command_headers() const {
         ss << "velocity_desired" << i << ", ";
     }
     for (int i=0;i<length;i++) {
+        ss << "torque_desired" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "torque_dot_desired" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
         ss << "reserved" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "reserved21" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "reserved22" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "reserved23" << i << ", ";
     }
     return ss.str();
 }
@@ -408,7 +423,7 @@ std::string MotorManager::status_headers() const {
 std::map<const ModeDesired, const std::string> MotorManager::mode_map{
         {ModeDesired::OPEN, "open"}, {ModeDesired::DAMPED, "damped"}, {ModeDesired::CURRENT, "current"}, 
         {ModeDesired::POSITION, "position"}, {ModeDesired::TORQUE, "torque"}, {ModeDesired::IMPEDANCE, "impedance"}, 
-        {ModeDesired::VELOCITY, "velocity"}, {ModeDesired::CURRENT_TUNING, "current_tuning"},
+        {ModeDesired::VELOCITY, "velocity"}, {ModeDesired::STATE, "state"}, {ModeDesired::CURRENT_TUNING, "current_tuning"},
         {ModeDesired::POSITION_TUNING, "position_tuning"}, {ModeDesired::VOLTAGE, "voltage"}, 
         {ModeDesired::PHASE_LOCK, "phase_lock"}, {ModeDesired::STEPPER_TUNING, "stepper_tuning"},
         {ModeDesired::STEPPER_VELOCITY, "stepper_velocity"}, {ModeDesired::HARDWARE_BRAKE, "hardware_brake"},

@@ -22,6 +22,7 @@ _motor_util_completion()
             -s|--serial_numbers) subcommand=serial_numbers ; break ;;
             position_tuning|current_tuning|stepper_tuning) subcommand=tuning ; break ;;
             stepper_velocity|voltage) subcommand=voltage ; break ;;
+            state) subcommand=state ; break ;;
         esac
         (( i-- ))
     done
@@ -30,10 +31,10 @@ _motor_util_completion()
     local words
     local base_words="-l --list -c --check-messages-version --no-list --list-names-only --list-path-only --list-devpath-only --list-serial-number-only -n --names -p --paths -d --devpaths -s --serial_numbers set read --set-api --api --run-stats -v --version -u --user-space --allow-simulated -h --help";
     case $subcommand in
-        set) words="--host_time --mode --current --position --velocity --torque --reserved  position_tuning current_tuning stepper_tuning voltage stepper_velocity read -h --help";
+        set) words="--host_time --mode --current --position --velocity --torque --torque_dot --reserved state position_tuning current_tuning stepper_tuning voltage stepper_velocity read -h --help";
             case $last in
                 --host_time|--current|--position|--velocity|--reserved) return 0 ;;
-                --mode) words="open damped current position velocity torque impedance current_tuning position_tuning voltage phase_lock stepper_tuning hardware_brake fault sleep crash reset" ;;
+                --mode) words="open damped current position velocity torque impedance state current_tuning position_tuning voltage phase_lock stepper_tuning hardware_brake fault sleep crash reset" ;;
             esac ;;
         read) words="--poll --ppoll --aread --frequency --statistics --read-write-statistics --text -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f --reserved-float -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision set -h --help";
             case $last in
@@ -44,6 +45,10 @@ _motor_util_completion()
         devpaths) words="$(motor_util --list-devpath-only) $base_words" ;;
         serial_numbers) words="$(motor_util --list-serial-number-only) $base_words" ;;
         set_api) return 0 ;;
+        state) words="--position --velocity --torque --torque_dot --kp --kd --kt --ks -h --help" ;
+            case $last in
+                --position|--velocity|--torque|--torque_dot|--kp|--kd|--kt|--ks) return 0 ;;
+            esac ;;
         voltage) words="--voltage --velocity read -h --help" ;;
         tuning) words="--amplitude --frequency --mode --bias --kv read -h --help";
             case $last in

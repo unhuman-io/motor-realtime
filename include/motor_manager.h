@@ -126,9 +126,20 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> com
       os << c.torque_desired << ", ";
    }
    for (auto c : command) {
+      os << c.torque_dot_desired << ", ";
+   }
+   for (auto c : command) {
       os << c.reserved << ", ";
    }
-
+   for (auto c : command) {
+      os << c.reserved2[0] << ", ";
+   }
+   for (auto c : command) {
+      os << c.reserved2[1] << ", ";
+   }
+   for (auto c : command) {
+      os << c.reserved2[2] << ", ";
+   }
    return os;
 }
 
