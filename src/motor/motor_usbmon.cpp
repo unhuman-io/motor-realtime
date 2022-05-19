@@ -64,6 +64,30 @@ struct mon_bin_get {
 
 bool is_in(unsigned int xfer_flags) { return (xfer_flags & URB_DIR_MASK) == URB_DIR_IN;}
 
+std::string escape_string(std::string s) {
+    std::string out;
+    for (auto &c : s) {
+        switch (c) {
+            case '\b':
+                out += "\\b";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                out += c;
+                break;
+        }
+    }
+    return out;
+}
+
 int main(int argc, char** argv) {
     CLI::App app{"Utility for parsing usbmon data for motors"};
     std::vector<uint8_t> device_numbers = {};
@@ -79,7 +103,7 @@ int main(int argc, char** argv) {
     }
 
     while(1) {
-        uint8_t data[64];
+        uint8_t data[65];
         mon_bin_hdr hdr;
         mon_bin_get bin_get = {.hdr = &hdr, .data = data, .alloc = 64};
 
@@ -89,14 +113,21 @@ int main(int argc, char** argv) {
         }
         if (std::find(device_numbers.begin(), device_numbers.end(), hdr.devnum) != device_numbers.end()) {
             std::cout << std::setw(3) << (int) hdr.devnum << " " << hdr.type << (is_in(hdr.xfer_flags) ? 'i' : 'o') << ", " << std::setw(6) << hdr.ts_usec << ", ";
-            if (is_in(hdr.xfer_flags)) {
-                if (hdr.type == 'C') {
-                    std::vector<Status> status = {*(Status *) data};
-                    std::cout << status;
-                }
+            std::cout << std::hex << std::setw(2) << (int) hdr.epnum << std::dec << ", ";
+            if ((hdr.epnum & 0x7F) == 1) {
+                // text api
+                data[hdr.len_cap] = 0;
+                std::cout << escape_string((char*) data);
             } else {
-                std::vector<Command> command = {*(Command *) data};
-                std::cout << command;
+                if (is_in(hdr.xfer_flags)) {
+                    if (hdr.type == 'C') {
+                        std::vector<Status> status = {*(Status *) data};
+                        std::cout << status;
+                    }
+                } else {
+                    std::vector<Command> command = {*(Command *) data};
+                    std::cout << command;
+                }
             }
             std::cout << std::endl;
         }

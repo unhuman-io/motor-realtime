@@ -7,6 +7,7 @@
 #include <ostream>
 #include <iomanip>
 #include <chrono>
+#include <map>
 class Motor;
 
 #include "motor.h"
@@ -33,6 +34,8 @@ class FrequencyLimiter {
 
 class MotorManager {
  public:
+    static std::map<const ModeDesired, const std::string> mode_map;
+
     MotorManager(bool user_space_driver = false) : user_space_driver_(user_space_driver) {}
     std::vector<std::shared_ptr<Motor>> get_connected_motors(bool connect = true);
     std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool connect = true, bool allow_simulated = false);
@@ -41,25 +44,26 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> get_motors_by_devpath(std::vector<std::string> devpaths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
     void set_motors(std::vector<std::shared_ptr<Motor>> motors) { motors_ = motors; commands_.resize(motors_.size()); }
-    std::vector<Command> commands() const { return commands_; }
-    std::vector<Status> read();
-    void write(std::vector<Command>);
+    std::vector<Command> &commands() { return commands_; }
+    std::vector<Status> &read();
+    void write(std::vector<Command> &);
     void write_saved_commands();
     void aread();
     int poll();
+    int multipoll(uint32_t timeout_ns = 0);
 
     void set_auto_count(bool on=true) { auto_count_ = on; }
     uint32_t get_auto_count() const { return count_; }
     void set_reconnect(bool reconnect=true) { reconnect_ = reconnect; }
-    void set_commands(std::vector<Command> commands);
+    void set_commands(const std::vector<Command> &commands);
     void set_command_count(int32_t count);
     void set_command_mode(uint8_t mode);
-    void set_command_mode(std::vector<uint8_t> mode);
-    void set_command_current(std::vector<float> current);
-    void set_command_position(std::vector<float> position);
-    void set_command_velocity(std::vector<float> velocity);
-    void set_command_torque(std::vector<float> torque);
-    void set_command_reserved(std::vector<float> reserved);
+    void set_command_mode(const std::vector<uint8_t> &mode);
+    void set_command_current(const std::vector<float> &current);
+    void set_command_position(const std::vector<float> &position);
+    void set_command_velocity(const std::vector<float> &velocity);
+    void set_command_torque(const std::vector<float> &torque);
+    void set_command_reserved(const std::vector<float> &reserved);
     void set_command_stepper_tuning(TuningMode tuning_mode, 
          double amplitude, double frequency, double bias, double kv);
     void set_command_current_tuning(TuningMode tuning_mode, 
@@ -77,6 +81,7 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<Command> commands_;
+    std::vector<Status> statuses_;
     bool user_space_driver_;
     uint32_t count_ = 0;
     bool auto_count_ = false;
@@ -209,9 +214,28 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
          os << s.reserved[2] << ", ";
       }
    }
+   for (auto s : status) {
+      os << (int) s.flags.mode << ", ";
+   }
+   os << std::hex;
+   for (auto s : status) {
+      os << (int) s.flags.error.all << ", ";
+   }
+   os << std::dec;
+   for (auto s : status) {
+      os << MotorManager::mode_map[static_cast<ModeDesired>(s.flags.mode)] << " ";
+      if (s.flags.error.all) {
+         os << (s.flags.error.sequence ? "sequence " : "");
+         os << (s.flags.error.system ? "system " : "");
+         os << (s.flags.error.motor ? "motor " : "");
+         os << (s.flags.error.controller ? "controller " : "");
+         os << (s.flags.error.sensor ? "sensor " : "");
+         os << (s.flags.error.host_fault ? "host_fault " : "");
+         os << (s.flags.error.reserved ? "reserved " : "");
+      }
+      os << ", ";
+   }
    return os;
 }
-
-
 
 #endif

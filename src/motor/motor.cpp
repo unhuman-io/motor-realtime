@@ -20,13 +20,13 @@ Motor::Motor(std::string dev_path) {
     std::string text_api_path = udev_device_get_syspath(dev);
     motor_txt_ = new SysfsFile(text_api_path + "/device/text_api");
 
-    dev = udev_device_get_parent_with_subsystem_devtype(
+    struct udev_device *dev_parent = udev_device_get_parent_with_subsystem_devtype(
             dev,
             "usb",
             "usb_device");
-    serial_number_ = udev_device_check_and_get_sysattr_value(dev, "serial"); 
-    base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev)));
-    version_ = udev_device_check_and_get_sysattr_value(dev, "configuration");
+    serial_number_ = udev_device_check_and_get_sysattr_value(dev_parent, "serial"); 
+    base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev_parent)));
+    version_ = udev_device_check_and_get_sysattr_value(dev_parent, "configuration");
     
     udev_device_unref(dev);
     udev_unref(udev);

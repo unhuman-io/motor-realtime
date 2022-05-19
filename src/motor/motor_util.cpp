@@ -12,6 +12,7 @@
 #include "motor_publisher.h"
 #include <sstream>
 #include "realtime_thread.h"
+#include "keyboard.h"
 
 struct cstr{char s[100];};
 class Statistics {
@@ -53,6 +54,7 @@ class Statistics {
 
 struct ReadOptions {
     bool poll;
+    bool ppoll;
     bool aread;
     double frequency_hz;
     bool statistics;
@@ -80,15 +82,10 @@ int main(int argc, char** argv) {
     std::vector<std::string> devpaths = {};
     std::vector<std::string> serial_numbers = {};
     Command command = {};
-    std::vector<std::pair<std::string, ModeDesired>> mode_map{
-        {"open", ModeDesired::OPEN}, {"damped", ModeDesired::DAMPED}, {"current", ModeDesired::CURRENT}, 
-        {"position", ModeDesired::POSITION}, {"torque", ModeDesired::TORQUE}, {"impedance", ModeDesired::IMPEDANCE}, 
-        {"velocity", ModeDesired::VELOCITY}, {"current_tuning", ModeDesired::CURRENT_TUNING},
-        {"position_tuning", ModeDesired::POSITION_TUNING}, {"voltage", ModeDesired::VOLTAGE}, 
-        {"phase_lock", ModeDesired::PHASE_LOCK}, {"stepper_tuning", ModeDesired::STEPPER_TUNING},
-        {"stepper_velocity", ModeDesired::STEPPER_VELOCITY},
-        {"sleep", ModeDesired::SLEEP},
-        {"crash", ModeDesired::CRASH}, {"reset", ModeDesired::RESET}};
+    std::vector<std::pair<std::string, ModeDesired>> mode_map;
+    for (const std::pair<ModeDesired, std::string> &pair : MotorManager::mode_map) {
+        mode_map.push_back({pair.second, pair.first});
+    }
     TuningMode tuning_mode = TuningMode::SINE;
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
@@ -98,7 +95,7 @@ int main(int argc, char** argv) {
     int run_stats = 100;
     bool allow_simulated = false;
     bool check_messages_version = false;
-    ReadOptions read_opts = { .poll = false, .aread = false, .frequency_hz = 1000, 
+    ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
         .reserved_float = false, .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
@@ -133,6 +130,7 @@ int main(int argc, char** argv) {
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("-s,--timestamp-in-seconds", read_opts.timestamp_in_seconds, "Report motor timestamp as seconds since start and unwrap");
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
+    read_option->add_flag("--ppoll", read_opts.ppoll, "Use multipoll before read");
     read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
@@ -316,21 +314,17 @@ int main(int argc, char** argv) {
     }
 
     if (api_mode) {
-        std::string s;
-        bool sin = false;
-        std::thread t([&s,&sin]() { while(!signal_exit) { std::cin >> s; sin = true; } });
+        Keyboard k;
+        char data[MAX_API_DATA_SIZE];
         while(!signal_exit) {
-            char data[MAX_API_DATA_SIZE];
-            if (sin) {
-                auto nbytes = m.motors()[0]->motor_text()->writeread(s.c_str(), s.size(), data, MAX_API_DATA_SIZE);
+            if (k.new_key()) {
+                char c = k.get_char();
+                auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_DATA_SIZE);
                 data[nbytes] = 0;
-                std::cout << data << std::endl;
-                sin = false;
+                std::cout << data << std::flush;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        pthread_cancel(t.native_handle());
-        t.join();
     }
 
     try {
@@ -391,11 +385,13 @@ int main(int argc, char** argv) {
                 if (read_opts.host_time) {
                     std::cout << "t_host,";
                 }
-                for (int i=0;i<motors.size();i++) {
-                    if (*timestamp_frequency_option) {
-                        cpu_frequency_hz[i] = read_opts.timestamp_frequency_hz;
-                    } else {
-                        cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get()); // TODO has issues if you run it in first few seconds
+                if (read_opts.timestamp_in_seconds || read_opts.compute_velocity) {
+                    for (int i=0;i<motors.size();i++) {
+                        if (*timestamp_frequency_option) {
+                            cpu_frequency_hz[i] = read_opts.timestamp_frequency_hz;
+                        } else {
+                            cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get()); // TODO has issues if you run it in first few seconds
+                        }
                     }
                 }
                 if (read_opts.timestamp_in_seconds) {
@@ -428,6 +424,12 @@ int main(int argc, char** argv) {
                 }
                 if (read_opts.poll) {
                     m.poll();
+                }
+                if (read_opts.ppoll) {
+                    int retval = m.multipoll(1000*1000);
+                    if (retval < 0) {
+                        std::cerr << "multipoll time out " << retval << std::endl;
+                    }
                 }
                 
                 auto status = m.read();

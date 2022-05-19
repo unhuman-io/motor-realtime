@@ -33,17 +33,26 @@ jobs:
       with:
         name: packages
         path: packages
-    - uses: eine/tip@master
+    - uses: pyTooling/Actions/releaser@main
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./packages/*
         tag: develop
+    - uses: pyTooling/Actions/releaser@main
+      if: contains(github.ref, 'main')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./packages/*
+        tag: main
     - name: cmake2
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
     - name: make2
       run: make VERBOSE=1 -j2
+    - name: test
+      run: make test
     - name: make install
       run: make install
     - name: archive
@@ -53,13 +62,20 @@ jobs:
       with:
         name: artifacts
         path: artifacts_${{ matrix.distro }}.tgz
-    - uses: eine/tip@master
+    - uses: pyTooling/Actions/releaser@main
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./artifacts_${{ matrix.distro }}.tgz
         tag: develop
+    - uses: pyTooling/Actions/releaser@main
+      if: contains(github.ref, 'main')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./artifacts_${{ matrix.distro }}.tgz
+        tag: main
 
   build_arm:
     runs-on: ubuntu-18.04
@@ -73,12 +89,14 @@ jobs:
             distro: ubuntu18.04
           - arch: armv6
             distro: buster
+          - arch: armv7
+            distro: buster
     steps:
     - uses: actions/checkout@master
       with:
         submodules: true
         fetch-depth: 0
-    - uses: uraimo/run-on-arch-action@v2.0.7
+    - uses: uraimo/run-on-arch-action@master
       name: Run commands
       id: runcmd
       with:
@@ -96,7 +114,7 @@ jobs:
         install: |
           apt-get update -q -y
           apt-get install -y cmake build-essential libudev-dev git python3-dev
-          if [ ${{ matrix.arch }} = "armv6" ]; then
+          if [ ${{ matrix.distro }} = "buster" ]; then
             # cmake 3.16 has problems
             apt-get remove -y cmake-data
             apt-get install -y cmake-data=3.13.4-1 cmake=3.13.4-1
@@ -106,10 +124,17 @@ jobs:
       with:
         name: packages
         path: packages
-    - uses: eine/tip@master
+    - uses: pyTooling/Actions/releaser@main
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./packages/*
         tag: develop
+    - uses: pyTooling/Actions/releaser@main
+      if: contains(github.ref, 'main')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./packages/*
+        tag: main

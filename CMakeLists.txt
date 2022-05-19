@@ -1,8 +1,9 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.9)
 project(motor-realtime)
 include(GNUInstallDirs)
+enable_testing()
 
-set(VERSION_MAJOR "0.6")
+set(VERSION_MAJOR "0.7")
 set(VERSION_MINOR "0")
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
@@ -26,6 +27,7 @@ set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA)
 INCLUDE(CPack)
 
 set (CMAKE_CXX_STANDARD 11)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 option(BUILD_SHARED_LIBS "Build libraries shared" ON)
 option(BUILD_PYTHON_API "build a python api module" OFF)
@@ -41,6 +43,7 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 add_subdirectory(3rdparty)
 add_subdirectory(src)
+add_subdirectory(test)
 
 add_subdirectory(example)
 install(DIRECTORY example 

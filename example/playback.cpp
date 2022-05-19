@@ -7,7 +7,9 @@
 
 class Task : public MotorThread {
  public:
-  Task() : MotorThread(1000) {}
+  Task(int frequency) : MotorThread(frequency) {
+	  
+  }
  protected:
 	virtual void post_init() {
 		data_file_.open("data1.csv");
@@ -34,7 +36,7 @@ class Task : public MotorThread {
 
 int main (int argc, char **argv)
 {	
-	Task task;
+	Task task(1000);
 	auto app = MotorApp(argc, argv, &task);
 	return app.run();
 }

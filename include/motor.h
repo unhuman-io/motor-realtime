@@ -17,6 +17,7 @@
 #include <stdexcept>
 #include <cstring>
 #include "motor_messages.h"
+#include <time.h>
 
 class TextFile {
  public:
@@ -25,6 +26,12 @@ class TextFile {
     virtual ssize_t read(char *data, unsigned int length) { return 0; };
     virtual ssize_t write(const char *data, unsigned int length) { return 0; };
     virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) { return 0; }
+    std::string writeread(const std::string str) {
+        char str_in[MAX_API_DATA_SIZE+1];
+        ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_DATA_SIZE);
+        str_in[s] = 0;
+        return str_in;
+    }
 };
 
 class SysfsFile : public TextFile {
@@ -221,23 +228,62 @@ class Motor {
 
 class SimulatedMotor : public Motor {
  public:
-   SimulatedMotor(std::string name) { name_ = name; motor_txt_ =  new TextFile(); }
-   virtual ~SimulatedMotor() {}
+   SimulatedMotor(std::string name) { 
+       name_ = name; 
+       motor_txt_ =  new TextFile();
+       fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
+    }
+   virtual ~SimulatedMotor() {
+       ::close(fd_);
+   }
    virtual ssize_t read() {
        status_.mcu_timestamp++;
+       timespec time;
+       clock_gettime(CLOCK_MONOTONIC, &time);
+       double dt = clock_diff(time, last_time_);
+       last_time_ = time;
+       switch (active_command_.mode_desired) {
+           case VELOCITY:
+                status_.motor_position += command_.velocity_desired*dt;
+                status_.joint_position = status_.motor_position/gear_ratio_;
+                break;
+       }
        return sizeof(status_);
    };
    virtual ssize_t write() {
        status_.host_timestamp_received = command_.host_timestamp;
-       if (command_.mode_desired == POSITION) {
-           status_.motor_position = command_.position_desired;
-           status_.joint_position = command_.position_desired/gear_ratio_;
+       if (command_.mode_desired == POSITION || command_.mode_desired == CURRENT ||
+           command_.mode_desired == TORQUE) {
+           status_.iq = command_.current_desired;
+       } else {
+           status_.iq = 0;
        }
+       switch (command_.mode_desired) {
+           case POSITION:
+               status_.motor_position = command_.position_desired;
+               status_.joint_position = command_.position_desired/gear_ratio_;
+               break;
+           case VELOCITY:
+               clock_gettime(CLOCK_MONOTONIC, &last_time_);
+               break;
+           case TORQUE:
+               status_.torque = command_.torque_desired;
+               break;
+           default:
+               break; 
+       }
+       active_command_ = command_;
        return sizeof(command_); 
    };
    void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
  private:
+    // a - b in seconds
+    double clock_diff(timespec &a, timespec &b) {
+        return a.tv_sec - b.tv_sec + a.tv_nsec*1e-9 - b.tv_nsec*1e-9;
+    }
     double gear_ratio_ = 1;
+    Command active_command_;
+    timespec last_time_;
 };
 
 class UserSpaceMotor : public Motor {

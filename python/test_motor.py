@@ -40,7 +40,8 @@ class TestMotor(unittest.TestCase):
         tstart = self.m.read()[0].host_timestamp_received # it will return last data before sleep
         time.sleep(1)
         try:
-            self.m.read() # should timeout
+            self.m.read() # should timeout on first or second try
+            self.m.read()
             self.assertTrue(False)
         except RuntimeError as e:
             # todo I don't know how constat this text will be
