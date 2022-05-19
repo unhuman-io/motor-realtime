@@ -40,6 +40,13 @@ jobs:
         files: |
           ./packages/*
         tag: develop
+    - uses: pyTooling/Actions/releaser@main
+      if: contains(github.ref, 'main')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./packages/*
+        tag: main
     - name: cmake2
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
     - name: make2
@@ -62,6 +69,13 @@ jobs:
         files: |
           ./artifacts_${{ matrix.distro }}.tgz
         tag: develop
+    - uses: pyTooling/Actions/releaser@main
+      if: contains(github.ref, 'main')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./artifacts_${{ matrix.distro }}.tgz
+        tag: main
 
   build_arm:
     runs-on: ubuntu-18.04
@@ -117,3 +131,10 @@ jobs:
         files: |
           ./packages/*
         tag: develop
+    - uses: pyTooling/Actions/releaser@main
+      if: contains(github.ref, 'main')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./packages/*
+        tag: main
