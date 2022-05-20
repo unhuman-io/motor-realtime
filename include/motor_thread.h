@@ -17,7 +17,7 @@ struct Data {
 
 class MotorThread : public RealtimeThread {
  public:
-    MotorThread(uint32_t frequency_hz = 1000);
+    MotorThread(uint32_t frequency_hz = 1000, bool user_space_driver = false);
     virtual ~MotorThread() {
         finish();
     }
