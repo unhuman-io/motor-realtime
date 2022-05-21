@@ -35,4 +35,5 @@ class MotorThread : public RealtimeThread {
     MotorManager motor_manager_;
     CStack<Data> cstack_;
     uint32_t poll_timeout_ns_ = 500*1000;
+    bool user_space_driver_;
 };

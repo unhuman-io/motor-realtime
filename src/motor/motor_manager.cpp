@@ -334,7 +334,10 @@ int MotorManager::multipoll(uint32_t timeout_ns) {
 
     int retval;
     do {
-        timeout.tv_nsec = t.get_time_remaining_ns(); 
+        timeout.tv_nsec = t.get_time_remaining_ns();
+        if (timeout.tv_nsec == 0) {
+            return -ETIMEDOUT;
+        }
         retval = ::ppoll(pollfds, motors_.size(), &timeout, NULL);
         if (retval == 0) {
             return -ETIMEDOUT;

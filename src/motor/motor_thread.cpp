@@ -1,7 +1,7 @@
 #include "motor_thread.h"
 
 MotorThread::MotorThread(uint32_t frequency_hz, bool user_space_driver)
-    : RealtimeThread(frequency_hz), motor_manager_(user_space_driver) {
+    : RealtimeThread(frequency_hz), motor_manager_(user_space_driver), user_space_driver_(user_space_driver) {
 }
 
 void MotorThread::init() {
@@ -16,7 +16,7 @@ void MotorThread::update() {
     data_.last_time_start = data_.time_start;
     data_.time_start = std::chrono::steady_clock::now();
     // start a read on all motors
-    motor_manager_.multipoll(0);
+    motor_manager_.multipoll(1);
     data_.aread_time = std::chrono::steady_clock::now();
 
     // there is some time before data will return on USB, can do pre update work
@@ -25,7 +25,10 @@ void MotorThread::update() {
     // poll with timeout
     int retval = motor_manager_.multipoll(poll_timeout_ns_);
     if (retval != motor_manager_.motors().size()) {
-        throw std::runtime_error("MotorThread poll error " + std::to_string(retval) + " " + strerror(-retval));
+        if (!user_space_driver_) {
+            // user space driver currently doesn't deal with poll
+            throw std::runtime_error("MotorThread poll error " + std::to_string(retval) + " " + strerror(-retval));
+        }
     }
 
     // blocking io to get the data already set up and wait if not ready yet
