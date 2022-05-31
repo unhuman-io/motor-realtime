@@ -41,8 +41,6 @@ static std::vector<std::string> udev (bool user_space_driver=false)
 		// path in /sys/devices/pci*
 		const char *path = udev_list_entry_get_name(dev_list_entry);
 		struct udev_device *dev = udev_device_new_from_syspath(udev, path);
-        const char * sysname = udev_device_get_sysname(dev);
-        const char * subsystem = udev_device_get_subsystem(dev);
         const char * devpath = udev_device_get_devpath(dev);
 
         // TODO better way of identifying other than interface number 0
@@ -335,7 +333,7 @@ int MotorManager::multipoll(uint32_t timeout_ns) {
     int retval;
     do {
         timeout.tv_nsec = t.get_time_remaining_ns(); 
-        retval = ::ppoll(pollfds, motors_.size(), &timeout, NULL);
+        retval = ::ppoll(pollfds, motors_.size(), &timeout, nullptr);
         if (retval == 0) {
             return -ETIMEDOUT;
         } else if (retval < 0) {

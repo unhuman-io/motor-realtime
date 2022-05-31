@@ -40,6 +40,43 @@ if("${isSystemDir}" STREQUAL "-1")
     set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 endif("${isSystemDir}" STREQUAL "-1")
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Weverything \
+    -Wno-c++98-compat-pedantic \
+    -Wc++98-compat-extra-semi \
+    -Wno-c++20-compat \
+    -Wno-declaration-after-statement \
+    -Wno-ctad-maybe-unsupported \
+    -Wno-weak-template-vtables \
+    -Wno-cast-align \
+    -Wno-disabled-macro-expansion \
+    -Wno-documentation-unknown-command \
+    -Wno-documentation \
+    -Wno-double-promotion \
+    -Wno-duplicate-enum \
+    -Wno-exit-time-destructors \
+    -Wno-float-equal \
+    -Wno-implicit-int-conversion \
+    -Wno-missing-prototypes \
+    -Wno-missing-variable-declarations \
+    -Wno-packed \
+    -Wno-padded \
+    -Wno-shorten-64-to-32 \
+    -Wno-sign-conversion \
+    -Wno-strict-prototypes \
+    -Wno-switch-enum \
+    -Wno-unneeded-member-function \
+    -Wno-unused-member-function \
+    -Wno-undefined-reinterpret-cast \
+    -Wno-implicit-float-conversion \
+    -Wno-sign-compare \
+    -Wno-c++20-designator \
+    -Wno-nested-anon-types \
+    -Wno-gnu-anonymous-struct \
+    -Wno-vla-extension \
+    -Wno-vla")
+endif()
+
 
 add_subdirectory(3rdparty)
 add_subdirectory(src)

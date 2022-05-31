@@ -19,7 +19,7 @@ class Task : public MotorThread {
 		pollfd pipe_fds[] = {{.fd=pipe_fd_, .events=POLLIN}};
 		timespec timeout_ts ={};
 		timeout_ts.tv_nsec=100 * 1000;
-		int retval = ppoll(pipe_fds, 1, &timeout_ts, NULL);
+		int retval = ppoll(pipe_fds, 1, &timeout_ts, nullptr);
 		if (retval) {
 			char data[motor_manager_.serialize_command_size()];
 			int n = read(pipe_fd_, data, motor_manager_.serialize_command_size());
@@ -32,7 +32,6 @@ class Task : public MotorThread {
 
  private:
 	int pipe_fd_ = 0;
-	uint32_t x_ = 0;
 };
 
 int main (int argc, char **argv)

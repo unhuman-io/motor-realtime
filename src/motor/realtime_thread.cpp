@@ -34,8 +34,6 @@
 #define __NR_sched_getattr		381
 #endif
 
-static volatile int done;
-
 struct sched_attr {
 	__u32 size;
 

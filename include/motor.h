@@ -21,11 +21,11 @@
 
 class TextFile {
  public:
-    virtual ~TextFile() {}
+    virtual ~TextFile();
     virtual void flush() {}
-    virtual ssize_t read(char *data, unsigned int length) { return 0; };
-    virtual ssize_t write(const char *data, unsigned int length) { return 0; };
-    virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) { return 0; }
+    virtual ssize_t read(char * /* data */, unsigned int /* length */) { return 0; }
+    virtual ssize_t write(const char * /* data */, unsigned int /* length */) { return 0; }
+    virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) { return 0; }
     std::string writeread(const std::string str) {
         char str_in[MAX_API_DATA_SIZE+1];
         ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_DATA_SIZE);
@@ -43,18 +43,13 @@ class SysfsFile : public TextFile {
             throw std::runtime_error("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + path_.c_str());
         }
     }
-    ~SysfsFile() {
-        int retval = ::close(fd_);
-        if (retval) {
-            std::cerr << "Sysfs close error " + std::to_string(errno) + ": " + strerror(errno) << std::endl;
-        }
-    }
-    virtual void flush() {
+    virtual ~SysfsFile() override;
+    virtual void flush() override {
         char c[64];
         while(read(c, 64));
     }
     // locked/blocked to one caller so that a read is a response to write
-    ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) {
+    virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
         lockf(fd_, F_LOCK, 0);
         write(data_out, length_out);
@@ -65,7 +60,7 @@ class SysfsFile : public TextFile {
         return retval;
     }
  private:
-    ssize_t read(char *data, unsigned int length) {
+    virtual ssize_t read(char *data, unsigned int length) override {
         // sysfs file needs to closed and opened or lseek to beginning.
         ::lseek(fd_, 0, SEEK_SET);
         auto retval = ::read(fd_, data, length);
@@ -79,7 +74,7 @@ class SysfsFile : public TextFile {
         }
         return retval;
     }
-    ssize_t write(const char *data, unsigned int length) {
+    virtual ssize_t write(const char *data, unsigned int length) override {
         auto retval = ::write(fd_, data, length);
         if (retval < 0) {
             throw std::runtime_error("Sysfs write error " + std::to_string(errno) + ": " + strerror(errno));
@@ -97,8 +92,9 @@ class USBFile : public TextFile {
         ep_num_ = ep_num;
         fd_ = fd;
     }
+    virtual ~USBFile() override;
     // locked/blocked to one caller so that a read is a response to write
-    ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) {
+    virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
         lockf(fd_, F_LOCK, 0);
         write(data_out, length_out);
@@ -109,7 +105,7 @@ class USBFile : public TextFile {
         return retval;
     }
  private:
-    ssize_t read(char *data, unsigned int length) { 
+    ssize_t read(char *data, unsigned int length) override { 
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_IN,
             .len = length,
@@ -127,7 +123,7 @@ class USBFile : public TextFile {
         }
         return retval;
     }
-    ssize_t write(const char *data, unsigned int length) { 
+    virtual ssize_t write(const char *data, unsigned int length) override { 
         char buf[64];
         std::memcpy(buf, data, length);
         struct usbdevfs_bulktransfer transfer = {
@@ -185,8 +181,8 @@ class Motor {
     Motor() {}
     Motor(std::string dev_path);
     virtual ~Motor();
-    virtual ssize_t read() { return ::read(fd_, &status_, sizeof(status_)); };
-    virtual ssize_t write() { return ::write(fd_, &command_, sizeof(command_)); };
+    virtual ssize_t read() { return ::read(fd_, &status_, sizeof(status_)); }
+    virtual ssize_t write() { return ::write(fd_, &command_, sizeof(command_)); }
     ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
 			ssize_t read_error = read(); 
             fcntl_error = fcntl(fd_, F_SETFL, fd_flags_);
@@ -210,10 +206,10 @@ class Motor {
         return s.substr(0,pos);
     }
     // note will probably not be the final interface
-    TextAPIItem operator[](const std::string s) { TextAPIItem t(motor_txt_, s); return t; };
+    TextAPIItem operator[](const std::string s) { TextAPIItem t(motor_txt_, s); return t; }
     int fd() const { return fd_; }
-    const Status *const status() const { return &status_; }
-    Command *const command() { return &command_; }
+    const Status * status() const { return &status_; }
+    Command * command() { return &command_; }
     TextFile* motor_text() { return motor_txt_; }
  protected:
     int open() { fd_ = ::open(dev_path_.c_str(), O_RDWR); fd_flags_ = fcntl(fd_, F_GETFL); return fd_; }
@@ -233,10 +229,8 @@ class SimulatedMotor : public Motor {
        motor_txt_ =  new TextFile();
        fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
     }
-   virtual ~SimulatedMotor() {
-       ::close(fd_);
-   }
-   virtual ssize_t read() {
+   virtual ~SimulatedMotor() override;
+   virtual ssize_t read() override {
        status_.mcu_timestamp++;
        timespec time;
        clock_gettime(CLOCK_MONOTONIC, &time);
@@ -249,8 +243,8 @@ class SimulatedMotor : public Motor {
                 break;
        }
        return sizeof(status_);
-   };
-   virtual ssize_t write() {
+   }
+   virtual ssize_t write() override {
        status_.host_timestamp_received = command_.host_timestamp;
        if (command_.mode_desired == POSITION || command_.mode_desired == CURRENT ||
            command_.mode_desired == TORQUE) {
@@ -274,7 +268,7 @@ class SimulatedMotor : public Motor {
        }
        active_command_ = command_;
        return sizeof(command_); 
-   };
+   }
    void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
  private:
     // a - b in seconds
@@ -297,15 +291,12 @@ class UserSpaceMotor : public Motor {
             throw std::runtime_error("Motor stat error " + std::to_string(errno) + ": " + strerror(errno));
         }
         struct udev_device *dev = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
-                const char * sysname = udev_device_get_sysname(dev);
-        const char * subsystem = udev_device_get_subsystem(dev);
-        const char * devpath = udev_device_get_devpath(dev);
-        //struct udev_device *dev = udev_device_new_from_syspath(udev, syspath;
-       // struct udev_device *dev = udev_device_new_from_subsystem_sysname(udev, "usb", sysname);
+        const char * sysname = udev_device_get_sysname(dev);
+
         std::string interface_name = sysname;
         interface_name += ":1.0/interface";
         const char * name = udev_device_get_sysattr_value(dev, interface_name.c_str());
-        if (name != NULL) {
+        if (name != nullptr) {
             name_ = name;
         } else {
             name_ = "";
@@ -318,7 +309,7 @@ class UserSpaceMotor : public Motor {
         serial_number_ = udev_device_get_sysattr_value(dev, "serial"); 
         base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev)));
         const char * version = udev_device_get_sysattr_value(dev, "configuration");
-        if (version != NULL) {
+        if (version != nullptr) {
             version_ = version;
         } else {
             version_ = "";
@@ -329,9 +320,8 @@ class UserSpaceMotor : public Motor {
         open();
         motor_txt_ = new USBFile(fd_, 1);
     }
-    virtual ~UserSpaceMotor() { close(); }
-    virtual ssize_t read() { 
-        char data[64];
+    virtual ~UserSpaceMotor() override;
+    virtual ssize_t read() override { 
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_IN,
             .len = sizeof(status_),
@@ -345,8 +335,7 @@ class UserSpaceMotor : public Motor {
         }
         return retval;
     }
-    virtual ssize_t write() { 
-        char data[64];
+    virtual ssize_t write() override { 
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_OUT,
             .len = sizeof(command_),

@@ -226,11 +226,11 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
       }
    }
    for (auto s : status) {
-      os << (int) s.flags.mode << ", ";
+      os << static_cast<int>(s.flags.mode) << ", ";
    }
    os << std::hex;
    for (auto s : status) {
-      os << (int) s.flags.error.all << ", ";
+      os << static_cast<int>(s.flags.error.all) << ", ";
    }
    os << std::dec;
    for (auto s : status) {

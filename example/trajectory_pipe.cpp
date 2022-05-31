@@ -3,7 +3,7 @@
 #include <chrono>
 #include <thread>
 
-int main (int argc, char **argv) {
+int main (int /* argc */, char ** /* argv */) {
     uint32_t period_ns = 100 * 1000 * 1000;
 
     auto m = MotorManager();
