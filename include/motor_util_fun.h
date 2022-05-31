@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <stdexcept>
 
+// up to 2 seconds
 class Timer {
  public:
     Timer(uint32_t timeout_ns) : timeout_ns_(timeout_ns) {
