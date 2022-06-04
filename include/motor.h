@@ -186,7 +186,10 @@ class Motor {
     virtual ssize_t write() { return ::write(fd_, &command_, sizeof(command_)); }
     virtual ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
 			ssize_t read_error = read(); 
-            fcntl_error = fcntl(fd_, F_SETFL, fd_flags_);
+            int fcntl_error2 = fcntl(fd_, F_SETFL, fd_flags_);
+            if (fcntl_error < 0 || fcntl_error2 < 0) {
+                std::cout << "Aread fcntl error" << std::endl;
+            }
             if (read_error != -1) {
                 std::cout << "Nonzero aread" << std::endl;
             } else {
