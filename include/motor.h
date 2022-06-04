@@ -18,6 +18,7 @@
 #include <cstring>
 #include "motor_messages.h"
 #include <time.h>
+#include "motor_util_fun.h"
 
 class TextFile {
  public:
@@ -284,6 +285,8 @@ class UserSpaceMotor : public Motor {
  public:
     UserSpaceMotor(std::string dev_path, uint8_t ep_num = 2) { 
         ep_num_ = ep_num;
+        aread_transfer_.endpoint |= ep_num;
+        aread_transfer_.usercontext = (void *) 100;
         dev_path_ = dev_path; 
         struct udev *udev = udev_new();
         struct stat st;
@@ -333,14 +336,14 @@ class UserSpaceMotor : public Motor {
 
             retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
         } else {
-            usbdevfs_urb transfer{};
-            retval = ::ioctl(fd_, USBDEVFS_REAPURB, &transfer);
-            // todo, this is very fragile, could look into reaping urbs to look for the correct thing, 
-            // also timeouts
-            if (awrite_in_progress_) {
-                retval = ::ioctl(fd_, USBDEVFS_REAPURB, &transfer);
-                awrite_in_progress_ = false;
-            }
+            usbdevfs_urb *transfer =  nullptr;
+            Timer t(10000000);
+            do {
+                retval = ::ioctl(fd_, USBDEVFS_REAPURBNDELAY, &transfer);
+                if (retval == 0 && transfer->endpoint == static_cast<uint8_t>(ep_num_ | USB_DIR_IN)) {
+                    break;
+                }
+            } while (t.get_time_remaining_ns() && (errno == EAGAIN || retval == 0));
             aread_in_progress_ = false;
         }
         if (retval < 0) {
@@ -359,22 +362,13 @@ class UserSpaceMotor : public Motor {
         };
 
         int retval = ::ioctl(fd_, USBDEVFS_SUBMITURB, &transfer);
-        awrite_in_progress_ = true;
         if (retval < 0) {
             throw std::runtime_error("Motor write error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
     virtual ssize_t aread() override {
-        struct usbdevfs_urb transfer = {
-            .type = USBDEVFS_URB_TYPE_BULK,
-            .endpoint = static_cast<uint8_t>(ep_num_ | USB_DIR_IN),
-            .status = 0,
-            .flags = 0,
-            .buffer = &status_,
-            .buffer_length = sizeof(status_),
-        };
-        int retval = ::ioctl(fd_, USBDEVFS_SUBMITURB, &transfer);
+        int retval = ::ioctl(fd_, USBDEVFS_SUBMITURB, &aread_transfer_);
         if (retval < 0) {
             throw std::runtime_error("Motor aread error " + std::to_string(errno) + ": " + strerror(errno));
         }
@@ -407,7 +401,14 @@ class UserSpaceMotor : public Motor {
     }
     uint8_t ep_num_;
     bool aread_in_progress_ = false;
-    bool awrite_in_progress_ = false;
+    usbdevfs_urb aread_transfer_{
+        .type = USBDEVFS_URB_TYPE_BULK,
+        .endpoint = USB_DIR_IN,
+        .status = 0,
+        .flags = 0,
+        .buffer = &status_,
+        .buffer_length = sizeof(status_),
+    };
 };
 
 #endif
