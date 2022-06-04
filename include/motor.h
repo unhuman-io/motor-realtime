@@ -335,6 +335,8 @@ class UserSpaceMotor : public Motor {
         } else {
             usbdevfs_urb transfer{};
             retval = ::ioctl(fd_, USBDEVFS_REAPURB, &transfer);
+            // todo, this is very fragile, could look into reaping urbs to look for the correct thing, 
+            // also timeouts
             if (awrite_in_progress_) {
                 retval = ::ioctl(fd_, USBDEVFS_REAPURB, &transfer);
                 awrite_in_progress_ = false;
@@ -350,6 +352,8 @@ class UserSpaceMotor : public Motor {
         struct usbdevfs_urb transfer = {
             .type = USBDEVFS_URB_TYPE_BULK,
             .endpoint = static_cast<uint8_t>(ep_num_ | USB_DIR_OUT),
+            .status = 0,
+            .flags = 0,
             .buffer = &command_,
             .buffer_length = sizeof(command_),
         };
@@ -365,6 +369,8 @@ class UserSpaceMotor : public Motor {
         struct usbdevfs_urb transfer = {
             .type = USBDEVFS_URB_TYPE_BULK,
             .endpoint = static_cast<uint8_t>(ep_num_ | USB_DIR_IN),
+            .status = 0,
+            .flags = 0,
             .buffer = &status_,
             .buffer_length = sizeof(status_),
         };
