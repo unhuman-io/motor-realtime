@@ -3,4 +3,5 @@ cc_library(
     srcs = glob(["motor*.cpp"]),
     hdrs = glob(["motor*.h"]) +
             ["motor_messages/motor_messages.h"],
+    linkopts = ["-ludev"],
 )
