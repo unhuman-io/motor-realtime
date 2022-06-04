@@ -18,6 +18,7 @@
 #include <cstring>
 #include "motor_messages.h"
 #include <time.h>
+#include "motor_util_fun.h"
 
 class TextFile {
  public:
@@ -183,7 +184,7 @@ class Motor {
     virtual ~Motor();
     virtual ssize_t read() { return ::read(fd_, &status_, sizeof(status_)); }
     virtual ssize_t write() { return ::write(fd_, &command_, sizeof(command_)); }
-    ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
+    virtual ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
 			ssize_t read_error = read(); 
             fcntl_error = fcntl(fd_, F_SETFL, fd_flags_);
             if (read_error != -1) {
@@ -284,6 +285,8 @@ class UserSpaceMotor : public Motor {
  public:
     UserSpaceMotor(std::string dev_path, uint8_t ep_num = 2) { 
         ep_num_ = ep_num;
+        aread_transfer_.endpoint |= ep_num;
+        aread_transfer_.usercontext = (void *) 100;
         dev_path_ = dev_path; 
         struct udev *udev = udev_new();
         struct stat st;
@@ -321,32 +324,55 @@ class UserSpaceMotor : public Motor {
         motor_txt_ = new USBFile(fd_, 1);
     }
     virtual ~UserSpaceMotor() override;
-    virtual ssize_t read() override { 
-        struct usbdevfs_bulktransfer transfer = {
-            .ep = ep_num_ | USB_DIR_IN,
-            .len = sizeof(status_),
-            .timeout = 100,
-            .data = &status_
-        };
+    virtual ssize_t read() override {
+        int retval = -1;
+        if (!aread_in_progress_) {
+            struct usbdevfs_bulktransfer transfer = {
+                .ep = static_cast<uint8_t>(ep_num_ | USB_DIR_IN),
+                .len = sizeof(status_),
+                .timeout = 100,
+                .data = &status_
+            };
 
-        int retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+            retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+        } else {
+            usbdevfs_urb *transfer =  nullptr;
+            Timer t(10000000);
+            do {
+                retval = ::ioctl(fd_, USBDEVFS_REAPURBNDELAY, &transfer);
+                if (retval == 0 && transfer->endpoint == static_cast<uint8_t>(ep_num_ | USB_DIR_IN)) {
+                    break;
+                }
+            } while (t.get_time_remaining_ns() && (errno == EAGAIN || retval == 0));
+            aread_in_progress_ = false;
+        }
         if (retval < 0) {
             throw std::runtime_error("Motor read error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
     virtual ssize_t write() override { 
-        struct usbdevfs_bulktransfer transfer = {
-            .ep = ep_num_ | USB_DIR_OUT,
-            .len = sizeof(command_),
-            .timeout = 100,
-            .data = &command_
+        struct usbdevfs_urb transfer = {
+            .type = USBDEVFS_URB_TYPE_BULK,
+            .endpoint = static_cast<uint8_t>(ep_num_ | USB_DIR_OUT),
+            .status = 0,
+            .flags = 0,
+            .buffer = &command_,
+            .buffer_length = sizeof(command_),
         };
 
-        int retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+        int retval = ::ioctl(fd_, USBDEVFS_SUBMITURB, &transfer);
         if (retval < 0) {
             throw std::runtime_error("Motor write error " + std::to_string(errno) + ": " + strerror(errno));
         }
+        return retval;
+    }
+    virtual ssize_t aread() override {
+        int retval = ::ioctl(fd_, USBDEVFS_SUBMITURB, &aread_transfer_);
+        if (retval < 0) {
+            throw std::runtime_error("Motor aread error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        aread_in_progress_ = true;
         return retval;
     }
  private:
@@ -373,7 +399,16 @@ class UserSpaceMotor : public Motor {
         // fd_ closed by base
         return 0;
     }
-    unsigned int ep_num_;
+    uint8_t ep_num_;
+    bool aread_in_progress_ = false;
+    usbdevfs_urb aread_transfer_{
+        .type = USBDEVFS_URB_TYPE_BULK,
+        .endpoint = USB_DIR_IN,
+        .status = 0,
+        .flags = 0,
+        .buffer = &status_,
+        .buffer_length = sizeof(status_),
+    };
 };
 
 #endif
