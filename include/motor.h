@@ -289,7 +289,6 @@ class UserSpaceMotor : public Motor {
     UserSpaceMotor(std::string dev_path, uint8_t ep_num = 2) { 
         ep_num_ = ep_num;
         aread_transfer_.endpoint |= ep_num;
-        aread_transfer_.usercontext = (void *) 100;
         dev_path_ = dev_path; 
         struct udev *udev = udev_new();
         struct stat st;

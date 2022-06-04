@@ -422,7 +422,9 @@ std::string MotorManager::status_headers() const {
     return ss.str();
 }
 
+#ifdef __clang__
 #pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
 const std::map<const ModeDesired, const std::string> MotorManager::mode_map{
         {ModeDesired::OPEN, "open"}, {ModeDesired::DAMPED, "damped"}, {ModeDesired::CURRENT, "current"}, 
         {ModeDesired::POSITION, "position"}, {ModeDesired::TORQUE, "torque"}, {ModeDesired::IMPEDANCE, "impedance"}, 
