@@ -34,7 +34,7 @@ class FrequencyLimiter {
 
 class MotorManager {
  public:
-    static std::map<const ModeDesired, const std::string> mode_map;
+    static const std::map<const ModeDesired, const std::string> mode_map;
 
     MotorManager(bool user_space_driver = false) : user_space_driver_(user_space_driver) {}
     std::vector<std::shared_ptr<Motor>> get_connected_motors(bool connect = true);
@@ -234,7 +234,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    }
    os << std::dec;
    for (auto s : status) {
-      os << MotorManager::mode_map[static_cast<ModeDesired>(s.flags.mode)] << " ";
+      os << MotorManager::mode_map.at(static_cast<ModeDesired>(s.flags.mode)) << " ";
       if (s.flags.error.all) {
          os << (s.flags.error.sequence ? "sequence " : "");
          os << (s.flags.error.system ? "system " : "");

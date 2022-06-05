@@ -69,12 +69,10 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     -Wno-unused-member-function \
     -Wno-undefined-reinterpret-cast \
     -Wno-implicit-float-conversion \
-    -Wno-sign-compare \
     -Wno-c++20-designator \
     -Wno-nested-anon-types \
     -Wno-gnu-anonymous-struct \
-    -Wno-vla-extension \
-    -Wno-vla")
+    -Wno-vla-extension")
 endif()
 
 
