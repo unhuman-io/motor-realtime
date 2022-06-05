@@ -183,6 +183,8 @@ inline std::ostream& reserved_uint32(std::ostream &os) {
     return os;
 }
 
+#define PRINT_FLAG(flag) if (s.flags.error.flag) os << #flag " "
+
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
 {
 
@@ -236,13 +238,23 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    for (auto s : status) {
       os << MotorManager::mode_map.at(static_cast<ModeDesired>(s.flags.mode)) << " ";
       if (s.flags.error.all) {
-         os << (s.flags.error.sequence ? "sequence " : "");
-         os << (s.flags.error.system ? "system " : "");
-         os << (s.flags.error.motor ? "motor " : "");
-         os << (s.flags.error.controller ? "controller " : "");
-         os << (s.flags.error.sensor ? "sensor " : "");
-         os << (s.flags.error.host_fault ? "host_fault " : "");
-         os << (s.flags.error.reserved ? "reserved " : "");
+         PRINT_FLAG(sequence);
+         PRINT_FLAG(bus_voltage_low);
+         PRINT_FLAG(bus_voltage_high);
+         PRINT_FLAG(bus_current);
+         PRINT_FLAG(microcontroller_temperature);
+         PRINT_FLAG(board_temperature);
+         PRINT_FLAG(motor_temperature);
+         PRINT_FLAG(driver_fault);
+         PRINT_FLAG(motor_overcurent);
+         PRINT_FLAG(motor_phase_open);
+         PRINT_FLAG(motor_encoder);
+         PRINT_FLAG(motor_encoder_limit);
+         PRINT_FLAG(output_encoder);
+         PRINT_FLAG(output_encoder_limit);
+         PRINT_FLAG(torque_sensor);
+         PRINT_FLAG(controller_tracking);
+         PRINT_FLAG(host_fault);
       }
       os << ", ";
    }
