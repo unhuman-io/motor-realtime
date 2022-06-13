@@ -35,8 +35,8 @@ int main() {
     m.set_command_velocity({1});
     m.write_saved_commands();
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    assert(abs(m.read()[0].motor_position - 2) < .1);
-    assert(abs(m.read()[0].joint_position - 0.02) < .001);
+    assert(std::abs(m.read()[0].motor_position - 2) < .1);
+    assert(std::abs(m.read()[0].joint_position - 0.02) < .001);
     std::cout << m.read() << std::endl;
     assert(m.read()[0].host_timestamp_received == 6);
     return 0;

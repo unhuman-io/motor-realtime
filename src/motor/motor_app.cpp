@@ -24,7 +24,7 @@
 #include <csignal>
 sig_atomic_t volatile running = 1;
 
-MotorApp::MotorApp(int argc, char **argv, MotorThread *motor_thread) 
+MotorApp::MotorApp(int /* argc */, char ** /* argv */, MotorThread *motor_thread) 
     : motor_thread_(motor_thread) {
 
 }
@@ -43,13 +43,12 @@ int MotorApp::run() {
 	auto &cstack = motor_thread_->cstack();
 	
 	motor_thread_->run();
-	std::chrono::steady_clock::time_point system_start = std::chrono::steady_clock::now();
 	std::ofstream file;
 	file.open("data.csv");
 	file << "timestamp, " << motor_manager.command_headers() << motor_manager.status_headers() << std::endl;
 
 
-	signal(SIGINT, [] (int signum) {running = 0;});
+	signal(SIGINT, [] (int /* signum */) {running = 0;});
 
 	for(int i=0;; i++) {
 		if (!running) {
@@ -66,7 +65,6 @@ int MotorApp::run() {
 		}
 		auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(data.last_time_end - data.last_time_start).count();
 		auto last_period =  std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - data.last_time_start).count();
-		auto start = std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - system_start).count();
 		std::cout << "last_period: " << last_period << " last_exec: " << last_exec 
 				<< " count_received: " << count_received << " current_count: " << count 
 				<< " aread_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.aread_time - data.time_start).count()

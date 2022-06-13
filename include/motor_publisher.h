@@ -14,7 +14,7 @@ class MotorPublisher {
     MotorPublisher(std::string shm_name = "motor_data") : shm_name_(shm_name) {
         fd_ = shm_open(shm_name_.c_str(), O_RDWR  | O_CREAT, 0666);
         ftruncate(fd_, sizeof(*data_));
-        memptr_ = mmap(NULL,       /* let system pick where to put segment */
+        memptr_ = mmap(nullptr,       /* let system pick where to put segment */
                         sizeof(*data_),   /* how many bytes */
                         PROT_READ | PROT_WRITE, /* access protections */
                         MAP_SHARED, /* mapping visible to other processes */

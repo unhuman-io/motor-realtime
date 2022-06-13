@@ -31,7 +31,6 @@ class Task : public MotorThread {
 
  private:
 	std::ifstream data_file_;
-	int size_commands_ = 1;
 };
 
 int main (int argc, char **argv)

@@ -95,7 +95,7 @@ jobs:
     - uses: actions/checkout@master
       with:
         submodules: true
-        fetch-depth: 0
+#        fetch-depth: 0
     - uses: uraimo/run-on-arch-action@master
       name: Run commands
       id: runcmd

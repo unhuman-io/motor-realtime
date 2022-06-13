@@ -2,7 +2,7 @@
 
 static std::string udev_device_check_and_get_sysattr_value(struct udev_device *dev, const char * name) {
     const char *value = udev_device_get_sysattr_value(dev, name);
-    if (value != NULL) {
+    if (value != nullptr) {
         return value;
     }
     return "";
@@ -33,4 +33,19 @@ Motor::Motor(std::string dev_path) {
     open();
 }
 
- Motor::~Motor() { close(); delete motor_txt_; }
+Motor::~Motor() { close(); delete motor_txt_; }
+
+TextFile::~TextFile() {}
+
+SysfsFile::~SysfsFile() {
+    int retval = ::close(fd_);
+    if (retval) {
+        std::cerr << "Sysfs close error " + std::to_string(errno) + ": " + strerror(errno) << std::endl;
+    }
+}
+
+USBFile::~USBFile() {}
+
+UserSpaceMotor::~UserSpaceMotor() { close(); }
+
+SimulatedMotor::~SimulatedMotor() { ::close(fd_); }

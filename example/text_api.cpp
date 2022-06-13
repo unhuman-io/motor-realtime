@@ -1,7 +1,7 @@
 #include <motor_manager.h>
 #include <string>
 
-int main (int argc, char **argv) {
+int main (int /* argc */, char ** /* argv */) {
     MotorManager m;
     m.get_connected_motors();
     double kp;

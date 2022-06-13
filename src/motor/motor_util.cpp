@@ -75,7 +75,7 @@ struct ReadOptions {
 bool signal_exit = false;
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers"};
-    bool print = false, verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false;
+    bool verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false;
     bool user_space_driver = false;
     std::vector<std::string> names = {};
     std::vector<std::string> paths = {};
@@ -83,10 +83,9 @@ int main(int argc, char** argv) {
     std::vector<std::string> serial_numbers = {};
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map;
-    for (const std::pair<ModeDesired, std::string> &pair : MotorManager::mode_map) {
+    for (const std::pair<const ModeDesired, const std::string> &pair : MotorManager::mode_map) {
         mode_map.push_back({pair.second, pair.first});
     }
-    TuningMode tuning_mode = TuningMode::SINE;
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
         {"chirp", TuningMode::CHIRP}};
@@ -106,26 +105,32 @@ int main(int argc, char** argv) {
     set->add_option("--position", command.position_desired, "Position desired");
     set->add_option("--velocity", command.velocity_desired, "Velocity desired");
     set->add_option("--torque", command.torque_desired, "Torque desired");
+    set->add_option("--torque_dot", command.torque_dot_desired, "Torque dot desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
+    auto state_mode = set->add_subcommand("state", "State control mode")->final_callback([&](){command.mode_desired = ModeDesired::STATE;})->fallthrough();
+    state_mode->add_option("--kp", command.state.kp, "Position error gain");
+    state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
+    state_mode->add_option("--kt", command.state.kt, "Torque error gain");
+    state_mode->add_option("--ks", command.state.ks, "Torque dot error gain");
     auto stepper_tuning_mode = set->add_subcommand("stepper_tuning", "Stepper tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_TUNING;});
     stepper_tuning_mode->add_option("--amplitude", command.stepper_tuning.amplitude, "Phase position tuning amplitude");
     stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp");
     stepper_tuning_mode->add_option("--mode", command.stepper_tuning.mode, "Phase tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     stepper_tuning_mode->add_option("--kv", command.stepper_tuning.kv, "Motor kv (rad/s)");
-    auto position_tuning_mode = set->add_subcommand("position_tuning", "Position tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::POSITION_TUNING;});;
+    auto position_tuning_mode = set->add_subcommand("position_tuning", "Position tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::POSITION_TUNING;});
     position_tuning_mode->add_option("--amplitude", command.position_tuning.amplitude, "Position tuning amplitude");
     position_tuning_mode->add_option("--frequency", command.position_tuning.frequency, "Position tuning frequency hz, or hz/s for chirp");
     position_tuning_mode->add_option("--mode", command.position_tuning.mode, "Position tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     position_tuning_mode->add_option("--bias", command.position_tuning.bias, "Position trajectory offset");
-    auto current_tuning_mode = set->add_subcommand("current_tuning", "Current tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::CURRENT_TUNING;});;
+    auto current_tuning_mode = set->add_subcommand("current_tuning", "Current tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::CURRENT_TUNING;});
     current_tuning_mode->add_option("--amplitude", command.current_tuning.amplitude, "Current tuning amplitude");
     current_tuning_mode->add_option("--frequency", command.current_tuning.frequency, "Current tuning frequency hz, or hz/s for chirp");
     current_tuning_mode->add_option("--mode", command.current_tuning.mode, "Current tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     current_tuning_mode->add_option("--bias", command.current_tuning.bias, "Current trajectory offset");
-    auto stepper_velocity_mode = set->add_subcommand("stepper_velocity", "Stepper velocity mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_VELOCITY;});;
+    auto stepper_velocity_mode = set->add_subcommand("stepper_velocity", "Stepper velocity mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_VELOCITY;});
     stepper_velocity_mode->add_option("--voltage", command.stepper_velocity.voltage, "Phase voltage amplitude");
     stepper_velocity_mode->add_option("--velocity", command.stepper_velocity.velocity, "Phase velocity");
-    auto voltage_mode = set->add_subcommand("voltage", "Voltage mode")->final_callback([&](){command.mode_desired = ModeDesired::VOLTAGE;});;
+    auto voltage_mode = set->add_subcommand("voltage", "Voltage mode")->final_callback([&](){command.mode_desired = ModeDesired::VOLTAGE;});
     voltage_mode->add_option("--voltage", command.voltage.voltage_desired, "Vq voltage desired");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
     read_option->add_flag("-s,--timestamp-in-seconds", read_opts.timestamp_in_seconds, "Report motor timestamp as seconds since start and unwrap");
@@ -164,7 +169,7 @@ int main(int argc, char** argv) {
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing", true)->type_name("NUM_SAMPLES")->expected(0,1);
     CLI11_PARSE(app, argc, argv);
 
-    signal(SIGINT,[](int signum){signal_exit = true;});
+    signal(SIGINT,[](int /* signum */){ signal_exit = true; });
 
     if (*read_option && read_opts.csv) {
         read_opts.timestamp_in_seconds = true;
@@ -190,15 +195,17 @@ int main(int argc, char** argv) {
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
     // remove null motors
-    auto i = std::begin(motors);
-    while (i != std::end(motors)) {
-        if (!*i) {
-            i = motors.erase(i);
-        } else {
-            ++i;
+    {
+        auto i = std::begin(motors);
+        while (i != std::end(motors)) {
+            if (!*i) {
+                i = motors.erase(i);
+            } else {
+                ++i;
+            }
         }
+        m.set_motors(motors);
     }
-    m.set_motors(motors);
     
     if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size()) {
         motors = m.get_connected_motors();
@@ -248,12 +255,12 @@ int main(int argc, char** argv) {
     }
 
     if (check_messages_version) {
-        for (auto m : motors) {
+        for (auto motor : motors) {
             bool error = false;
-            if (!m->check_messages_version()) {
+            if (!motor->check_messages_version()) {
                 error = true;
-                std::cerr << "Messages version incorrect: " << m->name() << ": " << 
-                    (*m)["messages_version"] << ", motor_util: " << MOTOR_MESSAGES_VERSION << std::endl;
+                std::cerr << "Messages version incorrect: " << motor->name() << ": " << 
+                    (*motor)["messages_version"] << ", motor_util: " << MOTOR_MESSAGES_VERSION << std::endl;
             }
             if (error) {
                 return 1;
@@ -275,7 +282,7 @@ int main(int argc, char** argv) {
             auto mean_api_val = [run_stats](TextAPIItem a) {
                 double out = 0;
                 for (int i=0;i<run_stats;i++) {
-                    out += (double) std::atoi(a.get().c_str())/run_stats;
+                    out += static_cast<double>(std::atoi(a.get().c_str()))/run_stats;
                 } 
                 return out;
             };
@@ -297,7 +304,7 @@ int main(int argc, char** argv) {
         m.write_saved_commands();
     }
 
-    if (api_mode || *read_option && *text_read) {
+    if (api_mode || (*read_option && *text_read)) {
         if (motors.size() != 1) {
             std::cout << "Select one motor to use api mode" << std::endl;
             return 1;
@@ -346,7 +353,7 @@ int main(int argc, char** argv) {
                 }
                 log.push_back((*m.motors()[0])[s]);
             }
-            RealtimeThread text_thread(read_opts.frequency_hz, [&](){
+            RealtimeThread text_thread(static_cast<uint32_t>(read_opts.frequency_hz), [&](){
                 for (auto &l : log) {
                     auto str = l.get();
                     if (str != "log end") {
@@ -411,9 +418,8 @@ int main(int argc, char** argv) {
             auto start_time = std::chrono::steady_clock::now();
             auto next_time = start_time;
             auto loop_start_time = start_time;
-            int64_t period_ns = 1e9/read_opts.frequency_hz;
+            int64_t period_ns = static_cast<int64_t>(1e9/read_opts.frequency_hz);
             Statistics exec(100), period(100), hops(100*m.motors().size());
-            int i = 0;
             MotorPublisher<cstr> pub;
             while (!signal_exit) {
                 auto last_loop_start_time = loop_start_time;
@@ -448,9 +454,8 @@ int main(int argc, char** argv) {
 
                 if (*bits_option) {
                     static Statistics motor_encoder(read_opts.bits[0]), output_encoder(read_opts.bits[0]), iq(read_opts.bits[0]);
-                    static double mcpr = fabs(std::stod((*m.motors()[i])["mcpr"].get()));
-                    static double ocpr = fabs(std::stod((*m.motors()[i])["ocpr"].get()));
-                    static double irange = fabs(std::stod((*m.motors()[i])["irange"].get()));
+                    static double mcpr = fabs(std::stod((*m.motors()[0])["mcpr"].get()));
+                    static double irange = fabs(std::stod((*m.motors()[0])["irange"].get()));
                     motor_encoder.push(status[0].motor_encoder);
                     output_encoder.push(status[0].joint_position);
                     iq.push(status[0].iq);
@@ -458,6 +463,7 @@ int main(int argc, char** argv) {
                               << log2(2*M_PI/6/output_encoder.get_stddev()) << ", "
                               << log2(irange/6/iq.get_stddev()) << std::endl;
                 } else if (read_opts.statistics || read_opts.read_write_statistics) {
+                    static int i = 0;
                     i++;
                     auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(exec_time - loop_start_time).count();
                     auto last_start = std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count();

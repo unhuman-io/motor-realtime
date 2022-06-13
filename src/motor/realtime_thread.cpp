@@ -34,8 +34,6 @@
 #define __NR_sched_getattr		381
 #endif
 
-static volatile int done;
-
 struct sched_attr {
 	__u32 size;
 
@@ -109,16 +107,24 @@ void RealtimeThread::run_deadline()
 	unsigned int flags = 0;
 	auto ret = sched_setattr(0, &attr, flags);
 	if (ret < 0) {
-		perror("Error with sched_setattr");
+		if (debug_) {
+			perror("Error with sched_setattr");
+		}
 		deadline_permissions = false;
-		printf("Running std::this_thread::sleep_until mode\n");
+		if (debug_) {
+			printf("Running std::this_thread::sleep_until mode\n");
+		}
 	} else {
-		printf("Running deadline scheduler\n");
+		if (debug_) {
+			printf("Running deadline scheduler\n");
+		}
 	}
 
 	ret = mlockall(MCL_CURRENT | MCL_FUTURE);
 	if (ret < 0) {
-		perror("Error locking memory");
+		if (debug_) {
+			perror("Error locking memory");
+		}
 	}
 
 	auto next_time = std::chrono::steady_clock::now();

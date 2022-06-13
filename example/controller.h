@@ -29,14 +29,12 @@ class Controller {
     void set_current(double current);
     void set_current(std::vector<double> current);
     void update(std::vector<Status> statuses, std::vector<Command> &commands);
- private:
+ private:    
+    int n_;
+    std::vector<PositionController> position_controllers_;
     std::vector<double> position_desired_;
     std::vector<double> current_desired_;
     std::vector<Mode> mode_desired_;
-    std::vector<PositionController> position_controllers_;
-    int n_;
 };
-
-
 
 #endif
