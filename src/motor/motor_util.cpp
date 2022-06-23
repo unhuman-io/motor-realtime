@@ -216,11 +216,19 @@ int main(int argc, char** argv) {
     }
 
     if (!no_list) {
-        int name_width = 10;
+        int name_width = 6;
         int serial_number_width = 15;
-        int version_width = verbose_list ? 45 : 15;
-        int path_width = 15;
-        int dev_path_width = 12;
+        int version_width = 9;
+        int path_width = 6;
+        int dev_path_width = 5;
+        if (motors.size() > 0) {
+            for (auto m : motors) {
+                name_width = std::max(name_width, (int) m->name().size()+3);
+                path_width = std::max(path_width, (int) m->base_path().size()+3);
+                dev_path_width = std::max(dev_path_width, (int) m->dev_path().size());
+                version_width = std::max(version_width, (int) (verbose_list ? m->version() : m->short_version()).size()+3);
+            }
+        }
         if (list_names || list_path || list_devpath || list_serial_number) {
               if (motors.size() > 0) {
                     for (auto m : motors) {
