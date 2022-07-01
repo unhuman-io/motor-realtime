@@ -48,7 +48,7 @@ jobs:
           ./packages/*
         tag: main
     - name: cmake2
-      run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
+      run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
     - name: make2
       run: make VERBOSE=1 -j2
     - name: test
@@ -137,4 +137,48 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./packages/*
+        tag: main
+    - uses: uraimo/run-on-arch-action@master
+      name: Run commands2
+      id: runcmd2
+      with:
+        arch: ${{ matrix.arch }}
+        distro: ${{ matrix.distro }}
+        githubToken: ${{ github.token }}
+        setup: |
+          mkdir -p "${PWD}/packages"
+        dockerRunArgs: |
+          --volume "${PWD}/packages:/packages"
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
+          make -j2
+          make install
+        install: |
+          apt-get update -q -y
+          apt-get install -y cmake build-essential libudev-dev git python3-dev
+          if [ ${{ matrix.distro }} = "buster" ]; then
+            # cmake 3.16 has problems
+            apt-get remove -y cmake-data
+            apt-get install -y cmake-data=3.13.4-1 cmake=3.13.4-1
+          fi
+    - name: archive2
+      run: tar -czf artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz artifacts/ 
+    - name: Archive production artifacts2
+      uses: actions/upload-artifact@v1
+      with:
+        name: artifacts
+        path: artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
+    - uses: pyTooling/Actions/releaser@main
+      if: contains(github.ref, 'develop')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
+        tag: develop
+    - uses: pyTooling/Actions/releaser@main
+      if: contains(github.ref, 'main')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          ./artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
         tag: main
