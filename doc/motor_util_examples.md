@@ -185,6 +185,32 @@ $ motor_util read --text ia ib ic --frequency 10    # frequency is supported in 
 ...
 ```
 
+Api parameters generally are used for debugging and tuning and the names tend to be short versions of variable names. Some parameters and read only and some are read/write. A non exhaustive list of many useful parameters as of 6/8/22 are:
+| Parameter             | Access  | Description                                         |
+|---------------------- | ------- | --------------------------------------------------- |
+| 3v3                   | r       | Measured 3.3 voltage (V)                            |
+| vbus                  | r       | Measured bus voltage (V)                            |
+| Tdsp                  | r/w     | Measured microcontroller temperature (C)            |
+| kp                    | r/w     | Position control P gain (A/rad)                     |
+| kd                    | r/w     | Position control D gain (As/rad)                    |
+| ki                    | r/w     | Position control I gain (A/rad/s)                   |
+| ki_limit              | r/w     | Position control I term saturation (A)              |
+| max                   | r/w     | Position control output current saturation (A)      |
+| vlimit                | r/w     | Position control velocity limit (rad/s)             |
+| output_filt           | r/w     | Position control output filter (hz)                 |
+| velocity_filt         | r/w     | Position control velocity feedback filter (hz)      |
+| ikp                   | r/w     | Current control P gain (V/A)                        |
+| iki                   | r/w     | Current control I gain (V/A/s)                      |
+| iki_limit             | r/w     | Current control I term saturation (V)               |
+| imax                  | r/w     | Current control output saturation (V)               |
+| idkp                  | r/w     | Current control D axis P gain                       |
+| idki                  | r/w     | Current control D axis I gain                       |
+| idki_limit            | r/w     | Current control D axis I term saturation            |
+| idmax                 | r/w     | Current control D axis output saturation            |
+| usb_err               | r       | Counter of number of packet communication errors    |
+| index_received        | r       | 1 if a motor index pulse received                   |
+| index_offset_measured | r       | Offset between electrical zero and mechanical zero  |
+
 ## Performance
 `motor_util` is not meant for performance but it can be used to both test performance 
 and also may be useful to have fixed frequency measurements. The motor controller 
