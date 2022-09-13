@@ -91,32 +91,34 @@ void RealtimeThread::run_deadline()
 {
 	//printf("realtime thread started period_ns = %d, [%ld]\n", period_ns_, gettid());
 	exit_ = std::promise<void>();
+	int ret = 0;
 
-	struct sched_attr attr;
-	attr.size = sizeof(attr);
-	attr.sched_flags = 0;
-	attr.sched_nice = 0;
-	attr.sched_priority = 0;
+	if (deadline_) {
+		struct sched_attr attr;
+		attr.size = sizeof(attr);
+		attr.sched_flags = 0;
+		attr.sched_nice = 0;
+		attr.sched_priority = 0;
 
-	attr.sched_policy = SCHED_DEADLINE;
-	attr.sched_runtime =  period_ns_*9.0/10;
-	attr.sched_deadline = period_ns_*9.0/10;
-	attr.sched_period =  period_ns_;
+		attr.sched_policy = SCHED_DEADLINE;
+		attr.sched_runtime =  period_ns_*9.0/10;
+		attr.sched_deadline = period_ns_*9.0/10;
+		attr.sched_period =  period_ns_;
 
-	bool deadline_permissions = true;
-	unsigned int flags = 0;
-	auto ret = sched_setattr(0, &attr, flags);
-	if (ret < 0) {
-		if (debug_) {
-			perror("Error with sched_setattr");
-		}
-		deadline_permissions = false;
-		if (debug_) {
-			printf("Running std::this_thread::sleep_until mode\n");
-		}
-	} else {
-		if (debug_) {
-			printf("Running deadline scheduler\n");
+		unsigned int flags = 0;
+		ret = sched_setattr(0, &attr, flags);
+		if (ret < 0) {
+			if (debug_) {
+				perror("Error with sched_setattr");
+			}
+			deadline_ = false;
+			if (debug_) {
+				printf("Running std::this_thread::sleep_until mode\n");
+			}
+		} else {
+			if (debug_) {
+				printf("Running deadline scheduler\n");
+			}
 		}
 	}
 
@@ -144,7 +146,7 @@ void RealtimeThread::run_deadline()
 
 		last_loop_start_time = loop_start_time;
 		next_time += std::chrono::nanoseconds(period_ns_);
-		if(!deadline_permissions) {
+		if(!deadline_) {
 			std::this_thread::sleep_until(next_time);
 		} else {
 			sched_yield();
@@ -152,5 +154,7 @@ void RealtimeThread::run_deadline()
 	}
 
 	exit_.set_value();
-	//printf("realtime thread finish [%ld]\n", gettid());
+	if (debug_) {
+		printf("realtime thread finish [%ld]\n", gettid());
+	}
 }

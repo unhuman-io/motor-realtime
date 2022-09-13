@@ -1,7 +1,7 @@
 #include "motor_thread.h"
 
-MotorThread::MotorThread(uint32_t frequency_hz, bool user_space_driver)
-    : RealtimeThread(frequency_hz), motor_manager_(user_space_driver), user_space_driver_(user_space_driver) {
+MotorThread::MotorThread(uint32_t frequency_hz, bool user_space_driver, bool deadline, bool debug)
+    : RealtimeThread(frequency_hz, [](){}, deadline, debug), motor_manager_(user_space_driver), user_space_driver_(user_space_driver) {
 }
 
 void MotorThread::init() {
