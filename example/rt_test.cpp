@@ -12,9 +12,10 @@ class Task : public MotorThread {
         std::vector<uint8_t> mode(motor_manager_.motors().size(),ModeDesired::OPEN);
         for(int i=0; i<motor_manager_.motors().size(); i++) {
             if (data_.statuses[i].motor_encoder) {
-                mode[i] = ModeDesired::VOLTAGE;
+                mode[i] = ModeDesired::HARDWARE_BRAKE;
             }
         }
+        motor_manager_.set_command_mode(mode);
 
 	}
 
