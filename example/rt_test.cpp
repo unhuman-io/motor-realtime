@@ -23,9 +23,19 @@ class Task : public MotorThread {
 	uint32_t x_ = 0;
 };
 
+class RTTestApp : public MotorApp {
+ public:
+    RTTestApp(int argc, char **argv, MotorThread *motor_thread) :
+        MotorApp(argc, argv, motor_thread) {}
+    virtual void select_motors(MotorManager *m) {
+        m->get_motors_by_name({"j1","j2","j3","j4","j5","j6","j7","j8","j9","j10"});
+    }
+};
+
 int main (int argc, char **argv)
 {	
 	Task task;
-	auto app = MotorApp(argc, argv, &task);
+	//auto app = MotorApp(argc, argv, &task);
+    auto app = RTTestApp(argc, argv, &task);
 	return app.run();
 }
