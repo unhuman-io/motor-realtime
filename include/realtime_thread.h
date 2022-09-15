@@ -11,7 +11,7 @@ namespace std {
 class RealtimeThread {
  public:
 	RealtimeThread(uint32_t frequency_hz, std::function<void ()> update_fun = [](){}, bool deadline = false, bool debug = true) 
-        : deadline_(deadline), debug_(debug) {
+        : deadline_(deadline), debug_(debug), update_fun_(update_fun) {
 		period_ns_ = static_cast<uint32_t>(1.0e9/frequency_hz);
         max_jitter_ns_ = static_cast<uint32_t>(.1*period_ns_);
 	}
