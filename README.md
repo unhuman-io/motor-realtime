@@ -1,5 +1,19 @@
 # motor-realtime
 
+## Getting the code
+
+Note this project uses git submodules, clone with:
+```console
+git clone --recurse-submodules https://github.com/unhuman-io/motor-realtime.git
+```
+And pull with
+```console
+git pull --recurse-submodules
+```
+or set `git config submodule.recurse=true`.
+
+## Introduction
+
 This project contains helps interface with a kernel driver to communicate to motor 
 controllers over USB and an API to help communicate with the motor 
 controllers. The kernel driver is available at github at unhuman-io/usb_rt_driver. 
@@ -34,7 +48,7 @@ $ motor_util read --read-write-statistics > /dev/null &  # generates many USB re
 $ sudo modprobe usbmon
 $ lsusb
 ...
-Bus 001 Device 047: ID 3293:0100 Unhuman Inc. Freebot G474 Motor
+Bus 001 Device 047: ID 3293:0100 Unhuman Inc. Obot G474 Motor
 ...
 $ sudo motor_usbmon -d 47
 ...
