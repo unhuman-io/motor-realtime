@@ -8,6 +8,8 @@ namespace std {
     class thread;
 }
 
+namespace obot {
+
 class RealtimeThread {
  public:
 	RealtimeThread(uint32_t frequency_hz, std::function<void ()> update_fun = [](){}, bool debug = false) 
@@ -33,3 +35,5 @@ class RealtimeThread {
     uint32_t jitter_error_ = 0;
     bool debug_;
 };
+
+}  // namespace obot

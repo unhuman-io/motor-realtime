@@ -8,9 +8,10 @@
 #include <iomanip>
 #include <chrono>
 #include <map>
-class Motor;
 
 #include "motor.h"
+
+namespace obot {
 
 class FrequencyLimiter {
  public:
@@ -260,5 +261,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    }
    return os;
 }
+
+}  // namespace obot
 
 #endif

@@ -9,6 +9,8 @@
 #include "motor_util_fun.h"
 #include <sstream>
 
+namespace obot {
+
 // Returns a vector of strings that contain the dev file locations,
 // e.g. /dev/skel0
 static std::vector<std::string> udev (bool user_space_driver=false)
@@ -443,3 +445,5 @@ const std::map<const ModeDesired, const std::string> MotorManager::mode_map{
         {ModeDesired::STEPPER_VELOCITY, "stepper_velocity"}, {ModeDesired::HARDWARE_BRAKE, "hardware_brake"},
         {ModeDesired::FAULT, "fault"}, {ModeDesired::SLEEP, "sleep"},
         {ModeDesired::CRASH, "crash"}, {ModeDesired::BOARD_RESET, "reset"}};
+
+}  // namespace obot

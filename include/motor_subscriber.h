@@ -9,6 +9,8 @@
 #include <semaphore.h>
 #include <cstack.h>
 
+namespace obot {
+
 template <class T>
 class MotorSubscriber {
  public:
@@ -46,3 +48,5 @@ class MotorSubscriber {
     void * memptr_;
     CStack<T> * data_;
 };
+
+}  // namespace obot

@@ -20,6 +20,8 @@
 #include <time.h>
 #include "motor_util_fun.h"
 
+namespace obot {
+
 class TextFile {
  public:
     virtual ~TextFile();
@@ -412,5 +414,7 @@ class UserSpaceMotor : public Motor {
         .buffer_length = sizeof(status_),
     };
 };
+
+}  // namespace obot
 
 #endif

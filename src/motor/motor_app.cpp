@@ -22,6 +22,9 @@
 #include <sys/syscall.h>
 #define gettid() syscall(SYS_gettid)
 #include <csignal>
+
+namespace obot {
+
 sig_atomic_t volatile running = 1;
 
 MotorApp::MotorApp(int /* argc */, char ** /* argv */, MotorThread *motor_thread) 
@@ -86,3 +89,5 @@ int MotorApp::run() {
 	printf("main dies [%ld]\n", gettid());
     return 0;
 }
+
+}  // namespace obot

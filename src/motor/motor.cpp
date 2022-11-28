@@ -1,5 +1,7 @@
 #include "motor.h"
 
+namespace obot {
+
 static std::string udev_device_check_and_get_sysattr_value(struct udev_device *dev, const char * name) {
     const char *value = udev_device_get_sysattr_value(dev, name);
     if (value != nullptr) {
@@ -49,3 +51,5 @@ USBFile::~USBFile() {}
 UserSpaceMotor::~UserSpaceMotor() { close(); }
 
 SimulatedMotor::~SimulatedMotor() { ::close(fd_); }
+
+}  // namespace obot

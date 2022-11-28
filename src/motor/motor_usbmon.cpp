@@ -22,6 +22,8 @@
 
 #define SETUP_LEN  8
 
+using obot::Status;
+using obot::Command;
 
 struct mon_bin_hdr {
       uint64_t id;                 /*  0: URB ID - from submission to callback */
