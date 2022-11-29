@@ -4,6 +4,8 @@
 #include <thread>
 #include <chrono>
 
+using namespace obot;
+
 int main() {
     MotorManager m;
     m.get_motors_by_name({"sim"}, true, true);
