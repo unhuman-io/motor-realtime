@@ -5,7 +5,7 @@
 
 namespace py = pybind11;
 
-using obot::MotorManager;
+using namespace obot;
 
 PYBIND11_MODULE(motor, m) {
     m.doc() = "Motor interface";
