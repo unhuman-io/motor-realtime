@@ -14,7 +14,7 @@
 #include "realtime_thread.h"
 #include "keyboard.h"
 
-namespace obot {
+using namespace obot;
 
 struct cstr{char s[100];};
 class Statistics {
@@ -544,5 +544,3 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-
-}  // namespace obot
