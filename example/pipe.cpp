@@ -2,6 +2,8 @@
 #include "motor_thread.h"
 #include <poll.h>
 
+using namespace obot;
+
 class Task : public MotorThread {
  public:
   Task() : MotorThread(2000) {

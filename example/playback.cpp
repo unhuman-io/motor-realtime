@@ -5,6 +5,8 @@
 #include <sstream>
 #include <string>
 
+using namespace obot;
+
 class Task : public MotorThread {
  public:
   Task(int frequency) : MotorThread(frequency) {
