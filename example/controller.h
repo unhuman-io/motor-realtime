@@ -4,6 +4,8 @@
 #include "motor.h"
 #include <vector>
 
+using namespace obot;
+
 class PositionController {
  public:
     double update(double position_desired, double position_measured, int32_t count);
