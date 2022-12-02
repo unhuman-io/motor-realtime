@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <iostream>
+#include <memory>
+#include <utility>
 
 #include <libgen.h>
 #include <libudev.h>
@@ -210,11 +212,11 @@ class Motor {
         return s.substr(0,pos);
     }
     // note will probably not be the final interface
-    TextAPIItem operator[](const std::string s) { TextAPIItem t(motor_txt_, s); return t; }
+    TextAPIItem operator[](const std::string s) { TextAPIItem t(motor_txt_.get(), s); return t; }
     int fd() const { return fd_; }
     const Status * status() const { return &status_; }
     Command * command() { return &command_; }
-    TextFile* motor_text() { return motor_txt_; }
+    TextFile* motor_text() { return motor_txt_.get(); }
  protected:
     int open() { fd_ = ::open(dev_path_.c_str(), O_RDWR); fd_flags_ = fcntl(fd_, F_GETFL); return fd_; }
     int close() { return ::close(fd_); }
@@ -223,14 +225,13 @@ class Motor {
     std::string serial_number_, name_, dev_path_, base_path_, version_;
     Status status_ = {};
     Command command_ = {};
-    TextFile *motor_txt_;
+    std::unique_ptr<TextFile> motor_txt_;
 };
 
 class SimulatedMotor : public Motor {
  public:
    SimulatedMotor(std::string name) { 
-       name_ = name; 
-       motor_txt_ =  new TextFile();
+       name_ = name;
        fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
     }
    virtual ~SimulatedMotor() override;
@@ -323,7 +324,7 @@ class UserSpaceMotor : public Motor {
         udev_device_unref(dev);
         udev_unref(udev);  
         open();
-        motor_txt_ = new USBFile(fd_, 1);
+        motor_txt_ = std::make_unique<USBFile>(fd_, 1);
     }
     virtual ~UserSpaceMotor() override;
     virtual ssize_t read() override {
