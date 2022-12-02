@@ -323,7 +323,7 @@ class UserSpaceMotor : public Motor {
         udev_device_unref(dev);
         udev_unref(udev);  
         open();
-        motor_txt_ = std::move(std::unique_ptr<USBFile>(fd_, 1));
+        motor_txt_ = std::move(std::unique_ptr<USBFile>(new USBFile(fd_, 1)));
     }
     virtual ~UserSpaceMotor() override;
     virtual ssize_t read() override {

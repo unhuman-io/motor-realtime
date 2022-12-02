@@ -18,7 +18,7 @@ Motor::Motor(std::string dev_path) {
     name_ = udev_device_check_and_get_sysattr_value(dev, "device/interface");
 
     std::string text_api_path = udev_device_get_syspath(dev);
-    motor_txt_ = std::move(std::unique_ptr<SysFsFile>(text_api_path + "/device/text_api"));
+    motor_txt_ = std::move(std::unique_ptr<SysFsFile>(new SysFsFile(text_api_path + "/device/text_api")));
 
     struct udev_device *dev_parent = udev_device_get_parent_with_subsystem_devtype(
             dev,
