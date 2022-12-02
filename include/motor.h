@@ -5,7 +5,6 @@
 #include <unistd.h>
 #include <iostream>
 #include <memory>
-#include <utility>
 
 #include <libgen.h>
 #include <libudev.h>
@@ -324,7 +323,7 @@ class UserSpaceMotor : public Motor {
         udev_device_unref(dev);
         udev_unref(udev);  
         open();
-        motor_txt_ = std::make_unique<USBFile>(fd_, 1);
+        motor_txt_ = std::move(std::unique_ptr<USBFILE>(fd_, 1));
     }
     virtual ~UserSpaceMotor() override;
     virtual ssize_t read() override {
