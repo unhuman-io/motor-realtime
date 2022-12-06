@@ -2,6 +2,8 @@
 #include "motor_thread.h"
 #include <cmath>
 
+using namespace obot;
+
 class Task : public MotorThread {
  public:
   Task() : MotorThread(2000) {}

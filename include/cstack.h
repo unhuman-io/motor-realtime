@@ -2,6 +2,8 @@
 
 #include <atomic>
 
+namespace obot {
+
 // A circular stack. If data is written by one thread and read by one other thread then data is read from the top without worrying about thread safety.
 template <class T, int size=100>
 class CStack {
@@ -21,3 +23,5 @@ class CStack {
 	T data_[size] = {};
 	std::atomic<int> pos_ = {0};
 };
+
+}  // namespace obot

@@ -5,7 +5,7 @@
 struct cstr{char s[100];};
 
 int main(int /* argc */, char** /* argv */) {
-    MotorSubscriber<cstr> sub;
+    obot::MotorSubscriber<cstr> sub;
     while(1) {
         std::string str = sub.read().s;
         if (str.size()) {

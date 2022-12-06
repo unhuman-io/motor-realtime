@@ -8,6 +8,8 @@
 #include <cstring>
 #include "cstack.h"
 
+namespace obot {
+
 template <class T>
 class MotorPublisher {
  public:
@@ -38,3 +40,5 @@ class MotorPublisher {
     void * memptr_;
     CStack<T> *data_;
 };
+
+}  // namespace obot

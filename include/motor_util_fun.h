@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <stdexcept>
 
+namespace obot {
+
 // up to 2 seconds
 class Timer {
  public:
@@ -31,3 +33,5 @@ class Timer {
     uint32_t time_start_;
     uint32_t timeout_ns_;
 };
+
+}  // namespace obot

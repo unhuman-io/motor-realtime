@@ -10,6 +10,7 @@
 #include "motor_thread.h"
 #include <poll.h>
 
+using namespace obot;
 
 struct Joystick {
     uint8_t buttons[6];
