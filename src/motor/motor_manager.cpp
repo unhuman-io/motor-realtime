@@ -359,6 +359,9 @@ std::string MotorManager::command_headers() const {
         ss << "mode_desired" << i << ", ";
     }
     for (int i=0;i<length;i++) {
+        ss << "misc" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
         ss << "current_desired" << i << ", ";
     }
     for (int i=0;i<length;i++) {
@@ -426,6 +429,9 @@ std::string MotorManager::status_headers() const {
     }
     for (int i=0;i<length;i++) {
         ss << "error" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "misc" << i << ", ";
     }
     for (int i=0;i<length;i++) {
         ss << "mode_error_text" << i << ", ";
