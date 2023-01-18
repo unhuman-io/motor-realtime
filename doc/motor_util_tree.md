@@ -38,7 +38,7 @@ Usage: motor_util set [OPTIONS] [SUBCOMMAND]
 Options:
   -h,--help                   Print this help message and exit
   --host_time UINT            Host time
-  --mode UINT:value in {open->0,damped->1,current->2,position->3,torque->4,impedance->5,velocity->6,state->7,current_tuning->8,position_tuning->9,voltage->10,phase_lock->11,stepper_tuning->12,stepper_velocity->13,hardware_brake->14,clear_faults->250,fault->251,sleep->253,crash->254,reset->255} OR {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,250,251,253,254,255}
+  --mode UINT:value in {open->0,damped->1,current->2,position->3,torque->4,impedance->5,velocity->6,state->7,current_tuning->8,position_tuning->9,voltage->10,phase_lock->11,stepper_tuning->12,stepper_velocity->13,hardware_brake->14,driver_enable->248,driver_disable->249,clear_faults->250,fault->251,sleep->253,crash->254,reset->255} OR {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,248,249,250,251,253,254,255}
                               Mode desired
   --current FLOAT             Current desired
   --position FLOAT            Position desired
@@ -46,6 +46,7 @@ Options:
   --torque FLOAT              Torque desired
   --torque_dot FLOAT          Torque dot desired
   --reserved FLOAT            Reserved command
+  --gpio BOOLEAN              GPIO output
 
 Subcommands:
   state                       State control mode
