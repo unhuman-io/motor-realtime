@@ -1,6 +1,8 @@
 #include <motor_manager.h>
 #include <string>
 
+using namespace obot;
+
 int main (int /* argc */, char ** /* argv */) {
     MotorManager m;
     m.get_connected_motors();

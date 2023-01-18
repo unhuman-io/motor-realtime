@@ -9,6 +9,8 @@
 #include <Eigen/Dense>
 #include <vector>
 
+namespace obot {
+
 // for eigen map to work the structs must be even multiples of float
 static_assert(sizeof(MotorStatus) % sizeof(float) == 0);
 static_assert(sizeof(MotorCommand) % sizeof(float) == 0);
@@ -107,3 +109,5 @@ struct MotorChainCommand {
     MotorCommandFloat velocity_desired_;
     MotorCommandFloat torque_desired_;
 };
+
+}  // namespace obot

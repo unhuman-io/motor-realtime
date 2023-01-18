@@ -5,8 +5,7 @@
 #include "cstack.h"
 #define MAX_MOTORS 10
 
-class MotorManager;
-
+namespace obot {
 
 struct Data {
     Status statuses[MAX_MOTORS];
@@ -37,3 +36,5 @@ class MotorThread : public RealtimeThread {
     uint32_t poll_timeout_ns_ = 500*1000;
     bool user_space_driver_;
 };
+
+}  // namespace obot

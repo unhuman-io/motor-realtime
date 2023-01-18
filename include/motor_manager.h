@@ -8,9 +8,10 @@
 #include <iomanip>
 #include <chrono>
 #include <map>
-class Motor;
 
 #include "motor.h"
+
+namespace obot {
 
 class FrequencyLimiter {
  public:
@@ -114,6 +115,9 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Command> com
       os << +c.mode_desired << ", ";
    }
    for (auto c : command) {
+      os << +c.misc.byte << ", ";
+   }
+   for (auto c : command) {
       os << c.current_desired << ", ";
    }
    for (auto c : command) {
@@ -153,6 +157,11 @@ inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
       uint16_t u;
       is >> u >> s;
       c.mode_desired = u;
+   }
+   for (auto &c : command) {
+      uint16_t u;
+      is >> u >> s;
+      c.misc.byte = u;
    }
    for (auto &c : command) {
       is >> c.current_desired >> s;
@@ -234,6 +243,9 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    for (auto s : status) {
       os << static_cast<int>(s.flags.error.all) << ", ";
    }
+   for (auto s : status) {
+      os << static_cast<int>(s.flags.misc.byte) << ", ";
+   }
    os << std::dec;
    for (auto s : status) {
       os << MotorManager::mode_map.at(static_cast<ModeDesired>(s.flags.mode)) << " ";
@@ -255,10 +267,13 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
          PRINT_FLAG(torque_sensor);
          PRINT_FLAG(controller_tracking);
          PRINT_FLAG(host_fault);
+         PRINT_FLAG(driver_not_enabled);
       }
       os << ", ";
    }
    return os;
 }
+
+}  // namespace obot
 
 #endif

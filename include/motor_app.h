@@ -1,5 +1,7 @@
 #pragma once
 
+namespace obot {
+
 class MotorThread;
 class MotorManager;
 
@@ -12,3 +14,5 @@ class MotorApp {
  private:
     MotorThread *motor_thread_;
 };
+
+}  // namespace obot

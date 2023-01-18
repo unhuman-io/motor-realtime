@@ -2,6 +2,8 @@
 #include <thread>
 #include <motor_subscriber.h>
 
+using namespace obot;
+
 int main() {
     MotorSubscriber<MotorStatus> sub;
 

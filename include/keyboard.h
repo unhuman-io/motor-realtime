@@ -3,6 +3,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+namespace obot {
+
 // a class for terminal key inputs
 class Keyboard {
  public:
@@ -50,3 +52,5 @@ class Keyboard {
     bool strin_;
     std::thread *t_;
 };
+
+}  // namespace obot

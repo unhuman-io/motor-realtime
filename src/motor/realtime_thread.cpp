@@ -34,6 +34,8 @@
 #define __NR_sched_getattr		381
 #endif
 
+namespace obot {
+
 struct sched_attr {
 	__u32 size;
 
@@ -154,3 +156,5 @@ void RealtimeThread::run_deadline()
 	exit_.set_value();
 	//printf("realtime thread finish [%ld]\n", gettid());
 }
+
+}  // namespace obot

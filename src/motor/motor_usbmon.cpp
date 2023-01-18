@@ -22,6 +22,7 @@
 
 #define SETUP_LEN  8
 
+using namespace obot;
 
 struct mon_bin_hdr {
       uint64_t id;                 /*  0: URB ID - from submission to callback */

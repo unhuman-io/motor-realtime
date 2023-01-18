@@ -14,6 +14,8 @@
 #include "realtime_thread.h"
 #include "keyboard.h"
 
+using namespace obot;
+
 struct cstr{char s[100];};
 class Statistics {
  public:
@@ -94,6 +96,7 @@ int main(int argc, char** argv) {
     int run_stats = 100;
     bool allow_simulated = false;
     bool check_messages_version = false;
+    bool command_gpio = false;
     ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
@@ -107,6 +110,7 @@ int main(int argc, char** argv) {
     set->add_option("--torque", command.torque_desired, "Torque desired");
     set->add_option("--torque_dot", command.torque_dot_desired, "Torque dot desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
+    set->add_option("--gpio", command_gpio, "GPIO output");
     auto state_mode = set->add_subcommand("state", "State control mode")->final_callback([&](){command.mode_desired = ModeDesired::STATE;})->fallthrough();
     state_mode->add_option("--kp", command.state.kp, "Position error gain");
     state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
@@ -170,6 +174,10 @@ int main(int argc, char** argv) {
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });
+
+    if (command_gpio) {
+        command.misc.gpio = 1;
+    }
 
     if (*read_option && read_opts.csv) {
         read_opts.timestamp_in_seconds = true;

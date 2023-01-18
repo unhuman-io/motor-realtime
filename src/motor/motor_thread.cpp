@@ -1,5 +1,7 @@
 #include "motor_thread.h"
 
+namespace obot {
+
 MotorThread::MotorThread(uint32_t frequency_hz, bool user_space_driver)
     : RealtimeThread(frequency_hz), motor_manager_(user_space_driver), user_space_driver_(user_space_driver) {
 }
@@ -48,3 +50,5 @@ void MotorThread::update() {
     cstack_.push(data_);
     data_.last_time_end = std::chrono::steady_clock::now();
 }
+
+}  // namespace obot

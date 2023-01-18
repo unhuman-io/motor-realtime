@@ -9,6 +9,8 @@
 #include "motor_util_fun.h"
 #include <sstream>
 
+namespace obot {
+
 // Returns a vector of strings that contain the dev file locations,
 // e.g. /dev/skel0
 static std::vector<std::string> udev (bool user_space_driver=false)
@@ -357,6 +359,9 @@ std::string MotorManager::command_headers() const {
         ss << "mode_desired" << i << ", ";
     }
     for (int i=0;i<length;i++) {
+        ss << "misc" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
         ss << "current_desired" << i << ", ";
     }
     for (int i=0;i<length;i++) {
@@ -426,6 +431,9 @@ std::string MotorManager::status_headers() const {
         ss << "error" << i << ", ";
     }
     for (int i=0;i<length;i++) {
+        ss << "misc" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
         ss << "mode_error_text" << i << ", ";
     }
     return ss.str();
@@ -441,5 +449,9 @@ const std::map<const ModeDesired, const std::string> MotorManager::mode_map{
         {ModeDesired::POSITION_TUNING, "position_tuning"}, {ModeDesired::VOLTAGE, "voltage"}, 
         {ModeDesired::PHASE_LOCK, "phase_lock"}, {ModeDesired::STEPPER_TUNING, "stepper_tuning"},
         {ModeDesired::STEPPER_VELOCITY, "stepper_velocity"}, {ModeDesired::HARDWARE_BRAKE, "hardware_brake"},
+        {ModeDesired::DRIVER_ENABLE, "driver_enable"}, {ModeDesired::DRIVER_DISABLE, "driver_disable"},
+        {ModeDesired::CLEAR_FAULTS, "clear_faults"},
         {ModeDesired::FAULT, "fault"}, {ModeDesired::SLEEP, "sleep"},
         {ModeDesired::CRASH, "crash"}, {ModeDesired::BOARD_RESET, "reset"}};
+
+}  // namespace obot

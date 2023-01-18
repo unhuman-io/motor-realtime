@@ -1,5 +1,7 @@
 #include "controller.h"
 
+using namespace obot;
+
 void Controller::set_mode(Mode mode) {
     std::vector<Mode> modes(n_, mode);
     set_mode(modes);

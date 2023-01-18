@@ -7,6 +7,8 @@
 #include <motor_publisher.h>
 #include <motor_subscriber.h>
 
+using namespace obot;
+
 class Task : public MotorThread {
  public:
   Task(int frequency) : MotorThread(frequency) {
