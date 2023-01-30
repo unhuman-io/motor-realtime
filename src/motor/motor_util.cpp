@@ -67,7 +67,6 @@ struct ReadOptions {
     bool csv;
     bool reconnect;
     bool read_write_statistics;
-    bool reserved_float;
     std::vector<double> bits;
     bool compute_velocity;
     double timestamp_frequency_hz;
@@ -100,7 +99,7 @@ int main(int argc, char** argv) {
     ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
-        .reserved_float = false, .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
+        .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -148,7 +147,6 @@ int main(int argc, char** argv) {
     read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
     read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
-    read_option->add_flag("-f,--reserved-float", read_opts.reserved_float, "Interpret reserved 1 & 2 as floats rather than uint32");
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
     read_option->add_flag("-v,--compute_velocity", read_opts.compute_velocity, "Compute velocity from motor position");
     read_option->add_option("-p,--precision", read_opts.precision, "floating point precision output")->expected(1);
@@ -507,9 +505,6 @@ int main(int argc, char** argv) {
                 } else {
                     std::cout << std::fixed;
                     std::cout << std::setprecision(9);
-                    if (!read_opts.reserved_float) {
-                        std::cout << reserved_uint32;
-                    }
                     if (read_opts.host_time) {
                         std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count()/1e9 << ", ";
                     }
