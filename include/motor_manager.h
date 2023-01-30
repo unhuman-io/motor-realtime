@@ -182,16 +182,6 @@ inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
    return is;
 }
 
-inline int geti() { 
-    static int i = std::ios_base::xalloc();
-    return i;
-}
-
-inline std::ostream& reserved_uint32(std::ostream &os) {
-    os.iword(geti()) = 1; 
-    return os;
-}
-
 #define PRINT_FLAG(flag) if (s.flags.error.flag) os << #flag " "
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
@@ -219,22 +209,21 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
       os << s.motor_encoder << ", ";
    }
    for (auto s : status) {
-      os << s.reserved[0] << ", ";
+      os << static_cast<int>(s.rr_data.index) << ", ";
+      switch (s.rr_data.type) {
+         case FLOAT:
+            os << s.rr_data.data << ", ";
+            break;
+         case UINT32_T:
+            os << *reinterpret_cast<uint32_t *>(&s.rr_data.data) << ", ";
+            break;
+         case INT32_T:
+            os << *reinterpret_cast<uint32_t *>(&s.rr_data.data) << ", ";
+            break;
+      }
    }
-   if (os.iword(geti()) == 1) {
-      for (auto s : status) {
-         os << *reinterpret_cast<uint32_t *>(&s.reserved[1]) << ", ";
-      }
-      for (auto s : status) {
-         os << *reinterpret_cast<uint32_t *>(&s.reserved[2]) << ", ";
-      }
-   } else {
-      for (auto s : status) {
-         os << s.reserved[1] << ", ";
-      }
-      for (auto s : status) {
-         os << s.reserved[2] << ", ";
-      }
+   for (auto s : status) {
+      os << s.reserved << ", ";
    }
    for (auto s : status) {
       os << static_cast<int>(s.flags.mode) << ", ";
