@@ -257,6 +257,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
          PRINT_FLAG(controller_tracking);
          PRINT_FLAG(host_fault);
          PRINT_FLAG(driver_not_enabled);
+         PRINT_FLAG(fault);
       }
       os << ", ";
    }
