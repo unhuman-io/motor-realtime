@@ -83,6 +83,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
         motors_ = m;
         commands_.resize(m.size());
         statuses_.resize(m.size());
+        read_error_count_.resize(m.size(), 0);
     }
     return m;
 }
@@ -111,6 +112,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(st
         motors_ = m;
         commands_.resize(m.size());
         statuses_.resize(m.size());
+        read_error_count_.resize(m.size(), 0);
     }
     return m;
 }
@@ -137,6 +139,7 @@ void MotorManager::start_nonblocking_read() {
             auto size = motors_[i]->read();
             if (size != -1) {
                 // unintended data was read, save it but start another non blocking read
+                read_error_count_[i] = 0;
                 statuses_[i] = *motors_[i]->status();
                 motors_[i]->read();
             }
@@ -147,26 +150,33 @@ void MotorManager::start_nonblocking_read() {
 std::vector<Status> &MotorManager::read() {
     for (uint8_t i=0; i<motors_.size(); i++) {
         auto size = motors_[i]->read();
-        if (size == -1 && !motors_[i]->is_nonblocking()) {
-            // no data, error is in errno
-            std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
-            if (!reconnect_) {
-                throw std::runtime_error(err);
+        if (size == -1) {
+            if (motors_[i]->is_nonblocking() && errno == EAGAIN) {
+                // no data read at this time
+               read_error_count_[i]++;
             } else {
-                if (reconnect_rate_.run()) {
-                    std::cerr << err << std::endl;
-                    std::cerr << "trying to reconnect " << motors_[i]->base_path() << std::endl;
-                    try {
-                        auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
-                        if (motors[0]) {
-                            std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
-                            motors_[i] = motors[0];
+                // no data, error is in errno
+                std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
+                if (!reconnect_) {
+                    throw std::runtime_error(err);
+                } else {
+                    if (reconnect_rate_.run()) {
+                        std::cerr << err << std::endl;
+                        std::cerr << "trying to reconnect " << motors_[i]->base_path() << std::endl;
+                        try {
+                            auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
+                            if (motors[0]) {
+                                std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
+                                motors_[i] = motors[0];
+                            }
+                        } catch (std::runtime_error &e) {
+                            std::cerr << e.what() << std::endl;
                         }
-                    } catch (std::runtime_error &e) {
-                        std::cerr << e.what() << std::endl;
                     }
                 }
             }
+        } else {
+            read_error_count_[i] = 0;
         }
         statuses_[i] = *motors_[i]->status();
     }
