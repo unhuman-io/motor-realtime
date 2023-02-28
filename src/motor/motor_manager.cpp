@@ -134,7 +134,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vec
 std::vector<Status> &MotorManager::read() {
     for (uint8_t i=0; i<motors_.size(); i++) {
         auto size = motors_[i]->read();
-        if (size == -1) {
+        if (size == -1 && !motors_[i]->is_nonblocking()) {
             // no data, error is in errno
             std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
             if (!reconnect_) {
