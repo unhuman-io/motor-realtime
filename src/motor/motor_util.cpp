@@ -509,7 +509,7 @@ int main(int argc, char** argv) {
                         m.set_auto_count();
                         m.write_saved_commands();
                         if (read_opts.nonblock) {
-                            m.read();
+                            m.start_nonblocking_read();
                         }
                     }
                 } else {

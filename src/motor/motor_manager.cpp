@@ -131,6 +131,19 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vec
     return get_motors_by_name_function(devpaths, &Motor::dev_path, connect, allow_simulated);
 }
 
+void MotorManager::start_nonblocking_read() {
+    for (uint8_t i=0; i<motors_.size(); i++) {
+        if (motors_[i]->is_nonblocking()) {
+            auto size = motors_[i]->read();
+            if (size != -1) {
+                // unintended data was read, save it but start another non blocking read
+                statuses_[i] = *motors_[i]->status();
+                motors_[i]->read();
+            }
+        }
+    }
+}
+
 std::vector<Status> &MotorManager::read() {
     for (uint8_t i=0; i<motors_.size(); i++) {
         auto size = motors_[i]->read();
