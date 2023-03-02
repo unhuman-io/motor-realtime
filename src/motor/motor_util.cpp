@@ -508,9 +508,6 @@ int main(int argc, char** argv) {
                         }
                         m.set_auto_count();
                         m.write_saved_commands();
-                        if (read_opts.nonblock) {
-                            m.start_nonblocking_read();
-                        }
                     }
                 } else {
                     std::cout << std::fixed;
@@ -540,6 +537,9 @@ int main(int argc, char** argv) {
                         last_status = status;
                     }
                     std::cout << std::endl;
+                }
+                if (read_opts.nonblock) {
+                    m.start_nonblocking_read();
                 }
 
                 // option to not sleep
