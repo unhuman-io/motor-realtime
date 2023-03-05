@@ -159,8 +159,8 @@ class TextAPIItem {
         return c;
     }
     std::string get() const {        
-        char c[256] = {};
-        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, 256);
+        char c[MAX_API_DATA_SIZE] = {};
+        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_DATA_SIZE);
         c[nbytes] = 0;
         return c;
     }
