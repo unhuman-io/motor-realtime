@@ -247,7 +247,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
          PRINT_FLAG(board_temperature);
          PRINT_FLAG(motor_temperature);
          PRINT_FLAG(driver_fault);
-         PRINT_FLAG(motor_overcurent);
+         PRINT_FLAG(motor_overcurrent);
          PRINT_FLAG(motor_phase_open);
          PRINT_FLAG(motor_encoder);
          PRINT_FLAG(motor_encoder_limit);
