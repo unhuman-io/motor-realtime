@@ -80,7 +80,7 @@ class Calibration():
         input("remove 3.3V, hold boot button and press enter")
         self.ps5v.set_on()
         time.sleep(1)
-    #    program()
+        program()
         time.sleep(2)
         self.motor = self.m.get_connected_motors()[0]
         i5v_programmed = self.ps5v.get_current()
@@ -125,6 +125,10 @@ class Calibration():
            abs(phase_cal_ab["gain"][0]), abs(phase_cal_ab["gain"][1]), abs(phase_cal_c["gain"][2]))
         with open(self.motor.serial_number() + ".h", "w") as f:
             f.write(output)
+
+        self.m.set_command_mode(motor.ModeDesired.Sleep)
+        self.m.write_saved_commands()
+        input("check white led")
         self.inst.write("*rst")
         self.inst2.write("*rst")
 
