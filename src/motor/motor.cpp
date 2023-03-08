@@ -29,7 +29,8 @@ Motor::Motor(std::string dev_path) {
     serial_number_ = udev_device_check_and_get_sysattr_value(dev_parent, "serial"); 
     base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev_parent)));
     version_ = udev_device_check_and_get_sysattr_value(dev_parent, "configuration");
-    
+    devnum_ = std::stoi(udev_device_check_and_get_sysattr_value(dev_parent, "devnum"));
+
     udev_device_unref(dev);
     udev_unref(udev);
     open();
