@@ -38,6 +38,20 @@ Motor::Motor(std::string dev_path) {
 
 Motor::~Motor() { close(); }
 
+std::string Motor::get_fast_log() {
+    std::string s_read;
+    do {
+        s_read = motor_txt_->writeread("log");
+    } while (s_read != "log end");
+    s_read = motor_txt_->writeread("fast_log");
+    std::string s_log;
+    do {
+        s_read = motor_txt_->writeread("log");
+        s_log += s_read + '\n';
+    } while (s_read != "log end");
+    return s_log;
+}
+
 TextFile::~TextFile() {}
 
 SysfsFile::~SysfsFile() {
