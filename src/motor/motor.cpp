@@ -52,6 +52,15 @@ std::string Motor::get_fast_log() {
     return s_log;
 }
 
+std::vector<std::string> Motor::get_api_options() {
+    std::vector<std::string> v;
+    uint16_t length = std::stoi((*this)["api_length"].get());
+    for (uint16_t i=0; i<length; i++) {
+        v.push_back((*this)["api_name=" + std::to_string(i)].get());
+    }
+    return v;
+}
+
 TextFile::~TextFile() {}
 
 SysfsFile::~SysfsFile() {
