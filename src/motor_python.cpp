@@ -118,6 +118,7 @@ PYBIND11_MODULE(motor, m)
         .value("JointPosition", ModeDesired::JOINT_POSITION)
         .value("DriverEnable", ModeDesired::DRIVER_ENABLE)
         .value("DriverDisable", ModeDesired::DRIVER_DISABLE)
+        .value("ClearFaults", ModeDesired::CLEAR_FAULTS)
         .value("Sleep", ModeDesired::SLEEP)
         .value("Reset", ModeDesired::RESET)
         .export_values();
