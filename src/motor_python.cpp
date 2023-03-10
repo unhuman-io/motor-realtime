@@ -90,6 +90,7 @@ PYBIND11_MODULE(motor, m)
         .def("__getitem__", &Motor::operator[])
         .def("__setitem__", [](Motor &m, const std::string key, const std::string value)
              { m[key].set(value); })
+        .def("get_api_options", &Motor::get_api_options)
         .def("error_mask", [](Motor &m)
              { 
             MotorError mask;
