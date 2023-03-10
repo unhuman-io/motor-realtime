@@ -205,6 +205,7 @@ class Motor {
     std::string serial_number() const { return serial_number_; }
     std::string base_path() const {return base_path_; }
     std::string dev_path() const { return dev_path_; }
+    uint8_t devnum() const { return devnum_; }
     std::string version() const { return version_; }
     bool check_messages_version() { return MOTOR_MESSAGES_VERSION == operator[]("messages_version").get(); }
     std::string short_version() const {
@@ -227,6 +228,7 @@ class Motor {
     Status status_ = {};
     Command command_ = {};
     std::unique_ptr<TextFile> motor_txt_;
+    uint8_t devnum_ = 255;
 };
 
 class SimulatedMotor : public Motor {
@@ -291,7 +293,7 @@ class UserSpaceMotor : public Motor {
     UserSpaceMotor(std::string dev_path, uint8_t ep_num = 2) { 
         ep_num_ = ep_num;
         aread_transfer_.endpoint |= ep_num;
-        dev_path_ = dev_path; 
+        dev_path_ = dev_path;
         struct udev *udev = udev_new();
         struct stat st;
         if (stat(dev_path.c_str(), &st) < 0) {
@@ -321,6 +323,7 @@ class UserSpaceMotor : public Motor {
         } else {
             version_ = "";
         }
+        devnum_ = std::stoi(udev_device_get_sysattr_value(dev, "devnum"));
         
         udev_device_unref(dev);
         udev_unref(udev);  
