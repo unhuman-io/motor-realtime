@@ -227,6 +227,7 @@ class Motor {
     TextFile* motor_text() { return motor_txt_.get(); }
     std::string get_fast_log();
     std::vector<std::string> get_api_options();
+    uint32_t get_cpu_frequency() { return std::stoi((*this)["cpu_frequency"].get()); }
  protected:
     int open() { fd_ = ::open(dev_path_.c_str(), O_RDWR); fd_flags_ = fcntl(fd_, F_GETFL); return fd_; }
     int close() { return ::close(fd_); }

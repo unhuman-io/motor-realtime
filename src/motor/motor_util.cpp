@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
-    read_option->add_flag("-v,--compute_velocity", read_opts.compute_velocity, "Compute velocity from motor position");
+    read_option->add_flag("-v,--compute-velocity", read_opts.compute_velocity, "Compute velocity from motor and joint position");
     read_option->add_option("-p,--precision", read_opts.precision, "floating point precision output")->expected(1);
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]", true)->type_name("NUM_SAMPLES RANGE")->expected(0,2);
@@ -415,7 +415,7 @@ int main(int argc, char** argv) {
                         if (*timestamp_frequency_option) {
                             cpu_frequency_hz[i] = read_opts.timestamp_frequency_hz;
                         } else {
-                            cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get()); // TODO has issues if you run it in first few seconds
+                            cpu_frequency_hz[i] = motors[i]->get_cpu_frequency();
                         }
                     }
                 }
@@ -429,6 +429,9 @@ int main(int argc, char** argv) {
                 if (read_opts.compute_velocity) {
                     for (int i=0;i<motors.size();i++) {
                         std::cout << "motor_velocity" << i << ", ";
+                    }
+                    for (int i=0;i<motors.size();i++) {
+                        std::cout << "joint_velocity" << i << ", ";
                     }
                 }
                 std::cout << std::endl;
@@ -534,6 +537,11 @@ int main(int argc, char** argv) {
                         for (int i = 0; i < status.size(); i++) {
                             double dt = (status[i].mcu_timestamp - last_status[i].mcu_timestamp)/cpu_frequency_hz[i];
                             double velocity = (status[i].motor_position - last_status[i].motor_position)/dt;
+                            std::cout << std::setw(8) << velocity << ", ";
+                        }
+                        for (int i = 0; i < status.size(); i++) {
+                            double dt = (status[i].mcu_timestamp - last_status[i].mcu_timestamp)/cpu_frequency_hz[i];
+                            double velocity = (status[i].joint_position - last_status[i].joint_position)/dt;
                             std::cout << std::setw(8) << velocity << ", ";
                         }
                         last_status = status;

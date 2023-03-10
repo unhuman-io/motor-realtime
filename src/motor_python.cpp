@@ -95,7 +95,8 @@ PYBIND11_MODULE(motor, m)
              { 
             MotorError mask;
             mask.all = std::stoul(m["error_mask"].get(), 0, 16);
-            return motor_error_dict(mask); });
+            return motor_error_dict(mask); })
+        .def("get_cpu_frequency", &Motor::get_cpu_frequency);
 
     py::class_<TextAPIItem>(m, "TextAPIItem")
         .def("__repr__", &TextAPIItem::get)
