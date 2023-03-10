@@ -187,6 +187,11 @@ class Motor {
     virtual ~Motor();
     virtual ssize_t read() { return ::read(fd_, &status_, sizeof(status_)); }
     virtual ssize_t write() { return ::write(fd_, &command_, sizeof(command_)); }
+    virtual int set_nonblock() { nonblock_ = true;
+        return fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK); }
+    virtual int clear_nonblock() { nonblock_ = false;
+        return fcntl(fd_, F_SETFL, fd_flags_ & ~O_NONBLOCK); }
+    bool is_nonblocking() const { return nonblock_; }
     virtual ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
 			ssize_t read_error = read(); 
             int fcntl_error2 = fcntl(fd_, F_SETFL, fd_flags_);
@@ -225,6 +230,7 @@ class Motor {
     int close() { return ::close(fd_); }
     int fd_ = 0;
     int fd_flags_;
+    bool nonblock_ = false;
     std::string serial_number_, name_, dev_path_, base_path_, version_;
     Status status_ = {};
     Command command_ = {};

@@ -58,6 +58,7 @@ struct ReadOptions {
     bool poll;
     bool ppoll;
     bool aread;
+    bool nonblock;
     double frequency_hz;
     bool statistics;
     std::vector<std::string> text;
@@ -96,7 +97,7 @@ int main(int argc, char** argv) {
     bool allow_simulated = false;
     bool check_messages_version = false;
     bool command_gpio = false;
-    ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .frequency_hz = 1000, 
+    ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .nonblock = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
         .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
@@ -140,6 +141,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
     read_option->add_flag("--ppoll", read_opts.ppoll, "Use multipoll before read");
     read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
+    read_option->add_flag("--nonblock", read_opts.nonblock, "Use non-blocking i/o for read");
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
     read_option->add_flag("--read-write-statistics", read_opts.read_write_statistics, "Perform read then write when doing statistics test");
@@ -437,6 +439,11 @@ int main(int argc, char** argv) {
             int64_t period_ns = static_cast<int64_t>(1e9/read_opts.frequency_hz);
             Statistics exec(100), period(100), hops(100*m.motors().size());
             MotorPublisher<cstr> pub;
+            if (read_opts.nonblock) {
+                for (auto &m : m.motors()) {
+                    m->set_nonblock();
+                }
+            }
             while (!signal_exit) {
                 auto last_loop_start_time = loop_start_time;
                 loop_start_time = std::chrono::steady_clock::now();
@@ -532,6 +539,9 @@ int main(int argc, char** argv) {
                         last_status = status;
                     }
                     std::cout << std::endl;
+                }
+                if (read_opts.nonblock) {
+                    m.start_nonblocking_read();
                 }
 
                 // option to not sleep
