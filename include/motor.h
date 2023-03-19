@@ -21,6 +21,9 @@
 #include <time.h>
 #include "motor_util_fun.h"
 #include <vector>
+#include <map>
+#include <algorithm>
+#include <cmath>
 
 namespace obot {
 
@@ -37,6 +40,20 @@ class TextFile {
         str_in[s] = 0;
         return str_in;
     }
+};
+
+class SimulatedTextFile : public TextFile {
+ public:
+    virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override  {
+        std::string key = data_out;
+        std::string value = dict_[key];
+        ssize_t len = std::min(length_in, static_cast<unsigned int>(value.size()));
+        std::memcpy(data_in, value.c_str(), len);
+        return len;
+    }
+ private:
+    std::map<std::string, std::string> dict_ = {{"cpu_frequency", "1000000000"}, {"error_mask", "0"}, {"log", "log end"}};
+    friend class SimulatedMotor;
 };
 
 class SysfsFile : public TextFile {
@@ -226,7 +243,7 @@ class Motor {
     Command * command() { return &command_; }
     TextFile* motor_text() { return motor_txt_.get(); }
     std::string get_fast_log();
-    std::vector<std::string> get_api_options();
+    virtual std::vector<std::string> get_api_options();
     uint32_t get_cpu_frequency() { return std::stoi((*this)["cpu_frequency"].get()); }
  protected:
     int open() { fd_ = ::open(dev_path_.c_str(), O_RDWR); fd_flags_ = fcntl(fd_, F_GETFL); return fd_; }
@@ -246,17 +263,31 @@ class SimulatedMotor : public Motor {
    SimulatedMotor(std::string name) { 
        name_ = name;
        fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
+       motor_txt_ = std::move(std::unique_ptr<SimulatedTextFile>(new SimulatedTextFile()));
+       clock_gettime(CLOCK_MONOTONIC, &last_time_);
     }
    virtual ~SimulatedMotor() override;
-   virtual ssize_t read() override {
-       status_.mcu_timestamp++;
+   virtual ssize_t read() override {  
        timespec time;
        clock_gettime(CLOCK_MONOTONIC, &time);
        double dt = clock_diff(time, last_time_);
+       status_.mcu_timestamp += dt*1e9;
        last_time_ = time;
+       t_seconds_ += dt;
        switch (active_command_.mode_desired) {
            case VELOCITY:
-                status_.motor_position += command_.velocity_desired*dt;
+                status_.motor_position += velocity_*dt;
+                status_.joint_position = status_.motor_position/gear_ratio_;
+                break;           
+           case CURRENT_TUNING:
+                status_.iq = active_command_.current_tuning.bias + 
+                    active_command_.current_tuning.amplitude*std::sin(active_command_.current_tuning.frequency*2*M_PI*t_seconds_);
+           case CURRENT:
+                status_.torque = kt_*gear_ratio_*status_.iq;
+                // intentional pass through
+           case TORQUE:
+                velocity_ += status_.torque/inertia_;
+                status_.motor_position += velocity_*dt;
                 status_.joint_position = status_.motor_position/gear_ratio_;
                 break;
        }
@@ -272,14 +303,18 @@ class SimulatedMotor : public Motor {
        }
        switch (command_.mode_desired) {
            case POSITION:
+               velocity_ = 0;
                status_.motor_position = command_.position_desired;
                status_.joint_position = command_.position_desired/gear_ratio_;
                break;
            case VELOCITY:
-               clock_gettime(CLOCK_MONOTONIC, &last_time_);
+               velocity_ = command_.velocity_desired;
+               //clock_gettime(CLOCK_MONOTONIC, &last_time_);
                break;
            case TORQUE:
                status_.torque = command_.torque_desired;
+               break;
+           case CURRENT_TUNING:
                break;
            default:
                break; 
@@ -288,12 +323,17 @@ class SimulatedMotor : public Motor {
        return sizeof(command_); 
    }
    void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
+   virtual std::vector<std::string> get_api_options() override;
  private:
     // a - b in seconds
     double clock_diff(timespec &a, timespec &b) {
         return a.tv_sec - b.tv_sec + a.tv_nsec*1e-9 - b.tv_nsec*1e-9;
     }
     double gear_ratio_ = 1;
+    double kt_ = 1;
+    double inertia_ = 1;
+    double velocity_ = 0;
+    double t_seconds_ = 0;
     Command active_command_;
     timespec last_time_;
 };

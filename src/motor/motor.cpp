@@ -61,6 +61,15 @@ std::vector<std::string> Motor::get_api_options() {
     return v;
 }
 
+std::vector<std::string> SimulatedMotor::get_api_options() {
+    std::vector<std::string> v;
+    std::map<std::string, std::string> &dict = static_cast<SimulatedTextFile*>(motor_txt_.get())->dict_;
+    for(std::map<std::string, std::string>::iterator it = dict.begin(); it != dict.end(); ++it) {
+        v.push_back(it->first);
+    }
+    return v;
+}
+
 TextFile::~TextFile() {}
 
 SysfsFile::~SysfsFile() {
