@@ -52,7 +52,8 @@ class SimulatedTextFile : public TextFile {
         return len;
     }
  private:
-    std::map<std::string, std::string> dict_ = {{"cpu_frequency", "1000000000"}, {"error_mask", "0"}, {"log", "log end"}};
+    std::map<std::string, std::string> dict_ = {{"cpu_frequency", "1000000000"}, {"error_mask", "0"}, {"log", "log end"}, 
+        {"fast log", "ok\ntimestamp,"}};
     friend class SimulatedMotor;
 };
 

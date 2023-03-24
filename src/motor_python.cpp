@@ -138,6 +138,13 @@ PYBIND11_MODULE(motor, m)
         .def_readwrite("bias", &CurrentTuningCommand::bias)
         .def_readwrite("frequency", &CurrentTuningCommand::frequency);
 
+    
+    py::class_<PositionTuningCommand>(m, "PositionTuningCommand")
+        .def_readwrite("amplitude", &PositionTuningCommand::amplitude)
+        .def_readwrite("mode", &PositionTuningCommand::mode)
+        .def_readwrite("bias", &PositionTuningCommand::bias)
+        .def_readwrite("frequency", &PositionTuningCommand::frequency);
+
     py::class_<Command>(m, "Command")
         .def(py::init<uint32_t, uint8_t, float, float, float, float>(),
              py::arg("host_timestamp") = 0,
@@ -154,6 +161,7 @@ PYBIND11_MODULE(motor, m)
         .def_readwrite("torque_desired", &Command::torque_desired)
         .def_readwrite("reserved", &Command::reserved)
         .def_readwrite("current_tuning", &Command::current_tuning)
+        .def_readwrite("position_tuning", &Command::position_tuning)
         .def("__repr__", [](const Command &c)
              { return "<Command: " + std::to_string(c.host_timestamp) + ">"; });
 
