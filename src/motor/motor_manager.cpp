@@ -83,6 +83,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
         motors_ = m;
         commands_.resize(m.size());
         statuses_.resize(m.size());
+        read_error_count_.resize(m.size(), 0);
     }
     return m;
 }
@@ -111,6 +112,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(st
         motors_ = m;
         commands_.resize(m.size());
         statuses_.resize(m.size());
+        read_error_count_.resize(m.size(), 0);
     }
     return m;
 }
@@ -131,29 +133,50 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vec
     return get_motors_by_name_function(devpaths, &Motor::dev_path, connect, allow_simulated);
 }
 
+void MotorManager::start_nonblocking_read() {
+    for (uint8_t i=0; i<motors_.size(); i++) {
+        if (motors_[i]->is_nonblocking()) {
+            auto size = motors_[i]->read();
+            if (size != -1) {
+                // unintended data was read, save it but start another non blocking read
+                read_error_count_[i] = 0;
+                statuses_[i] = *motors_[i]->status();
+                motors_[i]->read();
+            }
+        }
+    }
+}
+
 std::vector<Status> &MotorManager::read() {
     for (uint8_t i=0; i<motors_.size(); i++) {
         auto size = motors_[i]->read();
         if (size == -1) {
-            // no data, error is in errno
-            std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
-            if (!reconnect_) {
-                throw std::runtime_error(err);
+            if (motors_[i]->is_nonblocking() && errno == EAGAIN) {
+                // no data read at this time
+               read_error_count_[i]++;
             } else {
-                if (reconnect_rate_.run()) {
-                    std::cerr << err << std::endl;
-                    std::cerr << "trying to reconnect " << motors_[i]->base_path() << std::endl;
-                    try {
-                        auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
-                        if (motors[0]) {
-                            std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
-                            motors_[i] = motors[0];
+                // no data, error is in errno
+                std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
+                if (!reconnect_) {
+                    throw std::runtime_error(err);
+                } else {
+                    if (reconnect_rate_.run()) {
+                        std::cerr << err << std::endl;
+                        std::cerr << "trying to reconnect " << motors_[i]->base_path() << std::endl;
+                        try {
+                            auto motors = get_motors_by_path({motors_[i]->base_path()}, false);
+                            if (motors[0]) {
+                                std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
+                                motors_[i] = motors[0];
+                            }
+                        } catch (std::runtime_error &e) {
+                            std::cerr << e.what() << std::endl;
                         }
-                    } catch (std::runtime_error &e) {
-                        std::cerr << e.what() << std::endl;
                     }
                 }
             }
+        } else {
+            read_error_count_[i] = 0;
         }
         statuses_[i] = *motors_[i]->status();
     }
@@ -416,13 +439,13 @@ std::string MotorManager::status_headers() const {
         ss << "motor_encoder" << i << ", ";
     }
     for (int i=0;i<length;i++) {
-        ss << "reserved0" << i << ", ";
+        ss << "rr_index" << i << ", ";
     }
     for (int i=0;i<length;i++) {
-        ss << "reserved1" << i << ", ";
+        ss << "rr_data" << i << ", ";
     }
     for (int i=0;i<length;i++) {
-        ss << "reserved2" << i << ", ";
+        ss << "reserved" << i << ", ";
     }
     for (int i=0;i<length;i++) {
         ss << "mode" << i << ", ";
@@ -449,6 +472,7 @@ const std::map<const ModeDesired, const std::string> MotorManager::mode_map{
         {ModeDesired::POSITION_TUNING, "position_tuning"}, {ModeDesired::VOLTAGE, "voltage"}, 
         {ModeDesired::PHASE_LOCK, "phase_lock"}, {ModeDesired::STEPPER_TUNING, "stepper_tuning"},
         {ModeDesired::STEPPER_VELOCITY, "stepper_velocity"}, {ModeDesired::HARDWARE_BRAKE, "hardware_brake"},
+        {ModeDesired::JOINT_POSITION, "joint_position"}, {ModeDesired::FIND_LIMITS, "find_limits"},
         {ModeDesired::DRIVER_ENABLE, "driver_enable"}, {ModeDesired::DRIVER_DISABLE, "driver_disable"},
         {ModeDesired::CLEAR_FAULTS, "clear_faults"},
         {ModeDesired::FAULT, "fault"}, {ModeDesired::SLEEP, "sleep"},

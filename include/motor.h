@@ -20,6 +20,10 @@
 #include "motor_messages.h"
 #include <time.h>
 #include "motor_util_fun.h"
+#include <vector>
+#include <map>
+#include <algorithm>
+#include <cmath>
 
 namespace obot {
 
@@ -36,6 +40,21 @@ class TextFile {
         str_in[s] = 0;
         return str_in;
     }
+};
+
+class SimulatedTextFile : public TextFile {
+ public:
+    virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override  {
+        std::string key = data_out;
+        std::string value = dict_[key];
+        ssize_t len = std::min(length_in, static_cast<unsigned int>(value.size()));
+        std::memcpy(data_in, value.c_str(), len);
+        return len;
+    }
+ private:
+    std::map<std::string, std::string> dict_ = {{"cpu_frequency", "1000000000"}, {"error_mask", "0"}, {"log", "log end"}, 
+        {"fast log", "ok\ntimestamp,"}};
+    friend class SimulatedMotor;
 };
 
 class SysfsFile : public TextFile {
@@ -159,8 +178,8 @@ class TextAPIItem {
         return c;
     }
     std::string get() const {        
-        char c[64] = {};
-        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, 64);
+        char c[MAX_API_DATA_SIZE] = {};
+        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_DATA_SIZE);
         c[nbytes] = 0;
         return c;
     }
@@ -187,6 +206,11 @@ class Motor {
     virtual ~Motor();
     virtual ssize_t read() { return ::read(fd_, &status_, sizeof(status_)); }
     virtual ssize_t write() { return ::write(fd_, &command_, sizeof(command_)); }
+    virtual int set_nonblock() { nonblock_ = true;
+        return fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK); }
+    virtual int clear_nonblock() { nonblock_ = false;
+        return fcntl(fd_, F_SETFL, fd_flags_ & ~O_NONBLOCK); }
+    bool is_nonblocking() const { return nonblock_; }
     virtual ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
 			ssize_t read_error = read(); 
             int fcntl_error2 = fcntl(fd_, F_SETFL, fd_flags_);
@@ -205,6 +229,7 @@ class Motor {
     std::string serial_number() const { return serial_number_; }
     std::string base_path() const {return base_path_; }
     std::string dev_path() const { return dev_path_; }
+    uint8_t devnum() const { return devnum_; }
     std::string version() const { return version_; }
     bool check_messages_version() { return MOTOR_MESSAGES_VERSION == operator[]("messages_version").get(); }
     std::string short_version() const {
@@ -218,15 +243,20 @@ class Motor {
     const Status * status() const { return &status_; }
     Command * command() { return &command_; }
     TextFile* motor_text() { return motor_txt_.get(); }
+    std::string get_fast_log();
+    virtual std::vector<std::string> get_api_options();
+    uint32_t get_cpu_frequency() { return std::stoi((*this)["cpu_frequency"].get()); }
  protected:
     int open() { fd_ = ::open(dev_path_.c_str(), O_RDWR); fd_flags_ = fcntl(fd_, F_GETFL); return fd_; }
     int close() { return ::close(fd_); }
     int fd_ = 0;
     int fd_flags_;
+    bool nonblock_ = false;
     std::string serial_number_, name_, dev_path_, base_path_, version_;
     Status status_ = {};
     Command command_ = {};
     std::unique_ptr<TextFile> motor_txt_;
+    uint8_t devnum_ = 255;
 };
 
 class SimulatedMotor : public Motor {
@@ -234,17 +264,31 @@ class SimulatedMotor : public Motor {
    SimulatedMotor(std::string name) { 
        name_ = name;
        fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
+       motor_txt_ = std::move(std::unique_ptr<SimulatedTextFile>(new SimulatedTextFile()));
+       clock_gettime(CLOCK_MONOTONIC, &last_time_);
     }
    virtual ~SimulatedMotor() override;
-   virtual ssize_t read() override {
-       status_.mcu_timestamp++;
+   virtual ssize_t read() override {  
        timespec time;
        clock_gettime(CLOCK_MONOTONIC, &time);
        double dt = clock_diff(time, last_time_);
+       status_.mcu_timestamp += dt*1e9;
        last_time_ = time;
+       t_seconds_ += dt;
        switch (active_command_.mode_desired) {
            case VELOCITY:
-                status_.motor_position += command_.velocity_desired*dt;
+                status_.motor_position += velocity_*dt;
+                status_.joint_position = status_.motor_position/gear_ratio_;
+                break;           
+           case CURRENT_TUNING:
+                status_.iq = active_command_.current_tuning.bias + 
+                    active_command_.current_tuning.amplitude*std::sin(active_command_.current_tuning.frequency*2*M_PI*t_seconds_);
+           case CURRENT:
+                status_.torque = kt_*gear_ratio_*status_.iq;
+                // intentional pass through
+           case TORQUE:
+                velocity_ += status_.torque/inertia_;
+                status_.motor_position += velocity_*dt;
                 status_.joint_position = status_.motor_position/gear_ratio_;
                 break;
        }
@@ -260,14 +304,18 @@ class SimulatedMotor : public Motor {
        }
        switch (command_.mode_desired) {
            case POSITION:
+               velocity_ = 0;
                status_.motor_position = command_.position_desired;
                status_.joint_position = command_.position_desired/gear_ratio_;
                break;
            case VELOCITY:
-               clock_gettime(CLOCK_MONOTONIC, &last_time_);
+               velocity_ = command_.velocity_desired;
+               //clock_gettime(CLOCK_MONOTONIC, &last_time_);
                break;
            case TORQUE:
                status_.torque = command_.torque_desired;
+               break;
+           case CURRENT_TUNING:
                break;
            default:
                break; 
@@ -276,12 +324,17 @@ class SimulatedMotor : public Motor {
        return sizeof(command_); 
    }
    void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
+   virtual std::vector<std::string> get_api_options() override;
  private:
     // a - b in seconds
     double clock_diff(timespec &a, timespec &b) {
         return a.tv_sec - b.tv_sec + a.tv_nsec*1e-9 - b.tv_nsec*1e-9;
     }
     double gear_ratio_ = 1;
+    double kt_ = 1;
+    double inertia_ = 1;
+    double velocity_ = 0;
+    double t_seconds_ = 0;
     Command active_command_;
     timespec last_time_;
 };
@@ -291,7 +344,7 @@ class UserSpaceMotor : public Motor {
     UserSpaceMotor(std::string dev_path, uint8_t ep_num = 2) { 
         ep_num_ = ep_num;
         aread_transfer_.endpoint |= ep_num;
-        dev_path_ = dev_path; 
+        dev_path_ = dev_path;
         struct udev *udev = udev_new();
         struct stat st;
         if (stat(dev_path.c_str(), &st) < 0) {
@@ -321,6 +374,7 @@ class UserSpaceMotor : public Motor {
         } else {
             version_ = "";
         }
+        devnum_ = std::stoi(udev_device_get_sysattr_value(dev, "devnum"));
         
         udev_device_unref(dev);
         udev_unref(udev);  

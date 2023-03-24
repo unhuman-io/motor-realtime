@@ -50,6 +50,7 @@ class MotorManager {
     void write(std::vector<Command> &);
     void write_saved_commands();
     void aread();
+    void start_nonblocking_read();
     int poll();
     int multipoll(uint32_t timeout_ns = 0);
 
@@ -78,9 +79,11 @@ class MotorManager {
     int serialize_command_size() const;
     int serialize_saved_commands(char *data) const;
     bool deserialize_saved_commands(char *data);
+    const std::vector<int> &get_read_error_count() const { return read_error_count_; }
  private:
     std::vector<std::shared_ptr<Motor>> get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors_;
+    std::vector<int> read_error_count_;
     std::vector<Command> commands_;
     std::vector<Status> statuses_;
     bool user_space_driver_;
@@ -182,16 +185,6 @@ inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
    return is;
 }
 
-inline int geti() { 
-    static int i = std::ios_base::xalloc();
-    return i;
-}
-
-inline std::ostream& reserved_uint32(std::ostream &os) {
-    os.iword(geti()) = 1; 
-    return os;
-}
-
 #define PRINT_FLAG(flag) if (s.flags.error.flag) os << #flag " "
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
@@ -219,22 +212,21 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
       os << s.motor_encoder << ", ";
    }
    for (auto s : status) {
-      os << s.reserved[0] << ", ";
+      os << static_cast<int>(s.rr_data.index) << ", ";
+      switch (s.rr_data.type) {
+         case FLOAT:
+            os << s.rr_data.data << ", ";
+            break;
+         case UINT32_T:
+            os << *reinterpret_cast<uint32_t *>(&s.rr_data.data) << ", ";
+            break;
+         case INT32_T:
+            os << *reinterpret_cast<uint32_t *>(&s.rr_data.data) << ", ";
+            break;
+      }
    }
-   if (os.iword(geti()) == 1) {
-      for (auto s : status) {
-         os << *reinterpret_cast<uint32_t *>(&s.reserved[1]) << ", ";
-      }
-      for (auto s : status) {
-         os << *reinterpret_cast<uint32_t *>(&s.reserved[2]) << ", ";
-      }
-   } else {
-      for (auto s : status) {
-         os << s.reserved[1] << ", ";
-      }
-      for (auto s : status) {
-         os << s.reserved[2] << ", ";
-      }
+   for (auto s : status) {
+      os << s.reserved << ", ";
    }
    for (auto s : status) {
       os << static_cast<int>(s.flags.mode) << ", ";
@@ -258,7 +250,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
          PRINT_FLAG(board_temperature);
          PRINT_FLAG(motor_temperature);
          PRINT_FLAG(driver_fault);
-         PRINT_FLAG(motor_overcurent);
+         PRINT_FLAG(motor_overcurrent);
          PRINT_FLAG(motor_phase_open);
          PRINT_FLAG(motor_encoder);
          PRINT_FLAG(motor_encoder_limit);
@@ -268,6 +260,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
          PRINT_FLAG(controller_tracking);
          PRINT_FLAG(host_fault);
          PRINT_FLAG(driver_not_enabled);
+         PRINT_FLAG(fault);
       }
       os << ", ";
    }

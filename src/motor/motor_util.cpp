@@ -58,6 +58,7 @@ struct ReadOptions {
     bool poll;
     bool ppoll;
     bool aread;
+    bool nonblock;
     double frequency_hz;
     bool statistics;
     std::vector<std::string> text;
@@ -67,7 +68,6 @@ struct ReadOptions {
     bool csv;
     bool reconnect;
     bool read_write_statistics;
-    bool reserved_float;
     std::vector<double> bits;
     bool compute_velocity;
     double timestamp_frequency_hz;
@@ -97,10 +97,10 @@ int main(int argc, char** argv) {
     bool allow_simulated = false;
     bool check_messages_version = false;
     bool command_gpio = false;
-    ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .frequency_hz = 1000, 
+    ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .nonblock = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
-        .reserved_float = false, .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
+        .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -141,6 +141,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
     read_option->add_flag("--ppoll", read_opts.ppoll, "Use multipoll before read");
     read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
+    read_option->add_flag("--nonblock", read_opts.nonblock, "Use non-blocking i/o for read");
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
     read_option->add_flag("--read-write-statistics", read_opts.read_write_statistics, "Perform read then write when doing statistics test");
@@ -148,9 +149,8 @@ int main(int argc, char** argv) {
     read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
     read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
-    read_option->add_flag("-f,--reserved-float", read_opts.reserved_float, "Interpret reserved 1 & 2 as floats rather than uint32");
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
-    read_option->add_flag("-v,--compute_velocity", read_opts.compute_velocity, "Compute velocity from motor position");
+    read_option->add_flag("-v,--compute-velocity", read_opts.compute_velocity, "Compute velocity from motor and joint position");
     read_option->add_option("-p,--precision", read_opts.precision, "floating point precision output")->expected(1);
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]", true)->type_name("NUM_SAMPLES RANGE")->expected(0,2);
@@ -229,6 +229,7 @@ int main(int argc, char** argv) {
         int version_width = 9;
         int path_width = 6;
         int dev_path_width = 5;
+        int device_num_width = 7;
         if (motors.size() > 0) {
             for (auto m : motors) {
                 name_width = std::max(name_width, (int) m->name().size()+3);
@@ -257,14 +258,15 @@ int main(int argc, char** argv) {
             if (motors.size() > 0) {
                 std::cout << std::setw(dev_path_width) << "Dev" << std::setw(name_width) << "Name"
                             << std::setw(serial_number_width) << " Serial number"
-                            << std::setw(version_width) << "Version" << std::setw(path_width) << "Path" << std::endl;
-                std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
+                            << std::setw(version_width) << "Version" << std::setw(path_width) << "Path" << std::setw(device_num_width) << "Devnum" << std::endl;
+                std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width + device_num_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
                 for (auto m : motors) {
                     std::cout << std::setw(dev_path_width) << m->dev_path()
                             << std::setw(name_width) << m->name()
                             << std::setw(serial_number_width) << m->serial_number()
                             << std::setw(version_width) << (verbose_list ? m->version() : m->short_version())
-                            << std::setw(path_width) << m->base_path() << std::endl;
+                            << std::setw(path_width) << m->base_path()
+                            << std::setw(device_num_width) << (int) m->devnum() << std::endl;
                 }
             }
         }
@@ -413,7 +415,7 @@ int main(int argc, char** argv) {
                         if (*timestamp_frequency_option) {
                             cpu_frequency_hz[i] = read_opts.timestamp_frequency_hz;
                         } else {
-                            cpu_frequency_hz[i] = std::stod((*m.motors()[i])["cpu_frequency"].get()); // TODO has issues if you run it in first few seconds
+                            cpu_frequency_hz[i] = motors[i]->get_cpu_frequency();
                         }
                     }
                 }
@@ -428,6 +430,9 @@ int main(int argc, char** argv) {
                     for (int i=0;i<motors.size();i++) {
                         std::cout << "motor_velocity" << i << ", ";
                     }
+                    for (int i=0;i<motors.size();i++) {
+                        std::cout << "joint_velocity" << i << ", ";
+                    }
                 }
                 std::cout << std::endl;
             }
@@ -437,6 +442,11 @@ int main(int argc, char** argv) {
             int64_t period_ns = static_cast<int64_t>(1e9/read_opts.frequency_hz);
             Statistics exec(100), period(100), hops(100*m.motors().size());
             MotorPublisher<cstr> pub;
+            if (read_opts.nonblock) {
+                for (auto &m : m.motors()) {
+                    m->set_nonblock();
+                }
+            }
             while (!signal_exit) {
                 auto last_loop_start_time = loop_start_time;
                 loop_start_time = std::chrono::steady_clock::now();
@@ -507,9 +517,6 @@ int main(int argc, char** argv) {
                 } else {
                     std::cout << std::fixed;
                     std::cout << std::setprecision(9);
-                    if (!read_opts.reserved_float) {
-                        std::cout << reserved_uint32;
-                    }
                     if (read_opts.host_time) {
                         std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(loop_start_time - start_time).count()/1e9 << ", ";
                     }
@@ -532,9 +539,17 @@ int main(int argc, char** argv) {
                             double velocity = (status[i].motor_position - last_status[i].motor_position)/dt;
                             std::cout << std::setw(8) << velocity << ", ";
                         }
+                        for (int i = 0; i < status.size(); i++) {
+                            double dt = (status[i].mcu_timestamp - last_status[i].mcu_timestamp)/cpu_frequency_hz[i];
+                            double velocity = (status[i].joint_position - last_status[i].joint_position)/dt;
+                            std::cout << std::setw(8) << velocity << ", ";
+                        }
                         last_status = status;
                     }
                     std::cout << std::endl;
+                }
+                if (read_opts.nonblock) {
+                    m.start_nonblocking_read();
                 }
 
                 // option to not sleep

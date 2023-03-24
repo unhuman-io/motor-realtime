@@ -29,13 +29,46 @@ Motor::Motor(std::string dev_path) {
     serial_number_ = udev_device_check_and_get_sysattr_value(dev_parent, "serial"); 
     base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev_parent)));
     version_ = udev_device_check_and_get_sysattr_value(dev_parent, "configuration");
-    
+    devnum_ = std::stoi(udev_device_check_and_get_sysattr_value(dev_parent, "devnum"));
+
     udev_device_unref(dev);
     udev_unref(udev);
     open();
 }
 
 Motor::~Motor() { close(); }
+
+std::string Motor::get_fast_log() {
+    std::string s_read;
+    do {
+        s_read = motor_txt_->writeread("log");
+    } while (s_read != "log end");
+    s_read = motor_txt_->writeread("fast_log");
+    std::string s_log;
+    do {
+        s_read = motor_txt_->writeread("log");
+        s_log += s_read + '\n';
+    } while (s_read != "log end");
+    return s_log;
+}
+
+std::vector<std::string> Motor::get_api_options() {
+    std::vector<std::string> v;
+    uint16_t length = std::stoi((*this)["api_length"].get());
+    for (uint16_t i=0; i<length; i++) {
+        v.push_back((*this)["api_name=" + std::to_string(i)].get());
+    }
+    return v;
+}
+
+std::vector<std::string> SimulatedMotor::get_api_options() {
+    std::vector<std::string> v;
+    std::map<std::string, std::string> &dict = static_cast<SimulatedTextFile*>(motor_txt_.get())->dict_;
+    for(std::map<std::string, std::string>::iterator it = dict.begin(); it != dict.end(); ++it) {
+        v.push_back(it->first);
+    }
+    return v;
+}
 
 TextFile::~TextFile() {}
 
