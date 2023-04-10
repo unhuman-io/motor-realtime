@@ -6,10 +6,27 @@ import subprocess
 import re
 import time
 import numpy as np
+import sys
+import argparse
 
-def program():
-        print("Programming")
-        result = subprocess.run(["/home/lee/obot/obot-controller/obot_g474/build/motor_aksim/load_motor_aksim.sh"], capture_output=True)
+class Logger(object):
+    def __init__(self):
+        self.terminal = sys.stdout
+        self.log = open("log.dat", "a")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+    
+    def flush(self):
+        self.log.flush()
+        self.terminal.flush()
+
+sys.stdout = Logger()
+
+def program(firmware_script = "../../obot-controller/obot_g474/build/motor_aksim/load_motor_aksim.sh"):
+        print("Programming " + firmware_script)
+        result = subprocess.run([firmware_script], capture_output=True)
         match = re.findall(r"^File downloaded successfully", result.stdout.decode(), re.MULTILINE)
         if len(match) == 2:
             print("Successful download")
@@ -47,7 +64,7 @@ class PowerSupply():
     
 
 class Calibration():
-    def __init__(self):
+    def __init__(self, args):
         self.m = motor.MotorManager()
         #self.motor = self.m.get_connected_motors()[0]
         a = pyvisa.ResourceManager()
@@ -59,6 +76,7 @@ class Calibration():
         self.ps5v = PowerSupply(self.inst, 2)
         self.ps48v = PowerSupply(self.inst2, 1)
         self.ps10a = PowerSupply(self.inst2, 2)
+        self.args = args
 
 
     def run(self):
@@ -80,7 +98,8 @@ class Calibration():
         input("remove 3.3V, hold boot button and press enter")
         self.ps5v.set_on()
         time.sleep(1)
-        program()
+        if not self.args.no_firmware:
+            program(**args)
         time.sleep(2)
         self.motor = self.m.get_connected_motors()[0]
         i5v_programmed = self.ps5v.get_current()
@@ -208,7 +227,11 @@ class Calibration():
     
 
 if __name__ == "__main__":
-    c = Calibration()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--firmware_script", help="path to firmware programming script")
+    parser.add_argument("-n", "--no-firmware", help="don't try and program firmware")
+    args = parser.parse_args()
+    c = Calibration(args)
 
     time.sleep(1)
     c.run()
