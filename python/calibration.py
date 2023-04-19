@@ -24,7 +24,7 @@ class Logger(object):
 
 sys.stdout = Logger()
 
-def program(firmware_script = "../../obot-controller/obot_g474/build/motor_aksim/load_motor_aksim.sh"):
+def program(firmware_script):
         print("Programming " + firmware_script)
         result = subprocess.run([firmware_script], capture_output=True)
         match = re.findall(r"^File downloaded successfully", result.stdout.decode(), re.MULTILINE)
@@ -37,6 +37,28 @@ def program(firmware_script = "../../obot-controller/obot_g474/build/motor_aksim
 
 def api_tuple_to_numpy(tup):
     return np.asarray(list((float(str(x)) for x in tup)))
+
+class PowerSupplySim():
+    def __init__(self):
+        pass
+    
+    def set_voltage(self,voltage):
+        pass
+        
+    def get_voltage(self):
+        return 0
+
+    def set_current(self,current):
+        pass
+
+    def get_current(self):
+        return 0
+
+    def set_on(self):
+        pass
+
+    def set_off(self):
+        pass
 
 class PowerSupply():
     def __init__(self, instrument, channel=1):
@@ -68,14 +90,20 @@ class Calibration():
         self.m = motor.MotorManager()
         #self.motor = self.m.get_connected_motors()[0]
         a = pyvisa.ResourceManager()
-        self.inst = a.open_resource('USB0::6833::3601::DP8B235303062::0::INSTR')
-        self.inst2 = a.open_resource('USB0::6833::3601::DP8E240900054::0::INSTR')
-        self.inst.write("*rst")
-        self.inst2.write("*rst")
-        self.ps3v3 = PowerSupply(self.inst, 3)
-        self.ps5v = PowerSupply(self.inst, 2)
-        self.ps48v = PowerSupply(self.inst2, 1)
-        self.ps10a = PowerSupply(self.inst2, 2)
+        if not args.no_supplies:
+            self.inst = a.open_resource('USB0::6833::3601::DP8B235303062::0::INSTR')
+            self.inst2 = a.open_resource('USB0::6833::3601::DP8E240900054::0::INSTR')
+            self.inst.write("*rst")
+            self.inst2.write("*rst")
+            self.ps3v3 = PowerSupply(self.inst, 3)
+            self.ps5v = PowerSupply(self.inst, 2)
+            self.ps48v = PowerSupply(self.inst2, 1)
+            self.ps10a = PowerSupply(self.inst2, 2)
+        else:
+            self.ps3v3 = PowerSupplySim()
+            self.ps5v = PowerSupplySim()
+            self.ps48v = PowerSupplySim()
+            self.ps10a = PowerSupplySim()
         self.args = args
 
 
@@ -99,8 +127,8 @@ class Calibration():
         self.ps5v.set_on()
         time.sleep(1)
         if not self.args.no_firmware:
-            program(**args)
-        time.sleep(2)
+            program(args.firmware_script)
+        time.sleep(3)
         self.motor = self.m.get_connected_motors()[0]
         i5v_programmed = self.ps5v.get_current()
         print("5V measured current programmed: {}".format(i5v_programmed))
@@ -228,8 +256,10 @@ class Calibration():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--firmware_script", help="path to firmware programming script")
-    parser.add_argument("-n", "--no-firmware", help="don't try and program firmware")
+    parser.add_argument("-f", "--firmware_script", help="path to firmware programming script", 
+                        default="../../obot-controller/obot_g474/build/motor_aksim/load_motor_aksim.sh")
+    parser.add_argument("-n", "--no-firmware", help="don't try and program firmware", action="store_true")
+    parser.add_argument("--no-supplies", help="run without setting power supplies", action="store_true")
     args = parser.parse_args()
     c = Calibration(args)
 
