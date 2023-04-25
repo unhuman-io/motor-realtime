@@ -80,11 +80,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
         }
     }
     if (connect) {
-        motors_ = m;
-        commands_.resize(m.size());
-        statuses_.resize(m.size());
-        pollfds_.resize(m.size());
-        read_error_count_.resize(m.size(), 0);
+        set_motors(m);
     }
     return m;
 }
@@ -110,11 +106,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(st
         }
     }
     if (connect) {
-        motors_ = m;
-        commands_.resize(m.size());
-        statuses_.resize(m.size());
-        pollfds_.resize(m.size());
-        read_error_count_.resize(m.size(), 0);
+        set_motors(m);
     }
     return m;
 }
