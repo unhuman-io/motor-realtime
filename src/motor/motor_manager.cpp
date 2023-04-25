@@ -83,6 +83,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
         motors_ = m;
         commands_.resize(m.size());
         statuses_.resize(m.size());
+        pollfds_.resize(m.size());
         read_error_count_.resize(m.size(), 0);
     }
     return m;
@@ -112,6 +113,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(st
         motors_ = m;
         commands_.resize(m.size());
         statuses_.resize(m.size());
+        pollfds_.resize(m.size());
         read_error_count_.resize(m.size(), 0);
     }
     return m;
@@ -335,12 +337,11 @@ bool MotorManager::deserialize_saved_commands(char *data) {
 }
 
 int MotorManager::poll() {
-    pollfd pollfds[motors_.size()];
     for (uint8_t i=0; i<motors_.size(); i++) {
-        pollfds[i].fd = motors_[i]->fd();
-        pollfds[i].events = POLLIN;
+        pollfds_.at(i).fd = motors_[i]->fd();
+        pollfds_.at(i).events = POLLIN;
     }
-    int retval = ::poll(pollfds, motors_.size(), 1);
+    int retval = ::poll(pollfds_.data(), motors_.size(), 1);
     return retval;
 }
 
@@ -349,10 +350,9 @@ int MotorManager::poll() {
 int MotorManager::multipoll(uint32_t timeout_ns) {
     struct timespec timeout = {};
     Timer t(timeout_ns);
-    pollfd pollfds[motors_.size()];
     for (uint8_t i=0; i<motors_.size(); i++) {
-        pollfds[i].fd = motors_[i]->fd();
-        pollfds[i].events = POLLIN;
+        pollfds_.at(i).fd = motors_[i]->fd();
+        pollfds_.at(i).events = POLLIN;
     }
 
     int retval;
@@ -361,7 +361,7 @@ int MotorManager::multipoll(uint32_t timeout_ns) {
         if (timeout.tv_nsec == 0) {
             return -ETIMEDOUT;
         }
-        retval = ::ppoll(pollfds, motors_.size(), &timeout, nullptr);
+        retval = ::ppoll(pollfds_.data(), motors_.size(), &timeout, nullptr);
         if (retval == 0) {
             return -ETIMEDOUT;
         } else if (retval < 0) {

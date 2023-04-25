@@ -44,7 +44,7 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> get_motors_by_path(std::vector<std::string> paths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_devpath(std::vector<std::string> devpaths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
-    void set_motors(std::vector<std::shared_ptr<Motor>> motors) { motors_ = motors; commands_.resize(motors_.size()); statuses_.resize(motors_.size()); }
+    void set_motors(std::vector<std::shared_ptr<Motor>> motors) { motors_ = motors; commands_.resize(motors_.size()); statuses_.resize(motors_.size()); pollfds_.resize(m.size()); read_error_count_.resize(m.size(), 0);}
     std::vector<Command> &commands() { return commands_; }
     std::vector<Status> &read();
     void write(std::vector<Command> &);
@@ -91,6 +91,7 @@ class MotorManager {
     bool auto_count_ = false;
     bool reconnect_ = false;
     FrequencyLimiter reconnect_rate_ = std::chrono::milliseconds(100);
+    std::vector<pollfd> pollfds_;
 };
 
 inline std::vector<float> get_joint_position(std::vector<Status> statuses) {
