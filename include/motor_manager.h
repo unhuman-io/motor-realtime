@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <chrono>
 #include <map>
+#include <poll.h>
 
 #include "motor.h"
 
