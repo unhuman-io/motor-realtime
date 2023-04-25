@@ -335,13 +335,12 @@ bool MotorManager::deserialize_saved_commands(char *data) {
 }
 
 int MotorManager::poll() {
-    auto pollfds = new pollfd[motors_.size()];
+    pollfd pollfds[motors_.size()];
     for (uint8_t i=0; i<motors_.size(); i++) {
         pollfds[i].fd = motors_[i]->fd();
         pollfds[i].events = POLLIN;
     }
     int retval = ::poll(pollfds, motors_.size(), 1);
-    delete [] pollfds;
     return retval;
 }
 
