@@ -127,16 +127,16 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vec
     return get_motors_by_name_function(devpaths, &Motor::dev_path, connect, allow_simulated);
 }
 
-void set_motors(std::vector<std::shared_ptr<Motor>> motors) {
+void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
     motors_ = motors;
     commands_.resize(motors_.size());
     statuses_.resize(motors_.size());
-    pollfds_.resize(m.size());
+    pollfds_.resize(motors_.size());
     for (uint8_t i=0; i<pollfds_.size(); i++) {
         pollfds_[i].fd = motors_.at(i)->fd();
         pollfds_[i].events = POLLIN;
     }
-    read_error_count_.resize(m.size(), 0);
+    read_error_count_.resize(motors_.size(), 0);
 }
 
 void MotorManager::start_nonblocking_read() {
