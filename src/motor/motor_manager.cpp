@@ -340,8 +340,8 @@ bool MotorManager::deserialize_saved_commands(char *data) {
    return false;
 }
 
-int MotorManager::poll() {
-    int retval = ::poll(pollfds_.data(), pollfds_.size(), 1);
+int MotorManager::poll(uint32_t timeout_ms) {
+    int retval = ::poll(pollfds_.data(), pollfds_.size(), timeout_ms);
     return retval;
 }
 

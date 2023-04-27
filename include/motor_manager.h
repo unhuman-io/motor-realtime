@@ -52,7 +52,7 @@ class MotorManager {
     void write_saved_commands();
     void aread();
     void start_nonblocking_read();
-    int poll();
+    int poll(uint32_t timeout_ms = 1);
     int multipoll(uint32_t timeout_ns = 0);
 
     void set_auto_count(bool on=true) { auto_count_ = on; }
