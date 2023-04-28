@@ -205,7 +205,20 @@ class Motor {
     Motor(std::string dev_path);
     virtual ~Motor();
     virtual ssize_t read() { return ::read(fd_, &status_, sizeof(status_)); }
-    virtual ssize_t write() { return ::write(fd_, &command_, sizeof(command_)); }
+    virtual ssize_t write() { if (!no_write_) {
+        return ::write(fd_, &command_, sizeof(command_));
+     } else {
+        std::cerr << "motor " + name() + " locked, not writeable" << std::endl;;
+        return 0;
+     } }
+    virtual int lock() { 
+        ::lseek(fd_, 0, SEEK_SET);
+        int err = lockf(fd_, F_TLOCK, 0); 
+        if (err) {
+            std::cerr << "error locking " + name() << std::endl;
+        }
+        return err;
+    }
     virtual int set_nonblock() { nonblock_ = true;
         return fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK); }
     virtual int clear_nonblock() { nonblock_ = false;
@@ -247,11 +260,19 @@ class Motor {
     virtual std::vector<std::string> get_api_options();
     uint32_t get_cpu_frequency() { return std::stoi((*this)["cpu_frequency"].get()); }
  protected:
-    int open() { fd_ = ::open(dev_path_.c_str(), O_RDWR); fd_flags_ = fcntl(fd_, F_GETFL); return fd_; }
+    int open() { 
+        fd_ = ::open(dev_path_.c_str(), O_RDWR); 
+        if (lockf(fd_, F_TEST, 0)) {
+            no_write_ = true;
+        }
+        fd_flags_ = fcntl(fd_, F_GETFL); 
+        return fd_;
+    }
     int close() { return ::close(fd_); }
     int fd_ = 0;
     int fd_flags_;
     bool nonblock_ = false;
+    bool no_write_ = false;
     std::string serial_number_, name_, dev_path_, base_path_, version_;
     Status status_ = {};
     Command command_ = {};
@@ -382,6 +403,11 @@ class UserSpaceMotor : public Motor {
         motor_txt_ = std::move(std::unique_ptr<USBFile>(new USBFile(fd_, 1)));
     }
     virtual ~UserSpaceMotor() override;
+    virtual int lock() override {
+        std::cerr << "Locking not supported on user space motor" << std::endl;
+        errno = 1;
+        return -1;
+    }
     virtual ssize_t read() override {
         int retval = -1;
         if (!aread_in_progress_) {

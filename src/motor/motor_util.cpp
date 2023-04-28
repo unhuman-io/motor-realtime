@@ -97,6 +97,7 @@ int main(int argc, char** argv) {
     bool allow_simulated = false;
     bool check_messages_version = false;
     bool command_gpio = false;
+    bool lock_motors = false;
     ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .nonblock = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
@@ -168,6 +169,7 @@ int main(int argc, char** argv) {
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
+    app.add_flag("--lock", lock_motors, "Lock write access to motors");
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)");
     app.add_flag("--api", api_mode, "Enter API mode");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing", true)->type_name("NUM_SAMPLES")->expected(0,1);
@@ -217,6 +219,10 @@ int main(int argc, char** argv) {
     
     if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size()) {
         motors = m.get_connected_motors();
+    }
+
+    if (lock_motors) {
+        m.lock();
     }
 
     if (version) {

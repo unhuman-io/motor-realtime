@@ -54,6 +54,7 @@ class MotorManager {
     void start_nonblocking_read();
     int poll(uint32_t timeout_ms = 1);
     int multipoll(uint32_t timeout_ns = 0);
+    void lock();
 
     void set_auto_count(bool on=true) { auto_count_ = on; }
     uint32_t get_auto_count() const { return count_; }

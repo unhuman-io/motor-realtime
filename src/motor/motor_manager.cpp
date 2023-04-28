@@ -189,6 +189,15 @@ std::vector<Status> &MotorManager::read() {
     return statuses_;
 }
 
+void MotorManager::lock() {
+    for (uint8_t i=0; i<motors_.size(); i++) {
+        int err = motors_[i]->lock();
+        if (err) {
+            throw std::runtime_error("Error locking: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    }
+}
+
 void MotorManager::write(std::vector<Command> &commands) {
     count_++;
     if (auto_count_) {
