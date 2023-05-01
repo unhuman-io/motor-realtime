@@ -224,7 +224,17 @@ class Motor : public MotorDescription {
         ::lseek(fd_, 0, SEEK_SET);
         int err = lockf(fd_, F_TLOCK, 0); 
         if (err) {
-            std::cerr << "error locking " + name() << std::endl;
+            std::cerr << "error locking " + name();
+            struct flock lock;
+            lock.l_type = F_WRLCK;
+            lock.l_start = 0;
+            lock.l_whence = 0;
+            lock.l_len = 0;
+            int err2 = ::fcntl(fd_, F_GETLK, &lock);
+            if (err2 == 0) {
+                std::cerr << ", already locked by process: " << lock.l_pid;
+            }
+            std::cerr << std::endl;
         }
         return err;
     }
