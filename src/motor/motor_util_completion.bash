@@ -45,7 +45,7 @@ _motor_util_completion()
         devpaths) words="$(motor_util --list-devpath-only) $base_words" ;;
         serial_numbers) words="$(motor_util --list-serial-number-only) $base_words" ;;
         set_api) return 0 ;;
-        state) words="--position --velocity --torque --torque_dot --kp --kd --kt --ks -h --help" ;
+        state) words="--position --velocity --torque --torque_dot --kp --kd --kt --ks --ff_tau -h --help" ;
             case $last in
                 --position|--velocity|--torque|--torque_dot|--kp|--kd|--kt|--ks) return 0 ;;
             esac ;;
