@@ -35,6 +35,7 @@ static py::dict motor_error_dict(const MotorError &e)
     d["controller_tracking"] = e.controller_tracking;
     d["host_fault"] = e.host_fault;
     d["driver_not_enabled"] = e.driver_not_enabled;
+    d["encoder_disagreement"] = e.encoder_disagreement;
     d["fault"] = e.fault;
     return d;
 }
