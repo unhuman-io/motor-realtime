@@ -23,23 +23,35 @@
 #define gettid() syscall(SYS_gettid)
 #include <csignal>
 
+#include "CLI11.hpp"
+
 namespace obot {
 
 sig_atomic_t volatile running = 1;
 
-MotorApp::MotorApp(int /* argc */, char ** /* argv */, MotorThread *motor_thread) 
+MotorApp::MotorApp(int argc, char ** argv, MotorThread *motor_thread, std::string app_name) 
     : motor_thread_(motor_thread) {
+	CLI::App app(app_name);
+	auto name_option = app.add_option("-n,--names", names_, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
+	app.add_flag("--allow-simulated", allow_simulated_, "Allow simulated motors if not connected")->needs(name_option);
+	auto parse = [&](){ CLI11_PARSE(app, argc, argv); };
+	parse();
 
 }
 
 void MotorApp::select_motors(MotorManager *m) {
-	m->get_connected_motors();
+	if (names_.size() > 0) {
+		m->get_motors_by_name(names_, true, allow_simulated_);
+	} else {
+		m->get_connected_motors();
+	}
 }
 
 int MotorApp::run() {
 	//auto motors = motor_manager.get_motors_by_name({"J1", "J2", "J3", "J4", "J5", "J6"});
 	// or just get all the motors
     printf("main thread [%ld]\n", gettid());
+	
     auto &motor_manager = motor_thread_->motor_manager();
 	select_motors(&motor_manager);
     motor_thread_->init();
