@@ -15,7 +15,7 @@ class Task : public MotorThread {
 		motor_manager_.set_command_mode(POSITION);
 		phi_ += dt_ * frequency_ramp_;
 		float position_desired = amplitude_*std::sin(2*M_PI*phi_);
-		motor_manager_.set_command_position([position_desired]);
+		motor_manager_.set_command_position({position_desired});
 	}
 	virtual void post_init() {
 		auto motor = motor_manager_.motors()[0];
