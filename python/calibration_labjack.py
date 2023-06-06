@@ -7,6 +7,15 @@ from power_supply import rigol, sim
 import firmware_tools
 from labjack import ljm # pip install labjack-ljm
 import logger
+import argparse
+
+parser = argparse.ArgumentParser()
+# parser.add_argument("-f", "--firmware_script", help="path to firmware programming script", 
+#                     default="../../obot-controller/obot_g474/build/motor_aksim/load_motor_aksim.sh")
+parser.add_argument("-f", "--firmware", help="program firmware", action="store_true")
+parser.add_argument("-p", "--programmed", help="note that the board has already been programmed", action="store_true")
+# parser.add_argument("--no-supplies", help="run without setting power supplies", action="store_true")
+args = parser.parse_args()
 
 rigol1 = rigol.Instrument('USB0::6833::3601::DP8E240900054::0::INSTR')
 ps5V = sim.PowerSupply()
@@ -60,25 +69,26 @@ print("5V voltage measured {}".format(v5V_measured))
 
 # measure 5V current
 i5V_measured = ljm.eReadName(handle, aio["I5V"])*(-100)
-#unprogrammed
-#assert abs(i5V_measured - .03) < .02
-#programmed
-assert abs(i5V_measured - .07) < .02
 print("5V current measured {}".format(i5V_measured))
+if args.programmed:
+    assert abs(i5V_measured - .07) < .02
+else:
+    assert abs(i5V_measured - .03) < .02
 
 # measure 3v3 voltage
 v3v3_measured = ljm.eReadName(handle, aio["3V3"])
-assert abs(v3v3_measured - 3.3) < .1
 print("3v3 voltage measured {}".format(v3v3_measured))
+assert abs(v3v3_measured - 3.3) < .1
 
 
-# input("power off 5V")
-# ljm.eWriteName(handle, dio["prog"], 1)
+if args.firmware:
+    input("power off 5V")
+    ljm.eWriteName(handle, dio["prog"], 1)
 
-# input("power on 5V")
-# # program
-# ljm.eWriteName(handle, dio["prog"], 0)
-# firmware_tools.program()
+    input("power on 5V")
+    # program
+    ljm.eWriteName(handle, dio["prog"], 0)
+    firmware_tools.program()
 
 # connect to motor
 m = motor.MotorManager()
@@ -155,6 +165,14 @@ time.sleep(1)
 i48V = ps48V.get_current()
 print("48V current driver enabled: {}".format(i48V))
 
+# check driver enable success
+s = test_motor["log"].get()
+while not s.startswith("drv8323s"):
+    time.sleep(0.001)
+    s = test_motor["log"].get()
+print(s)
+assert s == "drv8323s configure success"
+
 # set mode pwm, measure 48V current
 m.set_command_mode(motor.ModeDesired.Voltage) # 50% duty cycle voltage
 m.write_saved_commands()
@@ -167,6 +185,7 @@ test_motor["zero_current_sensors"] = "8"
 time.sleep(8.5)
 def record_current_sensor_bias(name):
     bias = float(test_motor[name + "_bias"].get())
+    print("{} bias: {:.3f}".format(name, bias))
     assert abs(bias) < 10
     output_dict["fast_loop_param"][name + "_bias"] = "{:.3f}".format(bias)
 
@@ -174,7 +193,14 @@ record_current_sensor_bias("ia")
 record_current_sensor_bias("ib")
 record_current_sensor_bias("ic")
 
+time.sleep(.1)
 # set mode damped and run 10A current through phases
+m.set_command_mode(motor.ModeDesired.Open)
+m.write_saved_commands()
+time.sleep(.1)
+m.set_command_mode(motor.ModeDesired.Damped)
+m.write_saved_commands()
+time.sleep(.1)
 m.set_command_mode(motor.ModeDesired.Open)
 m.write_saved_commands()
 time.sleep(.1)
@@ -232,7 +258,9 @@ record_current_sensor_calibration("ic")
 # time.sleep(.5)
 
 #record_current_sensor_calibration("i48V")
-
+m.set_command_mode(motor.ModeDesired.Sleep) # 50% duty cycle voltage
+m.write_saved_commands()
+input("check LEDs")
 
 rigol1.off()
 
@@ -244,6 +272,9 @@ ljm.eWriteNames(handle, numFrames, names, aValues)
 # Close handle
 ljm.close(handle)
 
-print(json.dumps(output_dict, indent=2))
+print(json.dumps(output_dict, indent=4))
 with open(serial_number + ".json",'w') as f:
-    json.dump(output_dict, f, indent=2)
+    json.dump(output_dict, f, indent=4)
+
+
+print("sn: {} ok!".format(serial_number))
