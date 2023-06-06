@@ -148,6 +148,8 @@ void MotorManager::start_nonblocking_read() {
 }
 
 std::vector<Status> &MotorManager::read() {
+    bool should_throw = false;
+    std::string err_msg;
     for (uint8_t i=0; i<motors_.size(); i++) {
         auto size = motors_[i]->read();
         if (size == -1) {
@@ -158,7 +160,9 @@ std::vector<Status> &MotorManager::read() {
                 // no data, error is in errno
                 std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
                 if (!reconnect_) {
-                    throw std::runtime_error(err);
+                    err_msg.append(err + "\n");
+                    should_throw = true;
+                    continue;
                 } else {
                     if (reconnect_rate_.run()) {
                         std::cerr << err << std::endl;
@@ -179,6 +183,9 @@ std::vector<Status> &MotorManager::read() {
             read_error_count_[i] = 0;
         }
         statuses_[i] = *motors_[i]->status();
+    }
+    if (should_throw) {
+        throw std::runtime_error(err_msg);
     }
     return statuses_;
 }
