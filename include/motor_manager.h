@@ -232,6 +232,12 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
       os << s.reserved << ", ";
    }
    for (auto s : status) {
+      os << std::setw(8) << s.motor_velocity << ", ";
+   }
+   for (auto s : status) {
+      os << std::setw(8) << s.joint_velocity << ", ";
+   }
+   for (auto s : status) {
       os << static_cast<int>(s.flags.mode) << ", ";
    }
    os << std::hex;

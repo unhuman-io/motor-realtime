@@ -459,6 +459,12 @@ std::string MotorManager::status_headers() const {
         ss << "reserved" << i << ", ";
     }
     for (int i=0;i<length;i++) {
+        ss << "motor_velocity" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
+        ss << "joint_velocity" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
         ss << "mode" << i << ", ";
     }
     for (int i=0;i<length;i++) {
