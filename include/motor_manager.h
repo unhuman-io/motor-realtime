@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <chrono>
 #include <map>
+#include <poll.h>
 
 #include "motor.h"
 
@@ -44,15 +45,16 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> get_motors_by_path(std::vector<std::string> paths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_devpath(std::vector<std::string> devpaths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
-    void set_motors(std::vector<std::shared_ptr<Motor>> motors) { motors_ = motors; commands_.resize(motors_.size()); }
+    void set_motors(std::vector<std::shared_ptr<Motor>> motors);
     std::vector<Command> &commands() { return commands_; }
     std::vector<Status> &read();
     void write(std::vector<Command> &);
     void write_saved_commands();
     void aread();
     void start_nonblocking_read();
-    int poll();
+    int poll(uint32_t timeout_ms = 1);
     int multipoll(uint32_t timeout_ns = 0);
+    void lock();
 
     void set_auto_count(bool on=true) { auto_count_ = on; }
     uint32_t get_auto_count() const { return count_; }
@@ -91,6 +93,7 @@ class MotorManager {
     bool auto_count_ = false;
     bool reconnect_ = false;
     FrequencyLimiter reconnect_rate_ = std::chrono::milliseconds(100);
+    std::vector<pollfd> pollfds_;
 };
 
 inline std::vector<float> get_joint_position(std::vector<Status> statuses) {
@@ -260,6 +263,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
          PRINT_FLAG(controller_tracking);
          PRINT_FLAG(host_fault);
          PRINT_FLAG(driver_not_enabled);
+         PRINT_FLAG(encoder_disagreement);
          PRINT_FLAG(fault);
       }
       os << ", ";

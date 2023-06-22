@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [ubuntu-18.04, ubuntu-20.04, ubuntu-22.04]
+        distro: [ubuntu-20.04, ubuntu-22.04]
     runs-on: ${{ matrix.distro }}
     
     steps:
@@ -81,7 +81,7 @@ jobs:
         tag: main
 
   build_arm:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
 
     strategy:

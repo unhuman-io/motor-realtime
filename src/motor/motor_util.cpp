@@ -9,7 +9,6 @@
 #include <queue>
 #include <signal.h>
 #include <string>
-#include "motor_publisher.h"
 #include <sstream>
 #include "realtime_thread.h"
 #include "keyboard.h"
@@ -64,7 +63,6 @@ struct ReadOptions {
     std::vector<std::string> text;
     bool timestamp_in_seconds;
     bool host_time;
-    bool publish;
     bool csv;
     bool reconnect;
     bool read_write_statistics;
@@ -97,9 +95,10 @@ int main(int argc, char** argv) {
     bool allow_simulated = false;
     bool check_messages_version = false;
     bool command_gpio = false;
+    bool lock_motors = false;
     ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .nonblock = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
-        .publish = false, .csv = false, .reconnect = false, .read_write_statistics = false,
+        .csv = false, .reconnect = false, .read_write_statistics = false,
         .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
@@ -116,6 +115,7 @@ int main(int argc, char** argv) {
     state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
     state_mode->add_option("--kt", command.state.kt, "Torque error gain");
     state_mode->add_option("--ks", command.state.ks, "Torque dot error gain");
+    state_mode->add_option("--ff_tau", command.state.ff_tau, "Current feedforward gain from torque_desired");
     auto stepper_tuning_mode = set->add_subcommand("stepper_tuning", "Stepper tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_TUNING;});
     stepper_tuning_mode->add_option("--amplitude", command.stepper_tuning.amplitude, "Phase position tuning amplitude");
     stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp");
@@ -147,7 +147,6 @@ int main(int argc, char** argv) {
     read_option->add_flag("--read-write-statistics", read_opts.read_write_statistics, "Perform read then write when doing statistics test");
     auto text_read = read_option->add_option("--text",read_opts.text, "Read the text api for variable", true)->expected(0, -1);
     read_option->add_flag("-t,--host-time-seconds",read_opts.host_time, "Print host read time");
-    read_option->add_flag("--publish", read_opts.publish, "Publish joint data to shared memory");
     read_option->add_flag("--csv", read_opts.csv, "Convenience to set --no-list, --host-time-seconds, and --timestamp-in-seconds");
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
     read_option->add_flag("-v,--compute-velocity", read_opts.compute_velocity, "Compute velocity from motor and joint position");
@@ -168,6 +167,7 @@ int main(int argc, char** argv) {
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
+    app.add_flag("--lock", lock_motors, "Lock write access to motors");
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)");
     app.add_flag("--api", api_mode, "Enter API mode");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing", true)->type_name("NUM_SAMPLES")->expected(0,1);
@@ -217,6 +217,10 @@ int main(int argc, char** argv) {
     
     if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size()) {
         motors = m.get_connected_motors();
+    }
+
+    if (lock_motors) {
+        m.lock();
     }
 
     if (version) {
@@ -441,7 +445,6 @@ int main(int argc, char** argv) {
             auto loop_start_time = start_time;
             int64_t period_ns = static_cast<int64_t>(1e9/read_opts.frequency_hz);
             Statistics exec(100), period(100), hops(100*m.motors().size());
-            MotorPublisher<cstr> pub;
             if (read_opts.nonblock) {
                 for (auto &m : m.motors()) {
                     m->set_nonblock();
@@ -466,17 +469,6 @@ int main(int argc, char** argv) {
                 
                 auto status = m.read();
                 auto exec_time = std::chrono::steady_clock::now();
-
-                if (read_opts.publish) {
-                    std::ostringstream oss;
-                    for (auto stat : status) {
-                        oss << stat.joint_position << " ";
-                    }
-                    oss << std::endl;
-                    cstr c;
-                    std::strncpy(c.s, oss.str().c_str(), 100);
-                    pub.publish(c);
-                }
 
                 if (*bits_option) {
                     static Statistics motor_encoder(read_opts.bits[0]), output_encoder(read_opts.bits[0]), iq(read_opts.bits[0]);
