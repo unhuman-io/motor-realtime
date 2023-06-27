@@ -431,10 +431,10 @@ int main(int argc, char** argv) {
                 std::cout << m.status_headers();
                 if (read_opts.compute_velocity) {
                     for (int i=0;i<motors.size();i++) {
-                        std::cout << "motor_velocity" << i << ", ";
+                        std::cout << "motor_velocity_computed" << i << ", ";
                     }
                     for (int i=0;i<motors.size();i++) {
-                        std::cout << "joint_velocity" << i << ", ";
+                        std::cout << "joint_velocity_computed" << i << ", ";
                     }
                 }
                 std::cout << std::endl;
