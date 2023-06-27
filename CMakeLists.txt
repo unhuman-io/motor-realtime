@@ -3,7 +3,7 @@ project(motor-realtime)
 include(GNUInstallDirs)
 enable_testing()
 
-set(VERSION_MAJOR "0.11")
+set(VERSION_MAJOR "0.12")
 set(VERSION_MINOR "0")
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
