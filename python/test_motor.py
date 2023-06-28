@@ -44,8 +44,8 @@ class TestMotor(unittest.TestCase):
             self.m.read()
             self.assertTrue(False)
         except RuntimeError as e:
-            # todo I don't know how constat this text will be
-            self.assertTrue(str(e).endswith("Connection timed out"))
+            # todo I don't know how constant this text will be
+            self.assertTrue(str(e).strip().endswith("Connection timed out"))
 
     def test_velocity_mode(self):
         t = 10.0
