@@ -224,7 +224,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
             os << *reinterpret_cast<uint32_t *>(&s.rr_data.data) << ", ";
             break;
          case INT32_T:
-            os << *reinterpret_cast<uint32_t *>(&s.rr_data.data) << ", ";
+            os << *reinterpret_cast<int32_t *>(&s.rr_data.data) << ", ";
             break;
       }
    }
