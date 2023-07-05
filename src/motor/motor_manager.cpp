@@ -465,6 +465,9 @@ std::string MotorManager::status_headers() const {
         ss << "joint_velocity" << i << ", ";
     }
     for (int i=0;i<length;i++) {
+        ss << "iq_desired" << i << ", ";
+    }
+    for (int i=0;i<length;i++) {
         ss << "mode" << i << ", ";
     }
     for (int i=0;i<length;i++) {
