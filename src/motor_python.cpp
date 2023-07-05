@@ -36,6 +36,7 @@ static py::dict motor_error_dict(const MotorError &e)
     d["host_fault"] = e.host_fault;
     d["driver_not_enabled"] = e.driver_not_enabled;
     d["encoder_disagreement"] = e.encoder_disagreement;
+    d["torque_sensor_disagreement"] = e.torque_sensor_disagreement;
     d["fault"] = e.fault;
     return d;
 }
@@ -189,6 +190,9 @@ PYBIND11_MODULE(motor, m)
         .def_readonly("iq", &Status::iq)
         .def_readonly("torque", &Status::torque)
         .def_readonly("motor_encoder", &Status::motor_encoder)
+        .def_readonly("motor_velocity", &Status::motor_velocity)
+        .def_readonly("joint_velocity", &Status::joint_velocity)
+        .def_readonly("iq_desired", &Status::iq_desired)
         .def_property_readonly("reserved", [](const Status &s)
                                { 
             std::vector<float> f = {s.reserved, s.reserved + sizeof(s.reserved)/sizeof(float)}; 
