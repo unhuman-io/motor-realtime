@@ -115,7 +115,6 @@ int main(int argc, char** argv) {
     state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
     state_mode->add_option("--kt", command.state.kt, "Torque error gain");
     state_mode->add_option("--ks", command.state.ks, "Torque dot error gain");
-    state_mode->add_option("--ff_tau", command.state.ff_tau, "Current feedforward gain from torque_desired");
     auto stepper_tuning_mode = set->add_subcommand("stepper_tuning", "Stepper tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_TUNING;});
     stepper_tuning_mode->add_option("--amplitude", command.stepper_tuning.amplitude, "Phase position tuning amplitude");
     stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp");
@@ -432,10 +431,10 @@ int main(int argc, char** argv) {
                 std::cout << m.status_headers();
                 if (read_opts.compute_velocity) {
                     for (int i=0;i<motors.size();i++) {
-                        std::cout << "motor_velocity" << i << ", ";
+                        std::cout << "motor_velocity_computed" << i << ", ";
                     }
                     for (int i=0;i<motors.size();i++) {
-                        std::cout << "joint_velocity" << i << ", ";
+                        std::cout << "joint_velocity_computed" << i << ", ";
                     }
                 }
                 std::cout << std::endl;
