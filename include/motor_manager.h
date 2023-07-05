@@ -238,6 +238,9 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
       os << std::setw(8) << s.joint_velocity << ", ";
    }
    for (auto s : status) {
+      os << std::setw(8) << s.iq_desired << ", ";
+   }
+   for (auto s : status) {
       os << static_cast<int>(s.flags.mode) << ", ";
    }
    os << std::hex;
@@ -270,6 +273,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
          PRINT_FLAG(host_fault);
          PRINT_FLAG(driver_not_enabled);
          PRINT_FLAG(encoder_disagreement);
+         PRINT_FLAG(torque_sensor_disagreement);
          PRINT_FLAG(fault);
       }
       os << ", ";
