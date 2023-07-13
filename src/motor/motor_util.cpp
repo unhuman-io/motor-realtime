@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
         {"chirp", TuningMode::CHIRP}};
-    std::string set_api_data;
+    std::vector<std::string> set_api_data;
     bool api_mode = false;
     int run_stats = 100;
     bool allow_simulated = false;
@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
     app.add_flag("--lock", lock_motors, "Lock write access to motors");
-    auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)");
+    auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)")->expected(1,-1);
     app.add_flag("--api", api_mode, "Enter API mode");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing", true)->type_name("NUM_SAMPLES")->expected(0,1);
     CLI11_PARSE(app, argc, argv);
@@ -334,10 +334,13 @@ int main(int argc, char** argv) {
 
     if (*set_api && motors.size()) {
         char c[MAX_API_DATA_SIZE];
-        for (auto motor : m.motors()) {
-            auto nbytes = motor->motor_text()->writeread(set_api_data.c_str(), set_api_data.size(), c, MAX_API_DATA_SIZE);
-            c[nbytes] = 0;
-            std::cout << motor->name() << ": " << c << std::endl;
+        for (auto &api_str : set_api_data) {
+            std::cout << api_str << std::endl;
+            for (auto motor : m.motors()) {
+                auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_DATA_SIZE);
+                c[nbytes] = 0;
+                std::cout << motor->name() << ": " << c << std::endl;
+            }
         }
     }
 
