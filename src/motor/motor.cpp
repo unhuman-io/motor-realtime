@@ -47,7 +47,15 @@ std::string Motor::get_fast_log() {
     std::string s_log;
     do {
         s_read = motor_txt_->writeread("log");
-        s_log += s_read + '\n';
+        size_t index = s_read.find(") ");
+        if (s_read != "log end") {
+            if (index == std::string::npos) {
+                s_log += s_read + '\n';
+            } else {
+                // eliminate leading timing information in parentheses
+                s_log += s_read.substr(index+2, std::string::npos) + '\n';
+            }
+        }
     } while (s_read != "log end");
     return s_log;
 }
