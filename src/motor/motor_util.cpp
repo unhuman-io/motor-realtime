@@ -268,7 +268,7 @@ int main(int argc, char** argv) {
                             << std::setw(name_width) << m->name()
                             << std::setw(serial_number_width) << m->serial_number()
                             << std::setw(version_width) << (verbose_list ? m->version() : m->short_version())
-                            << std::setw(path_width) << m->base_path()
+                            << "   " << std::setw(std::max(path_width-3, dev_path_width)) << std::left << m->base_path()
                             << std::setw(device_num_width) << (int) m->devnum() << std::endl;
                 }
             }
