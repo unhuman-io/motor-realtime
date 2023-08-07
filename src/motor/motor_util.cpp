@@ -261,14 +261,14 @@ int main(int argc, char** argv) {
             if (motors.size() > 0) {
                 std::cout << std::setw(dev_path_width) << "Dev" << std::setw(name_width) << "Name"
                             << std::setw(serial_number_width) << " Serial number"
-                            << std::setw(version_width) << "Version" << std::setw(path_width) << "Path" << std::setw(device_num_width) << "Devnum" << std::endl;
+                            << std::setw(version_width) << "Version" << std::setw(path_width) << std::left << "   Path" << std::right << std::setw(device_num_width) << "Devnum" << std::endl;
                 std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width + device_num_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
                 for (auto m : motors) {
                     std::cout << std::setw(dev_path_width) << m->dev_path()
                             << std::setw(name_width) << m->name()
                             << std::setw(serial_number_width) << m->serial_number()
                             << std::setw(version_width) << (verbose_list ? m->version() : m->short_version())
-                            << "   " << std::setw(std::max(path_width-3, dev_path_width)) << std::left << m->base_path()
+                            << "   " << std::setw(std::max(path_width-3, dev_path_width)) << std::left << m->base_path() << std::right
                             << std::setw(device_num_width) << (int) m->devnum() << std::endl;
                 }
             }
