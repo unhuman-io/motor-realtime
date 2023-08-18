@@ -96,7 +96,7 @@ if args.firmware:
     ljm.eWriteName(handle, dio["prog"], 0)
     firmware_tools.program()
 
-time.sleep(2)
+time.sleep(3)
 # connect to motor
 m = motor.MotorManager()
 test_motor = m.motors()[0]
@@ -174,11 +174,11 @@ print("48V current driver enabled: {}".format(i48V))
 
 # check driver enable success
 s = test_motor["log"].get()
-while not s.startswith("drv8323s"):
+while not "drv8323s" in s:
     time.sleep(0.001)
     s = test_motor["log"].get()
 print(s)
-assert s == "drv8323s configure success"
+assert s.endswith("drv8323s configure success")
 
 # set mode pwm, measure 48V current
 m.set_command_mode(motor.ModeDesired.Voltage) # 50% duty cycle voltage
@@ -191,7 +191,7 @@ print("48V current PWM enabled: {}".format(i48V))
 test_motor["zero_current_sensors"] = "8"
 time.sleep(8.5)
 def record_current_sensor_bias(name):
-    bias = float(test_motor[name + "_bias"].get())
+    bias = api_average(test_motor[name+"_bias"], 1000)
     print("{} bias: {:.3f}".format(name, bias))
     assert abs(bias) < 10
     output_dict["fast_loop_param"][name + "_bias"] = "{:.3f}".format(bias)
@@ -227,7 +227,7 @@ time.sleep(2)
 
 def record_current_sensor_calibration(name):
     name_map={"ia": "adc1", "ib": "adc2", "ic": "adc3"}
-    current = api_average(test_motor[name], 1000)
+    current = api_average(test_motor[name], 10000)
     print("{} read: {}".format(name, current))
     if name != "i48V":
         assert abs(abs(current) - 10) < 1
