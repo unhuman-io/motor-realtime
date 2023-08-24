@@ -128,6 +128,14 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vec
 }
 
 void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
+    if (check_messages_version_) {
+        for (auto &motor : motors) {
+            if (motor->check_messages_version(check_messages_version_) == false) {
+                  throw std::runtime_error("Motor messages version mismatch " + motor->name() + 
+                     ": " + (*motor)["messages_version"].get() + ", motor-realtime: " + MOTOR_MESSAGES_VERSION);
+            }
+        }
+    }
     motors_ = motors;
     commands_.resize(motors_.size());
     statuses_.resize(motors_.size());

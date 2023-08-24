@@ -38,7 +38,9 @@ class MotorManager {
  public:
     static const std::map<const ModeDesired, const std::string> mode_map;
 
-    MotorManager(bool user_space_driver = false) : user_space_driver_(user_space_driver) {}
+    MotorManager(bool user_space_driver = false, Motor::MessagesCheck check_messages_version = Motor::MessagesCheck::MAJOR) :
+       user_space_driver_(user_space_driver),
+       check_messages_version_(check_messages_version) {}
     std::vector<std::shared_ptr<Motor>> get_connected_motors(bool connect = true);
     std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_serial_number(std::vector<std::string> serial_numbers, bool connect = true, bool allow_simulated = false);
@@ -94,6 +96,7 @@ class MotorManager {
     bool reconnect_ = false;
     FrequencyLimiter reconnect_rate_ = std::chrono::milliseconds(100);
     std::vector<pollfd> pollfds_;
+    Motor::MessagesCheck check_messages_version_;
 };
 
 inline std::vector<float> get_joint_position(std::vector<Status> statuses) {
