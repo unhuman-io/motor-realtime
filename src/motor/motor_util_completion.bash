@@ -20,6 +20,7 @@ _motor_util_completion()
             -p|--paths) subcommand=paths ; break ;;
             -d|--devpaths) subcommand=devpaths ; break ;;
             -s|--serial_numbers) subcommand=serial_numbers ; break ;;
+            -c|--check-messages-version) subcommand=check_messages_version ; break ;;
             position_tuning|current_tuning|stepper_tuning) subcommand=tuning ; break ;;
             stepper_velocity|voltage) subcommand=voltage ; break ;;
             state) subcommand=state ; break ;;
@@ -44,6 +45,7 @@ _motor_util_completion()
         paths) words="$(motor_util --list-path-only) $base_words" ;;
         devpaths) words="$(motor_util --list-devpath-only) $base_words" ;;
         serial_numbers) words="$(motor_util --list-serial-number-only) $base_words" ;;
+        check_messages_version) words="none major minor $base_words" ;;
         set_api) return 0 ;;
         state) words="--position --velocity --torque --torque_dot --kp --kd --kt --ks -h --help" ;
             case $last in

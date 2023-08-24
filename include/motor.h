@@ -53,7 +53,7 @@ class SimulatedTextFile : public TextFile {
     }
  private:
     std::map<std::string, std::string> dict_ = {{"cpu_frequency", "1000000000"}, {"error_mask", "0"}, {"log", "log end"}, 
-        {"fast log", "ok\ntimestamp,"}};
+        {"fast log", "ok\ntimestamp,"}, {"messages_version", MOTOR_MESSAGES_VERSION}};
     friend class SimulatedMotor;
 };
 
@@ -201,6 +201,7 @@ inline double& operator<<(double& d, TextAPIItem const& item) {
 }
 class Motor {
  public:
+    enum MessagesCheck {NONE, MAJOR, MINOR};
     Motor() {}
     Motor(std::string dev_path);
     virtual ~Motor();
@@ -244,7 +245,18 @@ class Motor {
     std::string dev_path() const { return dev_path_; }
     uint8_t devnum() const { return devnum_; }
     std::string version() const { return version_; }
-    bool check_messages_version() { return MOTOR_MESSAGES_VERSION == operator[]("messages_version").get(); }
+    virtual bool check_messages_version(MessagesCheck check = MAJOR) { 
+        if (check == MAJOR) {
+            std::string realtime_messages_version = MOTOR_MESSAGES_VERSION;
+            std::string motor_messages_version = operator[]("messages_version").get();
+            return realtime_messages_version.substr(0, realtime_messages_version.find('.'))
+                == motor_messages_version.substr(0, motor_messages_version.find('.'));
+        } else if (check == MINOR) {
+            return MOTOR_MESSAGES_VERSION == operator[]("messages_version").get();
+        } else {
+            return true;
+        }
+    }
     std::string short_version() const {
         std::string s = version();
         auto pos = std::min(s.find(" "), s.find("-g"));

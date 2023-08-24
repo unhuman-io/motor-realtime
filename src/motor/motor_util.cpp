@@ -93,7 +93,10 @@ int main(int argc, char** argv) {
     bool api_mode = false;
     int run_stats = 100;
     bool allow_simulated = false;
-    bool check_messages_version = false;
+    Motor::MessagesCheck check_messages_version = Motor::MessagesCheck::MAJOR;
+    std::vector<std::pair<std::string, Motor::MessagesCheck>> messages_check_map {
+        {"none", Motor::MessagesCheck::NONE}, {"major", Motor::MessagesCheck::MAJOR},
+        {"minor", Motor::MessagesCheck::MINOR}};
     bool command_gpio = false;
     bool lock_motors = false;
     ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .nonblock = false, .frequency_hz = 1000, 
@@ -153,7 +156,7 @@ int main(int argc, char** argv) {
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]", true)->type_name("NUM_SAMPLES RANGE")->expected(0,2);
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
-    app.add_flag("-c,--check-messages-version", check_messages_version, "Check motor messages version");
+    app.add_flag("-c,--check-messages-version", check_messages_version, "Check motor messages version")->type_name("TYPE")->transform(CLI::CheckedTransformer(messages_check_map, CLI::ignore_case))->expected(0,1)->default_str("major");
     app.add_flag("--no-list", no_list, "Do not list connected motors");
     app.add_flag("-v,--version", version, "Print version information");
     app.add_flag("--list-names-only", list_names, "Print only connected motor names");
@@ -184,7 +187,7 @@ int main(int argc, char** argv) {
         no_list = true;
     }
 
-    MotorManager m(user_space_driver);
+    MotorManager m(user_space_driver, check_messages_version);
     std::vector<std::shared_ptr<Motor>> motors;
     if (names.size()) {
         motors = m.get_motors_by_name(names, true, allow_simulated);
@@ -271,20 +274,6 @@ int main(int argc, char** argv) {
                             << "   " << std::setw(std::max(path_width-3, dev_path_width)) << std::left << m->base_path() << std::right
                             << std::setw(device_num_width) << (int) m->devnum() << std::endl;
                 }
-            }
-        }
-    }
-
-    if (check_messages_version) {
-        for (auto motor : motors) {
-            bool error = false;
-            if (!motor->check_messages_version()) {
-                error = true;
-                std::cerr << "Messages version incorrect: " << motor->name() << ": " << 
-                    (*motor)["messages_version"] << ", motor_util: " << MOTOR_MESSAGES_VERSION << std::endl;
-            }
-            if (error) {
-                return 1;
             }
         }
     }
