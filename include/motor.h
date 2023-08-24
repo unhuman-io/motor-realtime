@@ -53,7 +53,7 @@ class SimulatedTextFile : public TextFile {
     }
  private:
     std::map<std::string, std::string> dict_ = {{"cpu_frequency", "1000000000"}, {"error_mask", "0"}, {"log", "log end"}, 
-        {"fast log", "ok\ntimestamp,"}};
+        {"fast log", "ok\ntimestamp,"}, {"messages_version", MOTOR_MESSAGES_VERSION}};
     friend class SimulatedMotor;
 };
 
@@ -245,7 +245,7 @@ class Motor {
     std::string dev_path() const { return dev_path_; }
     uint8_t devnum() const { return devnum_; }
     std::string version() const { return version_; }
-    bool check_messages_version(MessagesCheck check = MAJOR) { 
+    virtual bool check_messages_version(MessagesCheck check = MAJOR) { 
         if (check == MAJOR) {
             std::string realtime_messages_version = MOTOR_MESSAGES_VERSION;
             std::string motor_messages_version = operator[]("messages_version").get();
