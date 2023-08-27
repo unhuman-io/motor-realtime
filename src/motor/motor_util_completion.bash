@@ -22,7 +22,8 @@ _motor_util_completion()
             -s|--serial_numbers) subcommand=serial_numbers ; break ;;
             -c|--check-messages-version) subcommand=check_messages_version ; break ;;
             position_tuning|current_tuning|stepper_tuning) subcommand=tuning ; break ;;
-            stepper_velocity|voltage) subcommand=voltage ; break ;;
+            stepper_velocity) subcommand=stepper_velocity ; break ;;
+            voltage) subcommand=voltage ; break ;;
             state) subcommand=state ; break ;;
         esac
         (( i-- ))
@@ -52,6 +53,11 @@ _motor_util_completion()
                 --position|--velocity|--torque|--torque_dot|--kp|--kd|--kt|--ks) return 0 ;;
             esac ;;
         voltage) words="--voltage --velocity read -h --help" ;;
+        stepper_velocity) words="--voltage --velocity --current --stepper_mode read -h --help" ;
+            case $last in
+                --voltage|--velocity|--current) return 0 ;;
+                --stepper_mode) words="current voltage" ;;
+            esac ;;
         tuning) words="--amplitude --frequency --mode --bias --kv read -h --help";
             case $last in
                 --amplitude|--frequency|--bias) return 0 ;;
