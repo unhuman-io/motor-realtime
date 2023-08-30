@@ -37,9 +37,9 @@ class TestMotor(unittest.TestCase):
     def test_2sleep(self):
         self.m.set_command_mode(motor.ModeDesired.Sleep)
         self.m.write_saved_commands()
-        tstart = self.m.read()[0].host_timestamp_received # it will return last data before sleep
         time.sleep(1)
         try:
+            tstart = self.m.read()[0].host_timestamp_received
             self.m.read() # should timeout on first or second try
             self.m.read()
             self.assertTrue(False)
