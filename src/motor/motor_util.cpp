@@ -89,6 +89,9 @@ int main(int argc, char** argv) {
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
         {"chirp", TuningMode::CHIRP}};
+    std::vector<std::pair<std::string, StepperMode>> stepper_mode_map{
+        {"current", StepperMode::STEPPER_CURRENT}, {"voltage", StepperMode::STEPPER_VOLTAGE}
+    };
     std::vector<std::string> set_api_data;
     bool api_mode = false;
     int run_stats = 100;
@@ -123,6 +126,7 @@ int main(int argc, char** argv) {
     stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp");
     stepper_tuning_mode->add_option("--mode", command.stepper_tuning.mode, "Phase tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     stepper_tuning_mode->add_option("--kv", command.stepper_tuning.kv, "Motor kv (rad/s)");
+    stepper_tuning_mode->add_option("--stepper_mode", command.stepper_tuning.stepper_mode, "Current/voltage mode")->transform(CLI::CheckedTransformer(stepper_mode_map, CLI::ignore_case));
     auto position_tuning_mode = set->add_subcommand("position_tuning", "Position tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::POSITION_TUNING;});
     position_tuning_mode->add_option("--amplitude", command.position_tuning.amplitude, "Position tuning amplitude");
     position_tuning_mode->add_option("--frequency", command.position_tuning.frequency, "Position tuning frequency hz, or hz/s for chirp");
@@ -136,6 +140,8 @@ int main(int argc, char** argv) {
     auto stepper_velocity_mode = set->add_subcommand("stepper_velocity", "Stepper velocity mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_VELOCITY;});
     stepper_velocity_mode->add_option("--voltage", command.stepper_velocity.voltage, "Phase voltage amplitude");
     stepper_velocity_mode->add_option("--velocity", command.stepper_velocity.velocity, "Phase velocity");
+    stepper_velocity_mode->add_option("--current", command.stepper_velocity.current, "Current desired");
+    stepper_velocity_mode->add_option("--stepper_mode", command.stepper_velocity.stepper_mode, "Current/voltage mode")->transform(CLI::CheckedTransformer(stepper_mode_map, CLI::ignore_case));
     auto voltage_mode = set->add_subcommand("voltage", "Voltage mode")->final_callback([&](){command.mode_desired = ModeDesired::VOLTAGE;});
     voltage_mode->add_option("--voltage", command.voltage.voltage_desired, "Vq voltage desired");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
