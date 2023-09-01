@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/operators.h>
 #include "motor_manager.h"
+#include <sstream>
 
 namespace py = pybind11;
 
@@ -37,8 +38,36 @@ static py::dict motor_error_dict(const MotorError &e)
     d["driver_not_enabled"] = e.driver_not_enabled;
     d["encoder_disagreement"] = e.encoder_disagreement;
     d["torque_sensor_disagreement"] = e.torque_sensor_disagreement;
+    d["motor_soft_limit"] = e.motor_soft_limit;
     d["fault"] = e.fault;
     return d;
+}
+
+static MotorError dict_to_motor_error(py::dict d) {
+    MotorError e;
+    e.sequence = d["sequence"].cast<bool>();
+    e.bus_voltage_low = d["bus_voltage_low"].cast<bool>();
+    e.bus_voltage_high = d["bus_voltage_high"].cast<bool>();
+    e.bus_current = d["bus_current"].cast<bool>();
+    e.microcontroller_temperature = d["microcontroller_temperature"].cast<bool>();
+    e.board_temperature = d["board_temperature"].cast<bool>();
+    e.motor_temperature = d["motor_temperature"].cast<bool>();
+    e.driver_fault = d["driver_fault"].cast<bool>();
+    e.motor_overcurrent = d["motor_overcurrent"].cast<bool>();
+    e.motor_phase_open = d["motor_phase_open"].cast<bool>();
+    e.motor_encoder = d["motor_encoder"].cast<bool>();
+    e.motor_encoder_limit = d["motor_encoder_limit"].cast<bool>();
+    e.output_encoder = d["output_encoder"].cast<bool>();
+    e.output_encoder_limit = d["output_encoder_limit"].cast<bool>();
+    e.torque_sensor = d["torque_sensor"].cast<bool>();
+    e.controller_tracking = d["controller_tracking"].cast<bool>();
+    e.host_fault = d["host_fault"].cast<bool>();
+    e.driver_not_enabled = d["driver_not_enabled"].cast<bool>();
+    e.encoder_disagreement = d["encoder_disagreement"].cast<bool>();
+    e.torque_sensor_disagreement = d["torque_sensor_disagreement"].cast<bool>();
+    e.motor_soft_limit = d["motor_soft_limit"].cast<bool>();
+    e.fault = d["fault"].cast<bool>();
+    return e;
 }
 
 PYBIND11_MODULE(motor, m)
@@ -98,6 +127,12 @@ PYBIND11_MODULE(motor, m)
             MotorError mask;
             mask.all = std::stoul(m["error_mask"].get(), 0, 16);
             return motor_error_dict(mask); })
+        .def("set_error_mask", [](Motor &m, py::dict d){ 
+            MotorError e = dict_to_motor_error(d);
+            std::stringstream s;
+            s << std::hex << e.all;
+            std::string shex(s.str());
+            return m["error_mask"].set(shex); })
         .def("get_cpu_frequency", &Motor::get_cpu_frequency);
 
     py::class_<TextAPIItem>(m, "TextAPIItem")
@@ -116,6 +151,8 @@ PYBIND11_MODULE(motor, m)
         .value("Velocity", ModeDesired::VELOCITY)
         .value("Voltage", ModeDesired::VOLTAGE)
         .value("PhaseLock", ModeDesired::PHASE_LOCK)
+        .value("StepperTuning", ModeDesired::STEPPER_TUNING)
+        .value("StepperVelocity", ModeDesired::STEPPER_VELOCITY)
         .value("CurrentTuning", ModeDesired::CURRENT_TUNING)
         .value("PositionTuning", ModeDesired::POSITION_TUNING)
         .value("JointPosition", ModeDesired::JOINT_POSITION)
@@ -166,6 +203,7 @@ PYBIND11_MODULE(motor, m)
         .def_readwrite("reserved", &Command::reserved)
         .def_readwrite("current_tuning", &Command::current_tuning)
         .def_readwrite("position_tuning", &Command::position_tuning)
+        .def_readwrite("stepper_velocity", &Command::stepper_velocity)
         .def("__repr__", [](const Command &c)
              { return "<Command: " + std::to_string(c.host_timestamp) + ">"; });
 
