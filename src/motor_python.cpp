@@ -232,10 +232,7 @@ PYBIND11_MODULE(motor, m)
         .def_readonly("motor_velocity", &Status::motor_velocity)
         .def_readonly("joint_velocity", &Status::joint_velocity)
         .def_readonly("iq_desired", &Status::iq_desired)
-        .def_property_readonly("reserved", [](const Status &s)
-                               { 
-            std::vector<float> f = {s.reserved, s.reserved + sizeof(s.reserved)/sizeof(float)}; 
-            return f; })
+        .def_readonly("reserved", &Status::reserved)
         .def_readonly("flags", &Status::flags)
         .def("__repr__", [](const Status &s)
              { return "<Status at: " + std::to_string(s.mcu_timestamp) + ">"; });
