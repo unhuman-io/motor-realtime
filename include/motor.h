@@ -312,6 +312,8 @@ class SimulatedMotor : public Motor {
            case VELOCITY:
                 status_.motor_position += velocity_*dt;
                 status_.joint_position = status_.motor_position/gear_ratio_;
+                status_.motor_velocity = velocity_;
+                status_.joint_velocity = velocity_/gear_ratio_;
                 break;           
            case CURRENT_TUNING:
                 status_.iq = active_command_.current_tuning.bias + 
@@ -323,6 +325,8 @@ class SimulatedMotor : public Motor {
                 velocity_ += status_.torque/inertia_;
                 status_.motor_position += velocity_*dt;
                 status_.joint_position = status_.motor_position/gear_ratio_;
+                status_.motor_velocity = velocity_;
+                status_.joint_velocity = velocity_/gear_ratio_;
                 break;
        }
        return sizeof(status_);
