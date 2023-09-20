@@ -9,7 +9,7 @@ import sys
 
 
 m = motor.MotorManager()
-motors = m.get_motors_by_name(["a1","a2"], allow_simulated=True)
+motors = m.get_motors_by_name(["a1","left_hip_y","torque"], allow_simulated=True)
 a1 = motors[0]
 a2 = motors[1]
 
@@ -32,11 +32,12 @@ m
 m.set_auto_count()
 
 imax = 40
-vmax = 600
+vmax = 60
 ni = 10
 nv = 11
-tdwell = .25
+tdwell = 2
 accel = 1000
+kt = .045
 
 tmp = np.linspace(-imax, imax, ni)
 i = np.argsort(abs(tmp))
@@ -53,9 +54,12 @@ for mot in motors:
     mot["vacceleration_limit"] = str(accel)
 
 vlast = 0
+print('ides','vdes',"i1",'v1','i2','v2','torque')
 for ig in igrid:
     for vg in vgrid:
-        print("testing {} A, {} rad/s".format(ig, vg))
+        if ig*kt*vg > 1500:
+            continue
+        #print("testing {} A, {} rad/s".format(ig, vg))
         m.set_command_current([0, ig])
         m.set_command_velocity([vg, 0])
         m.set_command_mode([motor.ModeDesired.Velocity, motor.ModeDesired.Current])
@@ -69,6 +73,7 @@ for ig in igrid:
         i = []
         vel2 = []
         i2 = []
+        torque = []
         while(time.time() - tstart < tdwell):
             pass
             s = m.read()
@@ -81,7 +86,15 @@ for ig in igrid:
             i.append(s[0].iq)
             vel2.append(s[1].motor_velocity)
             i2.append(s[1].iq)
+            torque.append(s[2].torque)
+          #  Tmotor1.append(s[0].rr_data[s[0].rr_index])
 
-        print(np.mean(i), np.mean(vel), np.mean(i2), np.mean(vel2))
+        if abs(ig) > 20:
+            m.set_command_current([0,0])
+            m.set_command_mode(motor.ModeDesired.Current)
+            m.write_saved_commands()
+            time.sleep(5)
+
+        print(ig, vg, np.mean(i), np.mean(vel), np.mean(i2), np.mean(vel2), np.mean(torque))
 
 stop()
