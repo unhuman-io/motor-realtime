@@ -80,7 +80,7 @@ def wait_for_complete(enc = "m", timeout_s=10):
         time.sleep(.5)
 
 encs = ["m", "o"]
-encs = ["o"]
+#encs = ["o"]
 for enc in encs:
     if enc == "o":
         m.set_command_mode(motor.ModeDesired.Open)
