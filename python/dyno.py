@@ -32,10 +32,10 @@ m
 m.set_auto_count()
 
 imax = 40
-vmax = 60
+vmax = 500
 ni = 10
 nv = 11
-tdwell = 2
+tdwell = .5
 accel = 1000
 kt = .045
 
@@ -54,7 +54,7 @@ for mot in motors:
     mot["vacceleration_limit"] = str(accel)
 
 vlast = 0
-print('ides','vdes',"i1",'v1','i2','v2','torque')
+print('ides','vdes',"i1",'v1','i2','v2','torque', 'Tboard1', 'Tmotor1', 'Tboard2', 'Tmotor2')
 for ig in igrid:
     for vg in vgrid:
         if ig*kt*vg > 1500:
@@ -64,7 +64,7 @@ for ig in igrid:
         m.set_command_velocity([vg, 0])
         m.set_command_mode([motor.ModeDesired.Velocity, motor.ModeDesired.Current])
         m.write_saved_commands()
-        taccel = abs(vg - vlast)/accel + .25
+        taccel = abs(vg - vlast)/accel + 1
         vlast = vg
         time.sleep(taccel)
         # collect data
@@ -89,12 +89,19 @@ for ig in igrid:
             torque.append(s[2].torque)
           #  Tmotor1.append(s[0].rr_data[s[0].rr_index])
 
-        if abs(ig) > 20:
+
+
+        print(ig, vg, np.mean(i), np.mean(vel), np.mean(i2), np.mean(vel2), np.mean(torque), a1["Tboard"], a1["Tmotor"], a2["Tboard"], a2["Tmotor"])
+
+
+        if abs(ig) > 10:
             m.set_command_current([0,0])
             m.set_command_mode(motor.ModeDesired.Current)
             m.write_saved_commands()
-            time.sleep(5)
+            time.sleep(.1)
+            m.set_command_mode(motor.ModeDesired.Open)
+            m.write_saved_commands()
+            time.sleep(10)
 
-        print(ig, vg, np.mean(i), np.mean(vel), np.mean(i2), np.mean(vel2), np.mean(torque))
-
+        
 stop()
