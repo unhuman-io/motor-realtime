@@ -25,6 +25,7 @@ _motor_util_completion()
             stepper_velocity) subcommand=stepper_velocity ; break ;;
             voltage) subcommand=voltage ; break ;;
             state) subcommand=state ; break ;;
+            tuning) subcommand=tuning_mode ; break ;;
         esac
         (( i-- ))
     done
@@ -62,6 +63,12 @@ _motor_util_completion()
             case $last in
                 --amplitude|--frequency|--bias) return 0 ;;
                 --mode) words="sine square triangle chirp" ;;
+            esac ;;
+        tuning_mode) words="--amplitude --frequency --mode --bias --tuning_mode read -h --help";
+            case $last in
+                --amplitude|--frequency|--bias) return 0 ;;
+                --tuning_mode) words="sine square triangle chirp" ;;
+                --mode) words="position velocity torque" ;;
             esac ;;
         *) words=$base_words ;;
     esac
