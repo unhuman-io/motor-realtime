@@ -86,6 +86,9 @@ int main(int argc, char** argv) {
     for (const std::pair<const ModeDesired, const std::string> &pair : MotorManager::mode_map) {
         mode_map.push_back({pair.second, pair.first});
     }
+    std::vector<std::pair<std::string, ModeDesired>> tuning_mode_options_map{
+        {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"torque", ModeDesired::TORQUE}
+    };    
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
         {"chirp", TuningMode::CHIRP}};
@@ -142,6 +145,12 @@ int main(int argc, char** argv) {
     stepper_velocity_mode->add_option("--velocity", command.stepper_velocity.velocity, "Phase velocity");
     stepper_velocity_mode->add_option("--current", command.stepper_velocity.current, "Current desired");
     stepper_velocity_mode->add_option("--stepper_mode", command.stepper_velocity.stepper_mode, "Current/voltage mode")->transform(CLI::CheckedTransformer(stepper_mode_map, CLI::ignore_case));
+    auto tuning_mode = set->add_subcommand("tuning", "Tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::TUNING;});
+    tuning_mode->add_option("--amplitude", command.tuning_command.amplitude, "Tuning amplitude");
+    tuning_mode->add_option("--frequency", command.tuning_command.frequency, "Tuning frequency hz, or hz/s for chirp");
+    tuning_mode->add_option("--tuning_mode", command.tuning_command.tuning_mode, "Tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
+    tuning_mode->add_option("--mode", command.tuning_command.mode, "Main Mode")->transform(CLI::CheckedTransformer(tuning_mode_options_map, CLI::ignore_case));
+    tuning_mode->add_option("--bias", command.tuning_command.bias, "Trajectory offset");
     auto voltage_mode = set->add_subcommand("voltage", "Voltage mode")->final_callback([&](){command.mode_desired = ModeDesired::VOLTAGE;});
     voltage_mode->add_option("--voltage", command.voltage.voltage_desired, "Vq voltage desired");
     auto read_option = app.add_subcommand("read", "Print data received from motor(s)");
