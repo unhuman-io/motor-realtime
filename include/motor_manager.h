@@ -62,6 +62,7 @@ class MotorManager {
     uint32_t get_auto_count() const { return count_; }
     void set_reconnect(bool reconnect=true) { reconnect_ = reconnect; }
     void set_commands(const std::vector<Command> &commands);
+    void clear_commands();
     void set_command_count(int32_t count);
     void set_command_mode(uint8_t mode);
     void set_command_mode(const std::vector<uint8_t> &mode);

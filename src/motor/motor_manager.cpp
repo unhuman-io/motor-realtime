@@ -239,6 +239,12 @@ void MotorManager::set_commands(const std::vector<Command> &commands) {
     }
 }
 
+void MotorManager::clear_commands() {
+    for (uint8_t i=0; i<commands_.size(); i++) {
+        std::memset(&commands_[i], 0, sizeof(commands_[i]));
+    }
+}
+
 void MotorManager::set_command_count(int32_t count) {
     for (auto &c : commands_) {
         c.host_timestamp = count;
