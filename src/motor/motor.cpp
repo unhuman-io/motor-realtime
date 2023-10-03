@@ -48,7 +48,8 @@ std::string Motor::get_fast_log() {
     do {
         s_read = motor_txt_->writeread("log");
         size_t index = s_read.find(") ");
-        if (s_read != "log end") {
+        if (s_read != "log end" && 
+            s_read != "ok") {
             if (index == std::string::npos) {
                 s_log += s_read + '\n';
             } else {
