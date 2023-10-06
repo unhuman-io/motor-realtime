@@ -75,7 +75,7 @@ print("5V current measured {}".format(i5V_measured))
 if args.programmed:
     assert abs(i5V_measured - .07) < .02
 else:
-    assert abs(i5V_measured - .03) < .02
+    assert abs(i5V_measured - .02) < .02
 
 # measure 3v3 voltage
 v3v3_measured = ljm.eReadName(handle, aio["3V3"])
@@ -136,7 +136,7 @@ i5V_measured = -ljm.eReadName(handle, aio["I5V"])/.01
 # motor read 5V current
 i5V_read = api_average(test_motor["i5V"], 1000)
 print("5V current measured {}, read {}".format(i5V_measured, i5V_read))
-assert abs(i5V_measured - .077) < .02
+assert abs(i5V_measured - .05) < .02
 
 # read temperatures
 Tboard = api_average(test_motor["Tboard"], 1000)
@@ -230,7 +230,7 @@ def record_current_sensor_calibration(name):
     current = api_average(test_motor[name], 10000)
     print("{} read: {}".format(name, current))
     if name != "i48V":
-        assert abs(abs(current) - 10) < 1
+        assert abs(abs(current) - 10) < .3
         output_dict["fast_loop_param"][name_map[name] + "_gain"] = "-3.3/4096/(.0005*10)*{:.3f}".format(10/abs(current))
         output_dict["fast_loop_param"][name+"_bias"] = output_dict["fast_loop_param"][name+"_bias"] + "*{:.3f}".format(10/abs(current))
     else:
