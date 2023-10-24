@@ -75,7 +75,7 @@ struct ReadOptions {
 bool signal_exit = false;
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers"};
-    bool verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false;
+    bool verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false, list_devnum=false;
     bool user_space_driver = false;
     std::vector<std::string> names = {};
     std::vector<std::string> paths = {};
@@ -178,6 +178,7 @@ int main(int argc, char** argv) {
     app.add_flag("--list-path-only", list_path, "Print only connected motor paths");
     app.add_flag("--list-devpath-only", list_devpath, "Print only connected motor devpaths");
     app.add_flag("--list-serial-number-only", list_serial_number, "Print only connected motor serial numbers");
+    app.add_flag("--list-devnum-only", list_devnum, "Print only usb device numbers");
     app.add_flag("-u,--user-space", user_space_driver, "Connect through user space usb");
     auto name_option = app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
     app.add_flag("--allow-simulated", allow_simulated, "Allow simulated motors if not connected")->needs(name_option);
@@ -277,7 +278,7 @@ int main(int argc, char** argv) {
                 version_width = std::max(version_width, (int) (verbose_list ? m->version() : m->short_version()).size()+3);
             }
         }
-        if (list_names || list_path || list_devpath || list_serial_number) {
+        if (list_names || list_path || list_devpath || list_serial_number || list_devnum) {
               if (motors.size() > 0) {
                     for (auto m : motors) {
                         if (list_names) {
@@ -288,6 +289,8 @@ int main(int argc, char** argv) {
                             std::cout << m->dev_path();
                         } else if (list_serial_number)  {
                             std::cout << m->serial_number();
+                        } else if (list_devnum)  {
+                            std::cout << +m->devnum();
                         }
                         std::cout << std::endl;
                     }
