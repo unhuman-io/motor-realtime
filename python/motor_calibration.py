@@ -4,6 +4,7 @@ import motor
 import motor_program
 import time
 import math
+import json
 
 
 def calibrate():
@@ -53,6 +54,9 @@ def calibrate():
     assert((positive_velocity.joint_velocity - negative_velocity.joint_velocity)/positive_velocity.joint_velocity < 0.1)
 
     print(f"Done: {mot.name()}")
+
+    json_dict = {"serial_number": mot.serial_number(), "index_offset_measured": index_offset_average}
+    print(json.dumps(json_dict))
     
 
 def main():
