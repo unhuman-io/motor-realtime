@@ -24,7 +24,7 @@ install(FILES ${CMAKE_SOURCE_DIR}/include/motor_messages/motor_messages.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/motor_messages)
 
 if(BUILD_MOTOR_UTIL)
-    add_executable(motor_util motor_util.cpp)
+    add_executable(motor_util motor_util.cpp motor_util_fun.cpp)
     target_link_libraries(motor_util motor_manager cli11 pthread rt)
     target_include_directories(motor_util PUBLIC ${CMAKE_BINARY_DIR})
     install(TARGETS motor_util DESTINATION bin)

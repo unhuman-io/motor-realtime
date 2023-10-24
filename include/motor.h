@@ -199,7 +199,7 @@ inline double& operator<<(double& d, TextAPIItem const& item) {
     d = std::stod(item.get());
     return d;
 }
-class Motor {
+class Motor : public MotorDescription {
  public:
     enum MessagesCheck {NONE, MAJOR, MINOR};
     Motor() {}
@@ -239,12 +239,6 @@ class Motor {
                 }
             }
             return read_error; }
-    std::string name() const { return name_; }
-    std::string serial_number() const { return serial_number_; }
-    std::string base_path() const {return base_path_; }
-    std::string dev_path() const { return dev_path_; }
-    uint8_t devnum() const { return devnum_; }
-    std::string version() const { return version_; }
     virtual bool check_messages_version(MessagesCheck check = MAJOR) { 
         if (check == MAJOR) {
             std::string realtime_messages_version = MOTOR_MESSAGES_VERSION;
@@ -257,7 +251,7 @@ class Motor {
             return true;
         }
     }
-    std::string short_version() const {
+    virtual std::string short_version() const override {
         std::string s = version();
         auto pos = std::min(s.find(" "), s.find("-g"));
         return s.substr(0,pos);
@@ -285,11 +279,9 @@ class Motor {
     int fd_flags_;
     bool nonblock_ = false;
     bool no_write_ = false;
-    std::string serial_number_, name_, dev_path_, base_path_, version_;
     Status status_ = {};
     Command command_ = {};
     std::unique_ptr<TextFile> motor_txt_;
-    uint8_t devnum_ = 255;
 };
 
 class SimulatedMotor : public Motor {

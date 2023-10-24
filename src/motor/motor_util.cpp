@@ -12,6 +12,7 @@
 #include <sstream>
 #include "realtime_thread.h"
 #include "keyboard.h"
+#include "motor_util_fun.h"
 
 using namespace obot;
 
@@ -76,6 +77,7 @@ bool signal_exit = false;
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers"};
     bool verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false, list_devnum=false;
+    bool no_dfu_list = false;
     bool user_space_driver = false;
     std::vector<std::string> names = {};
     std::vector<std::string> paths = {};
@@ -179,6 +181,7 @@ int main(int argc, char** argv) {
     app.add_flag("--list-devpath-only", list_devpath, "Print only connected motor devpaths");
     app.add_flag("--list-serial-number-only", list_serial_number, "Print only connected motor serial numbers");
     app.add_flag("--list-devnum-only", list_devnum, "Print only usb device numbers");
+    app.add_flag("--no-dfu-list", no_dfu_list, "Don't list stm devices in dfu mode");
     app.add_flag("-u,--user-space", user_space_driver, "Connect through user space usb");
     auto name_option = app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
     app.add_flag("--allow-simulated", allow_simulated, "Allow simulated motors if not connected")->needs(name_option);
@@ -264,14 +267,28 @@ int main(int argc, char** argv) {
     }
 
     if (!no_list) {
+        std::vector<std::shared_ptr<MotorDescription>> motor_list;
+        for (auto m : motors) {
+            motor_list.emplace_back(m);
+        }
+        std::vector<std::string> dfu_devices;
+        if (!no_dfu_list) {
+            dfu_devices = udev_list_dfu();
+            if (dfu_devices.size() > 0) {
+                for (int i=0; i<dfu_devices.size(); i++) {
+                    motor_list.emplace_back(std::make_unique<DFUDevice>(dfu_devices[i]));
+                }
+            }
+        }
+
         int name_width = 6;
         int serial_number_width = 15;
         int version_width = 9;
         int path_width = 6;
         int dev_path_width = 5;
         int device_num_width = 8;
-        if (motors.size() > 0) {
-            for (auto m : motors) {
+        if (motor_list.size() > 0) {
+            for (auto m : motor_list) {
                 name_width = std::max(name_width, (int) m->name().size()+3);
                 path_width = std::max(path_width, (int) m->base_path().size()+3);
                 dev_path_width = std::max(dev_path_width, (int) m->dev_path().size());
@@ -279,7 +296,7 @@ int main(int argc, char** argv) {
             }
         }
         if (list_names || list_path || list_devpath || list_serial_number || list_devnum) {
-              if (motors.size() > 0) {
+              if (motor_list.size() > 0) {
                     for (auto m : motors) {
                         if (list_names) {
                             std::cout << m->name();
@@ -296,13 +313,17 @@ int main(int argc, char** argv) {
                     }
               }
         } else {
-            std::cout << motors.size() << " connected motor" << (motors.size() == 1 ? "" : "s") << std::endl;
-            if (motors.size() > 0) {
+            std::cout << motors.size() << " connected motor" << (motors.size() == 1 ? "" : "s");
+            if (dfu_devices.size() > 0) {
+                std::cout << ", " << dfu_devices.size() << " connected dfu device" << (dfu_devices.size() == 1 ? "" : "s");
+            }
+            std::cout << std::endl;
+            if (motor_list.size() > 0) {
                 std::cout << std::setw(dev_path_width) << "Dev" << std::setw(name_width) << "Name"
                             << std::setw(serial_number_width) << " Serial number"
                             << std::setw(version_width) << "Version" << std::setw(path_width) << std::left << "  Path" << std::right << std::setw(device_num_width) << "Devnum" << std::endl;
                 std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width + device_num_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
-                for (auto m : motors) {
+                for (auto m : motor_list) {
                     std::cout << std::setw(dev_path_width) << m->dev_path()
                             << std::setw(name_width) << m->name()
                             << std::setw(serial_number_width) << m->serial_number()
@@ -313,6 +334,8 @@ int main(int argc, char** argv) {
             }
         }
     }
+
+
 
     if (messages_mismatch) {
         std::cerr << messages_mismatch_error << std::endl;
