@@ -3,8 +3,23 @@
 #include <time.h>
 #include <cstdint>
 #include <stdexcept>
+#include <vector>
 
 namespace obot {
+
+class MotorDescription {
+ public:
+    std::string name() const { return name_; }
+    std::string serial_number() const { return serial_number_; }
+    std::string base_path() const {return base_path_; }
+    std::string dev_path() const { return dev_path_; }
+    uint8_t devnum() const { return devnum_; }
+    std::string version() const { return version_; }
+    virtual std::string short_version() const { return version_; }
+ protected:
+    std::string name_, serial_number_, base_path_, dev_path_, version_;
+    uint8_t devnum_;
+};
 
 // up to 2 seconds
 class Timer {
@@ -32,6 +47,12 @@ class Timer {
     }
     uint32_t time_start_;
     uint32_t timeout_ns_;
+};
+
+std::vector<std::string> udev_list_dfu();
+class DFUDevice : public MotorDescription {
+ public:
+    DFUDevice(std::string dev_path);
 };
 
 }  // namespace obot

@@ -57,6 +57,7 @@ class MotorManager {
     int poll(uint32_t timeout_ms = 1);
     int multipoll(uint32_t timeout_ns = 0);
     void lock();
+    void check_messages_version(Motor::MessagesCheck check_messages_version) { check_messages_version_ = check_messages_version; }
 
     void set_auto_count(bool on=true) { auto_count_ = on; }
     uint32_t get_auto_count() const { return count_; }
