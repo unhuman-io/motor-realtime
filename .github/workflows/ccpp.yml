@@ -185,3 +185,25 @@ jobs:
         files: |
           ./artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
         tag: main
+
+  test:
+    timeout-minutes: 10
+    needs: [build]
+    runs-on: [self-hosted, motor_enc]
+    steps:
+    - uses: actions/download-artifact@main
+      with:
+        name: artifacts
+    - name: test
+      run: |
+        ls
+        unzip artifacts.zip
+        tar xzf artifacts_ubuntu-22.04.tgz
+        cd artifacts/
+        ./bin/motor_util
+        [ $(./bin/motor_util -p 1-3.1 | wc -l) -eq 4 ]
+        [ $(./bin/motor_util -p 1-3.1 --no-list | wc -l) -eq 0 ]
+        dfu-util -e -p 1-3.1 || true
+        ./bin/motor_util | grep "dfu device"
+
+        time ./bin/motor_util
