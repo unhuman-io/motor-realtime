@@ -219,6 +219,8 @@ int main(int argc, char** argv) {
         auto tmp_motors = m.get_motors_by_serial_number(serial_numbers);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
+    bool messages_mismatch = false;
+    std::string messages_mismatch_error;
     // remove null motors
     {
         auto i = std::begin(motors);
@@ -229,11 +231,27 @@ int main(int argc, char** argv) {
                 ++i;
             }
         }
-        m.set_motors(motors);
+        if (motors.size() > 0) {
+            try {
+                m.set_motors(motors);
+            } catch (std::runtime_error &e) {
+                messages_mismatch = true;
+                messages_mismatch_error = e.what();
+                m.check_messages_version(Motor::MessagesCheck::NONE);
+                m.set_motors(motors);
+            }
+        }
     }
     
     if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size()) {
-        motors = m.get_connected_motors();
+        try {
+            motors = m.get_connected_motors();
+        } catch (std::runtime_error &e) {
+            messages_mismatch = true;
+            messages_mismatch_error = e.what();
+            m.check_messages_version(Motor::MessagesCheck::NONE);
+            motors = m.get_connected_motors();
+        }
     }
 
     if (lock_motors) {
@@ -291,6 +309,11 @@ int main(int argc, char** argv) {
                 }
             }
         }
+    }
+
+    if (messages_mismatch) {
+        std::cerr << messages_mismatch_error << std::endl;
+        return 1;
     }
 
     if (*run_stats_option && motors.size()) {
