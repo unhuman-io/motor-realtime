@@ -53,6 +53,7 @@ std::vector<std::string> udev_list_dfu();
 class DFUDevice : public MotorDescription {
  public:
     DFUDevice(std::string dev_path);
+    void leave();
 };
 
 }  // namespace obot

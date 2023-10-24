@@ -4,6 +4,11 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <string.h>
+#include <fcntl.h>
+#include <linux/usb/ch9.h> // todo why not usb.h
+#include <linux/usbdevice_fs.h>
+#include <sys/ioctl.h>
+#include <iostream>
 
 
 namespace obot {
@@ -90,6 +95,28 @@ DFUDevice::DFUDevice(std::string dev_path) {
     
     udev_device_unref(dev);
     udev_unref(udev);
+}
+
+void DFUDevice::leave() {
+    uint8_t command[] = {0};
+    struct usbdevfs_ctrltransfer transfer = {
+        .bRequestType = 0b00100001, // see https://www.usb.org/sites/default/files/DFU_1.1.pdf
+        .bRequest = 0,  // dfu detach
+        .wValue = 100,
+        .wIndex = 0,
+        .wLength = 0,
+        .timeout = 1000,
+        .data = command
+    };
+
+    
+    int fd = ::open(dev_path_.c_str(), O_RDWR); 
+    std::cout << "dev path" << dev_path_ << " " << fd << std::endl;
+
+    int retval = ::ioctl(fd, USBDEVFS_CONTROL, &transfer);
+    if (retval < 0) {
+        throw std::runtime_error("dfu leave error " + std::to_string(errno) + ": " + strerror(errno));
+    }
 }
 
 }; // namespace obot

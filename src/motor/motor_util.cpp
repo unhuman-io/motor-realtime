@@ -77,6 +77,7 @@ bool signal_exit = false;
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers"};
     bool verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false, list_devnum=false;
+    bool dfu_leave = false;
     bool no_dfu_list = false;
     bool user_space_driver = false;
     std::vector<std::string> names = {};
@@ -181,7 +182,8 @@ int main(int argc, char** argv) {
     app.add_flag("--list-devpath-only", list_devpath, "Print only connected motor devpaths");
     app.add_flag("--list-serial-number-only", list_serial_number, "Print only connected motor serial numbers");
     app.add_flag("--list-devnum-only", list_devnum, "Print only usb device numbers");
-    app.add_flag("--no-dfu-list", no_dfu_list, "Don't list stm devices in dfu mode");
+    auto no_dfu_list_option = app.add_flag("--no-dfu-list", no_dfu_list, "Don't list stm devices in dfu mode");
+    app.add_flag("--dfu-leave", dfu_leave, "Try leaving dfu mode on any dfu devices")->excludes(no_dfu_list_option);
     app.add_flag("-u,--user-space", user_space_driver, "Connect through user space usb");
     auto name_option = app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
     app.add_flag("--allow-simulated", allow_simulated, "Allow simulated motors if not connected")->needs(name_option);
@@ -276,7 +278,11 @@ int main(int argc, char** argv) {
             dfu_devices = udev_list_dfu();
             if (dfu_devices.size() > 0) {
                 for (int i=0; i<dfu_devices.size(); i++) {
-                    motor_list.emplace_back(std::make_unique<DFUDevice>(dfu_devices[i]));
+                    std::shared_ptr<DFUDevice> dfu_device = std::make_shared<DFUDevice>(dfu_devices[i]);
+                    motor_list.emplace_back(dfu_device);
+                    if (dfu_leave) {
+                        dfu_device->leave();
+                    }
                 }
             }
         }
