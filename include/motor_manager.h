@@ -50,6 +50,7 @@ class MotorManager {
     void set_motors(std::vector<std::shared_ptr<Motor>> motors);
     std::vector<Command> &commands() { return commands_; }
     std::vector<Status> &read();
+    std::vector<Status> read_average(uint32_t num_average = 1);
     void write(std::vector<Command> &);
     void write_saved_commands();
     void aread();
