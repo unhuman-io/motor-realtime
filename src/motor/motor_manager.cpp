@@ -204,6 +204,36 @@ std::vector<Status> &MotorManager::read() {
     return statuses_;
 }
 
+std::vector<Status> MotorManager::read_average(uint32_t num_average) {
+    poll();
+    std::vector<Status> statuses = read();
+    for (uint32_t i=0; i<num_average-1; i++) {
+        poll();
+        auto tmp = read();
+        for (int j=0; j<statuses.size(); j++) {
+            Status &status = statuses[j];
+            status.motor_position += tmp[j].motor_position;
+            status.joint_position += tmp[j].joint_position;
+            status.iq += tmp[j].iq;
+            status.torque += tmp[j].torque;
+            status.motor_encoder += tmp[j].motor_encoder;
+            status.motor_velocity += tmp[j].motor_velocity;
+            status.joint_velocity += tmp[j].joint_velocity;
+        }
+    }
+    for (int j=0; j<statuses.size(); j++) {
+        Status &status = statuses[j];
+        status.motor_position /= num_average;
+        status.joint_position /= num_average;
+        status.iq /= num_average;
+        status.torque /= num_average;
+        status.motor_encoder /= num_average;
+        status.motor_velocity /= num_average;
+        status.joint_velocity /= num_average;
+    }
+    return statuses;
+}
+
 void MotorManager::lock() {
     for (uint8_t i=0; i<motors_.size(); i++) {
         int err = motors_[i]->lock();
