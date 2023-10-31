@@ -469,14 +469,16 @@ std::string MotorManager::command_headers() const {
     return ss.str();
 }
 
-std::string MotorManager::status_headers() const {
+std::string MotorManager::status_headers(bool mini) const {
     std::stringstream ss;
     int length = motors_.size();
-    for (int i=0;i<length;i++) {
-        ss << "mcu_timestamp" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "host_timestamp_received" << i << ", ";
+    if (!mini) {
+        for (int i=0;i<length;i++) {
+            ss << "mcu_timestamp" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "host_timestamp_received" << i << ", ";
+        }
     }
     for (int i=0;i<length;i++) {
         ss << "motor_position" << i << ", ";
@@ -490,38 +492,40 @@ std::string MotorManager::status_headers() const {
     for (int i=0;i<length;i++) {
         ss << "torque" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
-        ss << "motor_encoder" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "rr_index" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "rr_data" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "reserved" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "motor_velocity" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "joint_velocity" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "iq_desired" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "mode" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "error" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "misc" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "mode_error_text" << i << ", ";
+    if (!mini) {
+        for (int i=0;i<length;i++) {
+            ss << "motor_encoder" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "rr_index" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "rr_data" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "reserved" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "motor_velocity" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "joint_velocity" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "iq_desired" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "mode" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "error" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "misc" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "mode_error_text" << i << ", ";
+        }
     }
     return ss.str();
 }

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <vector>
+#include "motor_messages.h"
 
 namespace obot {
 
@@ -54,5 +55,7 @@ class DFUDevice : public MotorDescription {
  public:
     DFUDevice(std::string dev_path);
 };
+
+std::string short_status(std::vector<Status> statuses);
 
 }  // namespace obot

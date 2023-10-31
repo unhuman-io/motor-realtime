@@ -71,6 +71,7 @@ struct ReadOptions {
     bool compute_velocity;
     double timestamp_frequency_hz;
     int precision;
+    bool mini;
 };
 
 bool signal_exit = false;
@@ -170,6 +171,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
     read_option->add_flag("-v,--compute-velocity", read_opts.compute_velocity, "Compute velocity from motor and joint position");
     read_option->add_option("-p,--precision", read_opts.precision, "floating point precision output")->expected(1);
+    read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]", true)->type_name("NUM_SAMPLES RANGE")->expected(0,2);
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
@@ -484,7 +486,7 @@ int main(int argc, char** argv) {
                         std::cout << "t_seconds" << i << ", ";
                     }
                 }
-                std::cout << m.status_headers();
+                std::cout << m.status_headers(read_opts.mini);
                 if (read_opts.compute_velocity) {
                     for (int i=0;i<motors.size();i++) {
                         std::cout << "motor_velocity_computed" << i << ", ";
@@ -578,7 +580,11 @@ int main(int argc, char** argv) {
                         last_status = status;
                     }
                     std::cout << std::setprecision(read_opts.precision);
-                    std::cout << status;
+                    if (read_opts.mini) {
+                        std::cout << short_status(status);
+                    } else {
+                        std::cout << status;
+                    }
                     if (read_opts.compute_velocity) {
                         static auto last_status = status;
                         for (int i = 0; i < status.size(); i++) {
