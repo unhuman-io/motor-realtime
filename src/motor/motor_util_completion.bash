@@ -39,7 +39,7 @@ _motor_util_completion()
                 --host_time|--current|--position|--velocity|--reserved|--gpio) return 0 ;;
                 --mode) words="open damped current position velocity torque impedance state current_tuning position_tuning voltage phase_lock stepper_tuning hardware_brake joint_position admittance find_limits driver_enable driver_disable clear_faults fault sleep crash reset" ;;
             esac ;;
-        read) words="--poll --ppoll --aread --nonblock --frequency --statistics --read-write-statistics --text -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision set -h --help";
+        read) words="--poll --ppoll --aread --nonblock --frequency --statistics --read-write-statistics --text -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision -m --short set -h --help";
             case $last in
                 --frequency|--timestamp_frequency|-p|--precision) return 0 ;;
             esac ;;

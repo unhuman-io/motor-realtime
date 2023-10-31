@@ -4,6 +4,8 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <string.h>
+#include <sstream>
+#include <iomanip>
 
 
 namespace obot {
@@ -90,6 +92,24 @@ DFUDevice::DFUDevice(std::string dev_path) {
     
     udev_device_unref(dev);
     udev_unref(udev);
+}
+
+std::string short_status(const std::vector<Status> status) {
+    std::ostringstream os;
+    os << std::fixed << std::setprecision(3);
+    for (auto s : status) {
+        os << std::setw(6) << s.motor_position << ", ";
+    }
+    for (auto s : status) {
+        os << std::setw(6) << s.joint_position << ", ";
+    }
+    for (auto s : status) {
+        os << std::setw(6) << s.iq << ", ";
+    }
+    for (auto s : status) {
+        os << std::setw(6) << s.torque << ", ";
+    }
+    return os.str();
 }
 
 }; // namespace obot

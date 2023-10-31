@@ -82,7 +82,7 @@ class MotorManager {
     void set_command_stepper_velocity(double voltage, double velocity);
 
     std::string command_headers() const;
-    std::string status_headers() const;
+    std::string status_headers(bool mini = false) const;
     int serialize_command_size() const;
     int serialize_saved_commands(char *data) const;
     bool deserialize_saved_commands(char *data);
