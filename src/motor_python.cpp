@@ -75,8 +75,8 @@ PYBIND11_MODULE(motor, m)
     m.doc() = "Motor interface";
     py::class_<MotorManager>(m, "MotorManager")
         // todo decide if it should connect by default in c++ also
-        .def(py::init([]()
-                      { auto m = new MotorManager(); m->get_connected_motors(); return m; }))
+        .def(py::init([](bool u)
+                      { auto m = new MotorManager(u); m->get_connected_motors(); return m; }), py::arg("user_space_driver") = false)
         .def("__repr__", [](const MotorManager &m)
              { 
             std::string s;
@@ -90,9 +90,11 @@ PYBIND11_MODULE(motor, m)
         .def("get_motors_by_path", &MotorManager::get_motors_by_path, py::arg("paths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("get_motors_by_devpath", &MotorManager::get_motors_by_devpath, py::arg("devpaths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("motors", &MotorManager::motors)
+        .def("free_motors", &MotorManager::free_motors)
         .def("set_motors", &MotorManager::set_motors)
         .def("read", &MotorManager::read)
         .def("read_average", &MotorManager::read_average)
+        .def("start_nonblocking_read", &MotorManager::start_nonblocking_read)
         .def("write", &MotorManager::write)
         .def("write_saved_commands", &MotorManager::write_saved_commands)
         .def("aread", &MotorManager::aread)
@@ -136,7 +138,10 @@ PYBIND11_MODULE(motor, m)
             s << std::hex << e.all;
             std::string shex(s.str());
             return m["error_mask"].set(shex); })
-        .def("get_cpu_frequency", &Motor::get_cpu_frequency);
+        .def("get_cpu_frequency", &Motor::get_cpu_frequency)
+        .def("set_nonblock", &Motor::set_nonblock)
+        .def("get_timeout_ms", &Motor::get_timeout_ms)
+        .def("set_timeout_ms", &Motor::set_timeout_ms);
 
     py::class_<TextAPIItem>(m, "TextAPIItem")
         .def("__repr__", &TextAPIItem::get)
