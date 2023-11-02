@@ -83,3 +83,5 @@ add_subdirectory(test)
 add_subdirectory(example)
 install(DIRECTORY example 
     DESTINATION ${CMAKE_INSTALL_DATADIR}/${CMAKE_PROJECT_NAME})
+install(DIRECTORY scripts USE_SOURCE_PERMISSIONS
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/${CMAKE_PROJECT_NAME})
