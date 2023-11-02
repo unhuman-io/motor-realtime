@@ -65,6 +65,7 @@ static std::vector<std::string> udev (bool user_space_driver=false)
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool connect) {
+    free_motors();
     auto dev_paths = udev(user_space_driver_);
     std::vector<std::shared_ptr<Motor>> m;
     for (auto dev_path : dev_paths) {

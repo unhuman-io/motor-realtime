@@ -37,6 +37,9 @@ class TextFile {
     std::string writeread(const std::string str) {
         char str_in[MAX_API_DATA_SIZE+1];
         ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_DATA_SIZE);
+        if (s < 0) {
+            throw std::runtime_error("text writeread failure " + std::to_string(errno) + ": " + strerror(errno));
+        }
         str_in[s] = 0;
         return str_in;
     }
@@ -75,9 +78,11 @@ class SysfsFile : public TextFile {
     virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
         lockf(fd_, F_LOCK, 0);
-        write(data_out, length_out);
-        ::lseek(fd_, 0, SEEK_SET);
-        auto retval = read(data_in, length_in);
+        auto retval = write(data_out, length_out);
+        if (retval >= 0) {
+            ::lseek(fd_, 0, SEEK_SET);
+            retval = read(data_in, length_in);
+        }
         ::lseek(fd_, 0, SEEK_SET);
         lockf(fd_, F_ULOCK, 0);
         return retval;
@@ -120,9 +125,11 @@ class USBFile : public TextFile {
     virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
         lockf(fd_, F_LOCK, 0);
-        write(data_out, length_out);
-        ::lseek(fd_, 0, SEEK_SET);
-        auto retval = read(data_in, length_in);
+        auto retval = write(data_out, length_out);
+        if (retval >= 0) {
+            ::lseek(fd_, 0, SEEK_SET);
+            retval = read(data_in, length_in);
+        }
         ::lseek(fd_, 0, SEEK_SET);
         lockf(fd_, F_ULOCK, 0);
         return retval;
@@ -256,6 +263,8 @@ class Motor : public MotorDescription {
         auto pos = std::min(s.find(" "), s.find("-g"));
         return s.substr(0,pos);
     }
+    virtual void set_timeout_ms(int timeout_ms);
+    virtual int get_timeout_ms() const;
     // note will probably not be the final interface
     TextAPIItem operator[](const std::string s) { TextAPIItem t(motor_txt_.get(), s); return t; }
     int fd() const { return fd_; }
@@ -281,6 +290,7 @@ class Motor : public MotorDescription {
     bool no_write_ = false;
     Status status_ = {};
     Command command_ = {};
+    std::string attr_path_;
     std::unique_ptr<TextFile> motor_txt_;
 };
 

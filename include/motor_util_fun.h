@@ -17,6 +17,8 @@ class MotorDescription {
     uint8_t devnum() const { return devnum_; }
     std::string version() const { return version_; }
     virtual std::string short_version() const { return version_; }
+    virtual void set_timeout_ms(int timeout_ms) {};
+    virtual int get_timeout_ms() const { return 0; };
  protected:
     std::string name_, serial_number_, base_path_, dev_path_, version_;
     uint8_t devnum_;
