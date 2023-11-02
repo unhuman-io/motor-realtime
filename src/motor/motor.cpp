@@ -42,7 +42,7 @@ std::string Motor::get_fast_log() {
     std::string s_read, s_out;
     s_out += "timestamp, position, iq_des, iq_meas_filt, ia, ib, ic, va, vb, vc, vbus\n";
 
-    for(int j=0; j<4; j++) {
+    for(int j=0; j<5; j++) {
         s_read = motor_txt_->writeread("fast_log");
         for(int i=0; i<22; i++) {
             FastLog log = *(FastLog *) (s_read.c_str() + i*sizeof(FastLog));
