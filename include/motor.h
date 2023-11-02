@@ -41,7 +41,8 @@ class TextFile {
             throw std::runtime_error("text writeread failure " + std::to_string(errno) + ": " + strerror(errno));
         }
         str_in[s] = 0;
-        return str_in;
+        std::string s_out(str_in, s);
+        return s_out;
     }
 };
 

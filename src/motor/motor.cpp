@@ -40,26 +40,28 @@ Motor::Motor(std::string dev_path) {
 Motor::~Motor() { close(); }
 
 std::string Motor::get_fast_log() {
-    std::string s_read;
-    do {
-        s_read = motor_txt_->writeread("log");
-    } while (s_read != "log end");
-    s_read = motor_txt_->writeread("fast_log");
-    std::string s_log;
-    do {
-        s_read = motor_txt_->writeread("log");
-        size_t index = s_read.find(") ");
-        if (s_read != "log end" && 
-            s_read != "ok") {
-            if (index == std::string::npos) {
-                s_log += s_read + '\n';
-            } else {
-                // eliminate leading timing information in parentheses
-                s_log += s_read.substr(index+2, std::string::npos) + '\n';
-            }
+    std::string s_read, s_out;
+    s_out += "timestamp, position, iq_des, iq_meas_filt, ia, ib, ic, va, vb, vc, vbus\n";
+
+    for(int j=0; j<5; j++) {
+        s_read = motor_txt_->writeread("fast_log");
+        for(int i=0; i<22; i++) {
+            FastLog log = *(FastLog *) (s_read.c_str() + i*sizeof(FastLog));
+            s_out += 
+                std::to_string(log.timestamp) + ", " +
+                std::to_string(log.measured_motor_position) + ", " +
+                std::to_string(log.command_iq) + ", " +
+                std::to_string(log.measured_iq) + ", " +
+                std::to_string(log.measured_ia) + ", " +
+                std::to_string(log.measured_ib) + ", " +
+                std::to_string(log.measured_ic) + ", " +
+                std::to_string(log.command_va) + ", " +
+                std::to_string(log.command_vb) + ", " +
+                std::to_string(log.command_vc) + ", " +
+                std::to_string(log.vbus) + "\n";
         }
-    } while (s_read != "log end");
-    return s_log;
+    }
+    return s_out;
 }
 
 std::vector<std::string> Motor::get_api_options() {
