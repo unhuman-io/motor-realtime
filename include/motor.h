@@ -38,7 +38,8 @@ class TextFile {
         char str_in[MAX_API_DATA_SIZE+1];
         ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_DATA_SIZE);
         str_in[s] = 0;
-        return str_in;
+        std::string s_out(str_in, s);
+        return s_out;
     }
 };
 

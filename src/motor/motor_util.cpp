@@ -72,6 +72,7 @@ struct ReadOptions {
     double timestamp_frequency_hz;
     int precision;
     bool mini;
+    bool fastlog;
 };
 
 bool signal_exit = false;
@@ -172,6 +173,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("-v,--compute-velocity", read_opts.compute_velocity, "Compute velocity from motor and joint position");
     read_option->add_option("-p,--precision", read_opts.precision, "floating point precision output")->expected(1);
     read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
+    read_option->add_flag("--fast_log", read_opts.fastlog, "Print the fast log");
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]", true)->type_name("NUM_SAMPLES RANGE")->expected(0,2);
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
@@ -380,7 +382,7 @@ int main(int argc, char** argv) {
         m.write_saved_commands();
     }
 
-    if (api_mode || (*read_option && *text_read)) {
+    if (api_mode || (*read_option && *text_read || (*read_option && read_opts.fastlog))) {
         if (motors.size() != 1) {
             std::cout << "Select one motor to use api mode" << std::endl;
             return 1;
@@ -421,6 +423,11 @@ int main(int argc, char** argv) {
         }
         
         m.set_reconnect(read_opts.reconnect);
+
+        if (read_opts.fastlog) {
+            std::cout << m.motors()[0]->get_fast_log();
+            return 0;
+        }
         
         if (*text_read) {
             std::vector<TextAPIItem> log;
