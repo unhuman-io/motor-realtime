@@ -82,7 +82,7 @@ def wait_for_complete(enc = "m", timeout_s=10):
         time.sleep(.5)
 
 encs = ["m", "o"]
-encs = ["m"]
+#encs = ["m"]
 for enc in encs:
     if enc == "o":
         mot["mecc_correction"] = "1"
@@ -95,24 +95,24 @@ for enc in encs:
         m.write_saved_commands()
         time.sleep(1)
 
-    # print("starting {}cal: {}".format(enc, mot[enc+"cal"].get()))
+    print("starting {}cal: {}".format(enc, mot[enc+"cal"].get()))
     mot[enc+"ecc_correction"] = "0"
-    # print(enc+"auto_ana")
-    # mot[enc+"auto_ana"].get()
-    # wait_for_complete(enc)
+    print(enc+"auto_ana")
+    mot[enc+"auto_ana"].get()
+    wait_for_complete(enc)
 
-    # print(enc+"auto_dig")
-    # mot[enc+"auto_dig"].get()
-    # wait_for_complete(enc)
+    print(enc+"auto_dig")
+    mot[enc+"auto_dig"].get()
+    wait_for_complete(enc)
 
     print(enc+"readj_dig")
     mot[enc+"readj_dig"].get()
     wait_for_complete(enc)
 
-    # print(enc+"auto_ecc")
-    # mot[enc+"ac_count"] = str(eval(enc+"ac_count_ecc"))
-    # mot[enc+"auto_ecc"].get()
-    # wait_for_complete(enc,timeout_s=20)
+    print(enc+"auto_ecc")
+    mot[enc+"ac_count"] = str(eval(enc+"ac_count_ecc"))
+    mot[enc+"auto_ecc"].get()
+    wait_for_complete(enc,timeout_s=20)
 
     if enc == "o":
         # encoder vs encoder eccentricity
@@ -169,19 +169,27 @@ for enc in encs:
         mv = vel * (t - t[0]) + mp[0]
 
         stop()
-        plt.plot(mp % (2*np.pi),(mp-mv)*disk_um,'.')
+        plt.plot(mp % (2*np.pi),(mp-mv)*disk_um)
         error = (mp-mv)
 
-        bins = np.linspace(0, 2*np.pi, 1001)
-        inds = np.digitize(mp % (2*np.pi), bins)
-        count = np.zeros(1001)
-        avg = np.zeros(1001)
-        for i in range(1001):
-            count[i] = np.sum(i == inds)
-            avg[i] = np.average(error[inds == i])
+        
+        rev = np.floor(mp / 2*np.pi)
+        avg = np.zeros(int(rev[-1]))
+        error_unbias = np.zeros(np.size(error))
+        for i in range(int(rev[-1])):
+            avg[i] = np.average(error[rev == i])
+            error_unbias[rev == i] = error[rev == i] - avg[i]
+
+        # bins = np.linspace(0, 2*np.pi, 1001)
+        # inds = np.digitize(mp % (2*np.pi), bins)
+        # count = np.zeros(1001)
+        # avg = np.zeros(1001)
+        # for i in range(1001):
+        #     count[i] = np.sum(i == inds)
+        #     avg[i] = np.average(error[inds == i])
 
         plt.figure(2)
-        plt.plot(avg)
+        plt.plot(mp, error_unbias,'.')
         plt.show()
 
     print("finish {}cal: {}".format(enc, mot[enc+"cal"].get()))
