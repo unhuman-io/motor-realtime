@@ -6,7 +6,9 @@ import signal
 import sys
 import re
 import argparse
-
+import math
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 m = motor.MotorManager()
@@ -80,9 +82,10 @@ def wait_for_complete(enc = "m", timeout_s=10):
         time.sleep(.5)
 
 encs = ["m", "o"]
-#encs = ["o"]
+encs = ["m"]
 for enc in encs:
     if enc == "o":
+        mot["mecc_correction"] = "1"
         m.set_command_mode(motor.ModeDesired.Open)
         m.write_saved_commands()
         time.sleep(1)
@@ -92,24 +95,94 @@ for enc in encs:
         m.write_saved_commands()
         time.sleep(1)
 
-    print("starting {}cal: {}".format(enc, mot[enc+"cal"].get()))
+    # print("starting {}cal: {}".format(enc, mot[enc+"cal"].get()))
     mot[enc+"ecc_correction"] = "0"
-    print(enc+"auto_ana")
-    mot[enc+"auto_ana"].get()
-    wait_for_complete(enc)
+    # print(enc+"auto_ana")
+    # mot[enc+"auto_ana"].get()
+    # wait_for_complete(enc)
 
-    print(enc+"auto_dig")
-    mot[enc+"auto_dig"].get()
-    wait_for_complete(enc)
+    # print(enc+"auto_dig")
+    # mot[enc+"auto_dig"].get()
+    # wait_for_complete(enc)
 
     print(enc+"readj_dig")
     mot[enc+"readj_dig"].get()
     wait_for_complete(enc)
 
-    print(enc+"auto_ecc")
-    mot[enc+"ac_count"] = str(eval(enc+"ac_count_ecc"))
-    mot[enc+"auto_ecc"].get()
-    wait_for_complete(enc,timeout_s=20)
+    # print(enc+"auto_ecc")
+    # mot[enc+"ac_count"] = str(eval(enc+"ac_count_ecc"))
+    # mot[enc+"auto_ecc"].get()
+    # wait_for_complete(enc,timeout_s=20)
+
+    if enc == "o":
+        # encoder vs encoder eccentricity
+        max_diff = float("-inf")
+        min_diff = float("inf")
+        status = m.read_average(1)[0]
+        joint_start = status.joint_position
+        motor_start = status.motor_position
+        motor_last = motor_start
+        joint_position = joint_start
+        gear_ratio = float(mot["gear_ratio"].get())
+        mrollover = float(mot["mrollover"].get())
+        disk_um = float(mot["odisk_um"].get())
+
+        while(abs(joint_position - joint_start) < 3*math.pi):
+            status = m.read_average(1)[0]
+            joint_position = status.joint_position
+            motor_position = np.unwrap([motor_last,status.motor_position], period=mrollover)[1]
+            motor_last = motor_position
+            diff = status.joint_position -joint_start - (motor_position-motor_start)/gear_ratio
+            #print(f'diff: {diff}')
+            if diff > max_diff:
+                max_diff = diff
+            if diff < min_diff:
+                min_diff = diff
+        print(f"encoder peak-peak diff um: {(max_diff - min_diff)*disk_um}")
+    
+    if enc == "m":
+        # encoder vs const slope eccentricity
+        status = m.read_average(1)[0]
+        motor_start = status.motor_position
+        motor_last = motor_start
+        disk_um = float(mot["mdisk_um"].get())
+        mrollover = float(mot["mrollover"].get())
+        motor_position = motor_start
+        t_last = status.mcu_timestamp
+        t = []
+        mp = []
+
+        while(abs(motor_position - motor_start) < 300*2*math.pi):
+            status = m.read_average(1)[0]
+            motor_position = np.unwrap([motor_last,status.motor_position], period=mrollover)[1]
+            motor_last = motor_position
+            t_s = np.unwrap([t_last, status.mcu_timestamp], period=2**32)[1] / 170e6
+            t_last = status.mcu_timestamp
+            t.append(t_s)
+            mp.append(motor_position - motor_start)
+
+        t = np.array(t)
+        mp = np.array(mp)
+        print(t, mp)
+        vel = (mp[-1] - mp[0])/(t[-1] - t[0])
+        print(f"vel avg: {vel}")
+        mv = vel * (t - t[0]) + mp[0]
+
+        stop()
+        plt.plot(mp % (2*np.pi),(mp-mv)*disk_um,'.')
+        error = (mp-mv)
+
+        bins = np.linspace(0, 2*np.pi, 1001)
+        inds = np.digitize(mp % (2*np.pi), bins)
+        count = np.zeros(1001)
+        avg = np.zeros(1001)
+        for i in range(1001):
+            count[i] = np.sum(i == inds)
+            avg[i] = np.average(error[inds == i])
+
+        plt.figure(2)
+        plt.plot(avg)
+        plt.show()
 
     print("finish {}cal: {}".format(enc, mot[enc+"cal"].get()))
 
