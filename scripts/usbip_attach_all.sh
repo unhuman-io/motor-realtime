@@ -7,7 +7,7 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
-sudo modprobe usbip-core
+sudo modprobe usbip-core vhci-hcd
 
 devices=$(usbip list -r $1 | grep -Po '(?<= )(\d-[\d\.]+)')
 
@@ -18,4 +18,4 @@ done
 
 sleep 1
 
-./set_timeout_all.sh 200
+$(dirname -- "${BASH_SOURCE[0]}")/set_timeout_all.sh 200
