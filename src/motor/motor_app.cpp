@@ -31,12 +31,16 @@ sig_atomic_t volatile running = 1;
 
 MotorApp::MotorApp(int argc, char ** argv, MotorThread *motor_thread, std::string app_name) 
     : motor_thread_(motor_thread) {
-	CLI::App app(app_name);
+	app_name_ = app_name;
+	parse_args(argc, argv);
+}
+
+void MotorApp::parse_args(int argc, char **argv) {
+	CLI::App app(app_name_);
 	auto name_option = app.add_option("-n,--names", names_, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
 	app.add_flag("--allow-simulated", allow_simulated_, "Allow simulated motors if not connected")->needs(name_option);
-	auto parse = [&](){ CLI11_PARSE(app, argc, argv); };
+	auto parse = [&](){ CLI11_PARSE(app, argc, argv); return 0; };
 	parse();
-
 }
 
 void MotorApp::select_motors(MotorManager *m) {
