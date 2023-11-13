@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
     CLI::App app{"Utility for parsing usbmon data for motors"};
     std::vector<uint8_t> device_numbers = {};
     std::string usbmon_devname = "/dev/usbmon1";
-    app.add_option("-m", usbmon_devname, "Usbmon devname", true)->type_name("DEVNAME");
+    app.add_option("-m", usbmon_devname, "Usbmon devname")->type_name("DEVNAME")->capture_default_str();
     app.add_option("device_numbers,-d", device_numbers, "Parse for usb device number(s)")->type_name("DEVICE_NUMBER")->expected(1,-1)->required();
     CLI11_PARSE(app, argc, argv);
 
