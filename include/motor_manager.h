@@ -199,9 +199,38 @@ inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
    return is;
 }
 
-#define PRINT_FLAG(flag) if (s.flags.error.flag) os << #flag " "
+#define PRINT_FLAG(flag) if (error.flag) os << #flag " "
 
-inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
+inline std::ostream& operator<<(std::ostream& os, const MotorError &error)
+{
+   if (error.all) {
+      PRINT_FLAG(sequence);
+      PRINT_FLAG(bus_voltage_low);
+      PRINT_FLAG(bus_voltage_high);
+      PRINT_FLAG(bus_current);
+      PRINT_FLAG(microcontroller_temperature);
+      PRINT_FLAG(board_temperature);
+      PRINT_FLAG(motor_temperature);
+      PRINT_FLAG(driver_fault);
+      PRINT_FLAG(motor_overcurrent);
+      PRINT_FLAG(motor_phase_open);
+      PRINT_FLAG(motor_encoder);
+      PRINT_FLAG(motor_encoder_limit);
+      PRINT_FLAG(output_encoder);
+      PRINT_FLAG(output_encoder_limit);
+      PRINT_FLAG(torque_sensor);
+      PRINT_FLAG(controller_tracking);
+      PRINT_FLAG(host_fault);
+      PRINT_FLAG(driver_not_enabled);
+      PRINT_FLAG(encoder_disagreement);
+      PRINT_FLAG(torque_sensor_disagreement);
+      PRINT_FLAG(motor_soft_limit);
+      PRINT_FLAG(fault);
+   }
+   return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> &status)
 {
 
    for (auto s : status) {
@@ -264,30 +293,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    os << std::dec;
    for (auto s : status) {
       os << MotorManager::mode_map.at(static_cast<ModeDesired>(s.flags.mode)) << " ";
-      if (s.flags.error.all) {
-         PRINT_FLAG(sequence);
-         PRINT_FLAG(bus_voltage_low);
-         PRINT_FLAG(bus_voltage_high);
-         PRINT_FLAG(bus_current);
-         PRINT_FLAG(microcontroller_temperature);
-         PRINT_FLAG(board_temperature);
-         PRINT_FLAG(motor_temperature);
-         PRINT_FLAG(driver_fault);
-         PRINT_FLAG(motor_overcurrent);
-         PRINT_FLAG(motor_phase_open);
-         PRINT_FLAG(motor_encoder);
-         PRINT_FLAG(motor_encoder_limit);
-         PRINT_FLAG(output_encoder);
-         PRINT_FLAG(output_encoder_limit);
-         PRINT_FLAG(torque_sensor);
-         PRINT_FLAG(controller_tracking);
-         PRINT_FLAG(host_fault);
-         PRINT_FLAG(driver_not_enabled);
-         PRINT_FLAG(encoder_disagreement);
-         PRINT_FLAG(torque_sensor_disagreement);
-         PRINT_FLAG(fault);
-      }
-      os << ", ";
+      os << s.flags.error << ", ";
    }
    return os;
 }
