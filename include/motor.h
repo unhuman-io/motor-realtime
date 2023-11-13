@@ -207,6 +207,20 @@ inline double& operator<<(double& d, TextAPIItem const& item) {
     d = std::stod(item.get());
     return d;
 }
+
+static int get_lock_pid(int fd, pid_t *pid) {
+    struct flock lock;
+    lock.l_type = F_WRLCK;
+    lock.l_start = 0;
+    lock.l_whence = 0;
+    lock.l_len = 0;
+    int err = ::fcntl(fd, F_GETLK, &lock);
+    if (err == 0) {
+        *pid = lock.l_pid;
+    }
+    return err;
+}
+
 class Motor : public MotorDescription {
  public:
     enum MessagesCheck {NONE, MAJOR, MINOR};
@@ -217,14 +231,26 @@ class Motor : public MotorDescription {
     virtual ssize_t write() { if (!no_write_) {
         return ::write(fd_, &command_, sizeof(command_));
      } else {
-        std::cerr << "motor " + name() + " locked, not writeable" << std::endl;;
-        return 0;
+        std::cerr << "motor " + name() + " locked";
+        pid_t pid;
+        int err = get_lock_pid(fd_, &pid);
+        if (err == 0) {
+            std::cerr << " by process: " << pid;
+        }
+        std::cerr << ", not writeable" << std::endl;;
+        return -1;
      } }
     virtual int lock() { 
         ::lseek(fd_, 0, SEEK_SET);
         int err = lockf(fd_, F_TLOCK, 0); 
         if (err) {
-            std::cerr << "error locking " + name() << std::endl;
+            std::cerr << "error locking " + name();
+            pid_t pid;
+            int err2 = get_lock_pid(fd_, &pid);
+            if (err2 == 0) {
+                std::cerr << ", already locked by process: " << pid;
+            }
+            std::cerr << std::endl;
         }
         return err;
     }

@@ -254,7 +254,9 @@ void MotorManager::write(std::vector<Command> &commands) {
     }
     for (uint8_t i=0; i<motors_.size(); i++) {
         *motors_[i]->command() = commands[i];
-        motors_[i]->write();
+        if (motors_[i]->write() < 0) {
+            throw std::runtime_error("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+        }
     }
 }
 
