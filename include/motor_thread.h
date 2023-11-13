@@ -22,6 +22,7 @@ class MotorThread : public RealtimeThread {
     }
     const CStack<Data> &cstack() const { return cstack_; }
     void init();
+    void set_poll_timeout(uint32_t ns) { poll_timeout_ns_ = ns; }
     MotorManager& motor_manager() { return motor_manager_; }
  protected:
     virtual void post_init() {}
