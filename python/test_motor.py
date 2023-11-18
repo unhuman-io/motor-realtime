@@ -73,19 +73,23 @@ class TestMotor(unittest.TestCase):
         self.m.set_command_current_tuning(motor.TuningMode.Chirp, .3, 200, 0)
         self.m.write_saved_commands()
         time_start = time.time()
-        a = np.array([])
+        freq = np.array([])
+        mag = np.array([])
         while(time.time() - time_start < 10):
-            a = np.append(a,[self.m.read()[0].iq])
+            freq = np.append(freq,[float(self.m.motors()[0]["dft_frequency"].get())])
+            mag = np.append(mag,[float(self.m.motors()[0]["dft_magnitude"].get())])
 
-        window = 1000
-        skip = 1000
-        b = np.sqrt(np.convolve(a**2,np.ones(window)/float(window),'valid'))
-        n = len(b)
-        i = np.argmax(b[skip:]<.15)
-        bw = (skip + i)/float(n) * 200*10
+
+        print(freq)
+        mag = 20*np.log10(mag)
+        print(mag)
+        skip= np.argmax(freq[2:] > 500)+2
+        print(skip)
+        i = np.argmax(mag[skip:] < -4) # resonance makes 3 not a good choice for motor_enc maxon motor
+        bw = freq[skip+i-1]
         print("bandwidth = " + str(bw))
-        self.f.write("Benchmarkbandwidth 300 " + str(bw) + " Hz\n")
-        self.assertTrue(abs(bw - 800) < 300)
+        self.f.write("Benchmarkbandwidth 0 " + str(bw) + " Hz\n")
+        self.assertTrue(abs(bw - 1050) < 150)
 
         self.m.set_command_mode(motor.ModeDesired.Open)
         self.m.write_saved_commands()
