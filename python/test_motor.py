@@ -75,6 +75,7 @@ class TestMotor(unittest.TestCase):
         time_start = time.time()
         freq = np.array([])
         mag = np.array([])
+        time.sleep(.1)
         while(time.time() - time_start < 10):
             freq = np.append(freq,[float(self.m.motors()[0]["dft_frequency"].get())])
             mag = np.append(mag,[float(self.m.motors()[0]["dft_magnitude"].get())])
