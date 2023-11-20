@@ -84,7 +84,7 @@ class MotorManager {
          double amplitude, double frequency, double bias);
     void set_command_position_tuning(TuningMode tuning_mode, 
          double amplitude, double frequency, double bias);
-    void set_command_stepper_velocity(double voltage, double velocity);
+    void set_command_stepper_velocity(double current,  double velocity, double voltage = 0, StepperMode mode = StepperMode::STEPPER_CURRENT);
 
     std::string command_headers() const;
     std::string status_headers(bool mini = false) const;

@@ -2,6 +2,8 @@ import motor
 import sys
 import signal
 import time
+import numpy as np
+from io import StringIO
 
 motor_manager = motor.MotorManager()
 
@@ -22,6 +24,24 @@ def connected_names():
 def get_all_api(string):
     return [x[string].get() for x in motor_manager.motors()]
 
+def get_fast_loop_status():
+        out = []
+        for mot in motor_manager.motors():
+            status = mot["fast_loop_status"].get()
+            out.append(np.genfromtxt(StringIO(status), delimiter=','))
+            # status.timestamp,
+            #         status.foc_command.measured.motor_encoder,
+            #         status.foc_command.desired.i_q,
+            #         status.foc_status.measured.i_q,
+            #         status.foc_command.measured.i_a,
+            #         status.foc_command.measured.i_b,
+            #         status.foc_command.measured.i_c,
+            #         status.foc_status.command.v_a,
+            #         status.foc_status.command.v_b,
+            #         status.foc_status.command.v_c,
+            #         status.vbus);
+        return out
+
 def driver_enable():
     print(f"Enabling: " + connected_names())
     write_command(motor.ModeDesired.DriverEnable)
@@ -39,6 +59,10 @@ def write_command(mode=None, current=None, position=None):
         motor_manager.set_command_current(current)
     if position:
         motor_manager.set_command_position(position)
+    motor_manager.write_saved_commands()
+
+def write_stepper_velocity(current=0, velocity=0):
+    motor_manager.set_command_stepper_velocity(current, velocity)
     motor_manager.write_saved_commands()
 
 def read_average(num_read = 1):
