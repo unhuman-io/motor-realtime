@@ -6,7 +6,6 @@ import signal
 import sys
 import re
 import argparse
-import math
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -15,10 +14,19 @@ m = motor.MotorManager()
 motors = m.get_connected_motors()
 mot = motors[0]
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--current", default=6, type=float)
+parser.add_argument("--voltage", default=20, type=float)
+parser.add_argument("--velocity", default=400, type=float)
+parser.add_argument("--no-drive", action="store_true")
+
+args = parser.parse_args()
+
 def stop():
     print('Stopping')
-    m.set_command_mode(motor.ModeDesired.Open)
-    m.write_saved_commands()
+    if not args.no_drive:
+        m.set_command_mode(motor.ModeDesired.Open)
+        m.write_saved_commands()
 
 def signal_handler(sig, frame):
     stop()
@@ -26,12 +34,6 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--current", default=6, type=float)
-parser.add_argument("--voltage", default=20, type=float)
-parser.add_argument("--velocity", default=400, type=float)
-
-args = parser.parse_args()
 
 
 print(m)
@@ -54,9 +56,10 @@ mot["mac_count"] = str(mac_count)
 mot["oac_count"] = str(oac_count)
 mot["olow"] = "1"
 
-m.set_command_mode(motor.ModeDesired.Current)
-m.set_command_current([imax])
-m.write_saved_commands()
+if not args.no_drive:
+    m.set_command_mode(motor.ModeDesired.Current)
+    m.set_command_current([imax])
+    m.write_saved_commands()
 
 
 
@@ -86,14 +89,15 @@ encs = ["m", "o"]
 for enc in encs:
     if enc == "o":
         mot["mecc_correction"] = "1"
-        m.set_command_mode(motor.ModeDesired.Open)
-        m.write_saved_commands()
-        time.sleep(1)
-        m.set_command_mode(motor.ModeDesired.Velocity)
-        m.set_command_current([0])
-        m.set_command_velocity([velocity])
-        m.write_saved_commands()
-        time.sleep(1)
+        if not args.no_drive:
+            m.set_command_mode(motor.ModeDesired.Open)
+            m.write_saved_commands()
+            time.sleep(1)
+            m.set_command_mode(motor.ModeDesired.Velocity)
+            m.set_command_current([0])
+            m.set_command_velocity([velocity])
+            m.write_saved_commands()
+            time.sleep(1)
 
     print("starting {}cal: {}".format(enc, mot[enc+"cal"].get()))
     mot[enc+"ecc_correction"] = "0"
