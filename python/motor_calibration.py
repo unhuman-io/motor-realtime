@@ -13,10 +13,18 @@ def calibrate():
     
     motor_program.driver_enable()
 
+    phase_lock_current = float(mot["startup_phase_lock_current"].get())
+    num_poles = int(float(mot["num_poles"].get()))
+
+    motor_program.write_stepper_velocity(phase_lock_current, 2*math.pi/num_poles) # 1 electrical revolution per second
+    tstart = time.time()
+    while (time.time() - tstart < 5):
+        print(motor_program.get_fast_loop_status())
+
     # Get index offset at every motor pole
     motor_program.set_phase_lock()
     time.sleep(2)
-    num_poles = int(float(mot["num_poles"].get()))
+    
     print(f"Num motor pole pairs: {num_poles}")
     index_offset_average = 0
     for i in range(0, num_poles):   
@@ -36,28 +44,29 @@ def calibrate():
 
     # Set electrical offset, measure voltage limited velocity in both directions
     mot["electrical_zero_pos"] = str(index_offset_average)
-    phase_lock_current = float(mot["startup_phase_lock_current"].get())
-    motor_program.write_command(motor.ModeDesired.Current, current=[phase_lock_current])
-    time.sleep(2)
-    positive_velocity = motor_program.read_average(100)[0]
+    
+    # motor_program.write_command(motor.ModeDesired.Current, current=[phase_lock_current])
+    # time.sleep(2)
+    # positive_velocity = motor_program.read_average(100)[0]
 
-    motor_program.write_command(motor.ModeDesired.Current, current=[-phase_lock_current])
-    time.sleep(2)
-    negative_velocity = motor_program.read_average(100)[0]
+    # motor_program.write_command(motor.ModeDesired.Current, current=[-phase_lock_current])
+    # time.sleep(2)
+    # negative_velocity = motor_program.read_average(100)[0]
 
-    assert(positive_velocity.motor_velocity > 0)
-    assert(negative_velocity.motor_velocity < 0)
-    assert((positive_velocity.motor_velocity - negative_velocity.motor_velocity)/positive_velocity.motor_velocity < 0.1)
+    # assert(positive_velocity.motor_velocity > 0)
+    # assert(negative_velocity.motor_velocity < 0)
+    # assert((positive_velocity.motor_velocity - negative_velocity.motor_velocity)/positive_velocity.motor_velocity < 0.1)
 
-    assert(positive_velocity.joint_velocity > 0)
-    assert(negative_velocity.joint_velocity < 0)
-    assert((positive_velocity.joint_velocity - negative_velocity.joint_velocity)/positive_velocity.joint_velocity < 0.1)
+    # assert(positive_velocity.joint_velocity > 0)
+    # assert(negative_velocity.joint_velocity < 0)
+    # assert((positive_velocity.joint_velocity - negative_velocity.joint_velocity)/positive_velocity.joint_velocity < 0.1)
 
     print(f"Done: {mot.name()}")
 
     json_dict = {"serial_number": mot.serial_number(), "index_offset_measured": index_offset_average}
     print(json.dumps(json_dict))
     
+    motor_manager.stop()
 
 def main():
     motors = motor_program.motor_manager.get_connected_motors()

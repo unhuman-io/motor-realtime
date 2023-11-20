@@ -328,6 +328,7 @@ void MotorManager::set_command_reserved(const std::vector<float> &reserved) {
 
 void MotorManager::set_command_stepper_tuning(TuningMode mode, double amplitude, double frequency, 
     double bias, double kv) {
+    clear_commands();
     set_command_mode(ModeDesired::STEPPER_TUNING);
     for (uint8_t i=0; i<commands_.size(); i++) {
         commands_[i].stepper_tuning.amplitude = amplitude;
@@ -338,9 +339,12 @@ void MotorManager::set_command_stepper_tuning(TuningMode mode, double amplitude,
     }
 }
 
-void MotorManager::set_command_stepper_velocity(double voltage, double velocity) {
+void MotorManager::set_command_stepper_velocity(double current,  double velocity, double voltage, StepperMode mode) {
+    clear_commands();
     set_command_mode(ModeDesired::STEPPER_VELOCITY);
     for (uint8_t i=0; i<commands_.size(); i++) {
+        commands_[i].stepper_velocity.current = current;
+        commands_[i].stepper_velocity.stepper_mode = mode;
         commands_[i].stepper_velocity.voltage = voltage;
         commands_[i].stepper_velocity.velocity = velocity;
     }
@@ -348,6 +352,7 @@ void MotorManager::set_command_stepper_velocity(double voltage, double velocity)
 
 void MotorManager::set_command_position_tuning(TuningMode mode, double amplitude, double frequency, 
     double bias) {
+    clear_commands();
     set_command_mode(ModeDesired::POSITION_TUNING);
     for (uint8_t i=0; i<commands_.size(); i++) {
         commands_[i].position_tuning.amplitude = amplitude;
@@ -359,6 +364,7 @@ void MotorManager::set_command_position_tuning(TuningMode mode, double amplitude
 
 void MotorManager::set_command_current_tuning(TuningMode mode, double amplitude, double frequency, 
     double bias) {
+    clear_commands();
     set_command_mode(ModeDesired::CURRENT_TUNING);
     for (uint8_t i=0; i<commands_.size(); i++) {
         commands_[i].current_tuning.amplitude = amplitude;

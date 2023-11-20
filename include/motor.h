@@ -95,11 +95,7 @@ class SysfsFile : public TextFile {
         auto retval = ::read(fd_, data, length);
 
         if (retval < 0) {
-            if (errno == ETIMEDOUT) {
-                return 0;
-            } else {
-                throw std::runtime_error("Sysfs read error " + std::to_string(errno) + ": " + strerror(errno));
-            }
+            throw std::runtime_error("Sysfs read error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }

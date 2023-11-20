@@ -73,82 +73,6 @@ static MotorError dict_to_motor_error(py::dict d) {
 PYBIND11_MODULE(motor, m)
 {
     m.doc() = "Motor interface";
-    py::class_<MotorManager>(m, "MotorManager")
-        // todo decide if it should connect by default in c++ also
-        .def(py::init([](bool u)
-                      { auto m = new MotorManager(u); m->get_connected_motors(); return m; }), py::arg("user_space_driver") = false)
-        .def("__repr__", [](const MotorManager &m)
-             { 
-            std::string s;
-            for (auto motor : m.motors()) {
-                s += motor->name() + " ";
-            }
-            return "<MotorManager connected to: " + s + ">"; })
-        .def("get_connected_motors", &MotorManager::get_connected_motors, py::arg("connect") = true)
-        .def("get_motors_by_name", &MotorManager::get_motors_by_name, py::arg("names"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number, py::arg("serial_numbers"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("get_motors_by_path", &MotorManager::get_motors_by_path, py::arg("paths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("get_motors_by_devpath", &MotorManager::get_motors_by_devpath, py::arg("devpaths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("motors", &MotorManager::motors)
-        .def("free_motors", &MotorManager::free_motors)
-        .def("set_motors", &MotorManager::set_motors)
-        .def("read", &MotorManager::read)
-        .def("read_average", &MotorManager::read_average)
-        .def("start_nonblocking_read", &MotorManager::start_nonblocking_read)
-        .def("write", &MotorManager::write)
-        .def("write_saved_commands", &MotorManager::write_saved_commands)
-        .def("aread", &MotorManager::aread)
-        .def("poll", &MotorManager::poll)
-        .def("commands", &MotorManager::commands)
-        .def("set_commands", &MotorManager::set_commands)
-        .def("set_auto_count", &MotorManager::set_auto_count, py::arg("on") = true)
-        .def("clear_commands", &MotorManager::clear_commands)
-        .def("set_command_count", &MotorManager::set_command_count)
-        .def("set_command_mode", static_cast<void (MotorManager::*)(const std::vector<uint8_t> &)>(&MotorManager::set_command_mode))
-        .def("set_command_mode", static_cast<void (MotorManager::*)(uint8_t)>(&MotorManager::set_command_mode))
-        .def("set_command_current", &MotorManager::set_command_current)
-        .def("set_command_position", &MotorManager::set_command_position)
-        .def("set_command_velocity", &MotorManager::set_command_velocity)
-        .def("set_command_torque", &MotorManager::set_command_torque)
-        .def("set_command_reserved", &MotorManager::set_command_reserved)
-        .def("set_command_stepper_tuning", &MotorManager::set_command_stepper_tuning)
-        .def("set_command_stepper_velocity", &MotorManager::set_command_stepper_velocity)
-        .def("set_command_position_tuning", &MotorManager::set_command_position_tuning)
-        .def("set_command_current_tuning", &MotorManager::set_command_current_tuning);
-
-    py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
-        .def(py::init<const std::string &>())
-        .def("name", &Motor::name)
-        .def("serial_number", &Motor::serial_number)
-        .def("path", &Motor::base_path)
-        .def("get_fast_log", &Motor::get_fast_log)
-        .def("__repr__", [](const Motor &m){ return "<Motor " + m.name() + ">"; })
-        .def("__getitem__", &Motor::operator[])
-        .def("__setitem__", [](Motor &m, const std::string key, const std::string value)
-             { m[key].set(value); })
-        .def("get_api_options", &Motor::get_api_options)
-        .def("error_mask", [](Motor &m)
-             { 
-            MotorError mask;
-            mask.all = std::stoul(m["error_mask"].get(), 0, 16);
-            return motor_error_dict(mask); })
-        .def("set_error_mask", [](Motor &m, py::dict d){ 
-            MotorError e = dict_to_motor_error(d);
-            std::stringstream s;
-            s << std::hex << e.all;
-            std::string shex(s.str());
-            return m["error_mask"].set(shex); })
-        .def("get_cpu_frequency", &Motor::get_cpu_frequency)
-        .def("set_nonblock", &Motor::set_nonblock)
-        .def("get_timeout_ms", &Motor::get_timeout_ms)
-        .def("set_timeout_ms", &Motor::set_timeout_ms);
-
-    py::class_<TextAPIItem>(m, "TextAPIItem")
-        .def("__repr__", &TextAPIItem::get)
-        .def("get", &TextAPIItem::get)
-        .def("set", &TextAPIItem::set)
-        //.def("assign", static_cast<void (TextAPIItem::*)(const std::string &)>(&TextAPIItem::operator=));
-        .def("assign", &TextAPIItem::set);
 
     py::enum_<ModeDesired>(m, "ModeDesired")
         .value("Open", ModeDesired::OPEN)
@@ -201,6 +125,90 @@ PYBIND11_MODULE(motor, m)
         .def_readwrite("tuning_mode", &TuningCommand::tuning_mode)
         .def_readwrite("bias", &TuningCommand::bias)
         .def_readwrite("frequency", &TuningCommand::frequency);
+
+    py::enum_<StepperMode>(m, "StepperMode")
+        .value("StepperCurrent", StepperMode::STEPPER_CURRENT)
+        .value("StepperVoltage", StepperMode::STEPPER_VOLTAGE)
+        .export_values();
+
+    
+
+    py::class_<MotorManager>(m, "MotorManager")
+        // todo decide if it should connect by default in c++ also
+        .def(py::init([](bool u)
+                      { auto m = new MotorManager(u); m->get_connected_motors(); return m; }), py::arg("user_space_driver") = false)
+        .def("__repr__", [](const MotorManager &m)
+             { 
+            std::string s;
+            for (auto motor : m.motors()) {
+                s += motor->name() + " ";
+            }
+            return "<MotorManager connected to: " + s + ">"; })
+        .def("get_connected_motors", &MotorManager::get_connected_motors, py::arg("connect") = true)
+        .def("get_motors_by_name", &MotorManager::get_motors_by_name, py::arg("names"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number, py::arg("serial_numbers"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_path", &MotorManager::get_motors_by_path, py::arg("paths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_devpath", &MotorManager::get_motors_by_devpath, py::arg("devpaths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("motors", &MotorManager::motors)
+        .def("free_motors", &MotorManager::free_motors)
+        .def("set_motors", &MotorManager::set_motors)
+        .def("read", &MotorManager::read)
+        .def("read_average", &MotorManager::read_average)
+        .def("start_nonblocking_read", &MotorManager::start_nonblocking_read)
+        .def("write", &MotorManager::write)
+        .def("write_saved_commands", &MotorManager::write_saved_commands)
+        .def("aread", &MotorManager::aread)
+        .def("poll", &MotorManager::poll)
+        .def("commands", &MotorManager::commands)
+        .def("set_commands", &MotorManager::set_commands)
+        .def("set_auto_count", &MotorManager::set_auto_count, py::arg("on") = true)
+        .def("clear_commands", &MotorManager::clear_commands)
+        .def("set_command_count", &MotorManager::set_command_count)
+        .def("set_command_mode", static_cast<void (MotorManager::*)(const std::vector<uint8_t> &)>(&MotorManager::set_command_mode))
+        .def("set_command_mode", static_cast<void (MotorManager::*)(uint8_t)>(&MotorManager::set_command_mode))
+        .def("set_command_current", &MotorManager::set_command_current)
+        .def("set_command_position", &MotorManager::set_command_position)
+        .def("set_command_velocity", &MotorManager::set_command_velocity)
+        .def("set_command_torque", &MotorManager::set_command_torque)
+        .def("set_command_reserved", &MotorManager::set_command_reserved)
+        .def("set_command_stepper_tuning", &MotorManager::set_command_stepper_tuning)
+        .def("set_command_stepper_velocity", &MotorManager::set_command_stepper_velocity, py::arg("current"), py::arg("velocity"), py::arg("voltage") = 0, py::arg("stepper_mode") = StepperMode::STEPPER_CURRENT)
+        .def("set_command_position_tuning", &MotorManager::set_command_position_tuning)
+        .def("set_command_current_tuning", &MotorManager::set_command_current_tuning);
+
+    py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
+        .def(py::init<const std::string &>())
+        .def("name", &Motor::name)
+        .def("serial_number", &Motor::serial_number)
+        .def("path", &Motor::base_path)
+        .def("get_fast_log", &Motor::get_fast_log)
+        .def("__repr__", [](const Motor &m){ return "<Motor " + m.name() + ">"; })
+        .def("__getitem__", &Motor::operator[])
+        .def("__setitem__", [](Motor &m, const std::string key, const std::string value)
+             { m[key].set(value); })
+        .def("get_api_options", &Motor::get_api_options)
+        .def("error_mask", [](Motor &m)
+             { 
+            MotorError mask;
+            mask.all = std::stoul(m["error_mask"].get(), 0, 16);
+            return motor_error_dict(mask); })
+        .def("set_error_mask", [](Motor &m, py::dict d){ 
+            MotorError e = dict_to_motor_error(d);
+            std::stringstream s;
+            s << std::hex << e.all;
+            std::string shex(s.str());
+            return m["error_mask"].set(shex); })
+        .def("get_cpu_frequency", &Motor::get_cpu_frequency)
+        .def("set_nonblock", &Motor::set_nonblock)
+        .def("get_timeout_ms", &Motor::get_timeout_ms)
+        .def("set_timeout_ms", &Motor::set_timeout_ms);
+
+    py::class_<TextAPIItem>(m, "TextAPIItem")
+        .def("__repr__", &TextAPIItem::get)
+        .def("get", &TextAPIItem::get)
+        .def("set", &TextAPIItem::set)
+        //.def("assign", static_cast<void (TextAPIItem::*)(const std::string &)>(&TextAPIItem::operator=));
+        .def("assign", &TextAPIItem::set);
 
     py::class_<Command>(m, "Command")
         .def(py::init<uint32_t, uint8_t, float, float, float, float>(),
