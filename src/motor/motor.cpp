@@ -35,6 +35,11 @@ Motor::Motor(std::string dev_path) {
     udev_device_unref(dev);
     udev_unref(udev);
     open();
+
+    messages_version_ = operator[]("messages_version").get();
+    board_name_ = operator[]("board_name").get();
+    board_rev_ = operator[]("board_rev").get();
+    board_num_ = operator[]("board_num").get();
 }
 
 Motor::~Motor() { close(); }
