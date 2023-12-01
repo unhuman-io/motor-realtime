@@ -55,6 +55,7 @@ class MotorManager {
     void set_motors(std::vector<std::shared_ptr<Motor>> motors);
     std::vector<Command> &commands() { return commands_; }
     std::vector<Status> &read();
+    std::vector<Status> &get_statuses() noexcept { return statuses_; }
     std::vector<Status> read_average(uint32_t num_average = 1);
     void write(std::vector<Command> &);
     void write_saved_commands();
@@ -92,10 +93,12 @@ class MotorManager {
     int serialize_saved_commands(char *data) const;
     bool deserialize_saved_commands(char *data);
     const std::vector<int> &get_read_error_count() const { return read_error_count_; }
+    const std::vector<int> &get_nonblock_not_ready_error_count() const { return nonblock_not_ready_error_count_; }
  private:
     std::vector<std::shared_ptr<Motor>> get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<int> read_error_count_;
+    std::vector<int> nonblock_not_ready_error_count_;
     std::vector<Command> commands_;
     std::vector<Status> statuses_;
     bool user_space_driver_;
