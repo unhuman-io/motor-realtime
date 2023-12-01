@@ -190,6 +190,12 @@ jobs:
     timeout-minutes: 10
     needs: [build]
     runs-on: [self-hosted, motor_enc]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu-20.04, ubuntu-22.04]
+
     steps:
     - uses: actions/download-artifact@main
       with:
@@ -197,7 +203,7 @@ jobs:
     - name: test
       run: |
         ls
-        tar xzf artifacts_ubuntu-22.04.tgz
+        tar xzf artifacts_${{ matrix.distro }}.tgz
         cd artifacts/
         ./bin/motor_util
         ./bin/motor_util -l
