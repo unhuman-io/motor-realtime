@@ -146,6 +146,7 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
         pollfds_[i].events = POLLIN;
     }
     read_error_count_.resize(motors_.size(), 0);
+    nonblock_not_ready_error_count_.resize(motors_.size(), 0);
 }
 
 void MotorManager::start_nonblocking_read() {
@@ -154,7 +155,7 @@ void MotorManager::start_nonblocking_read() {
             auto size = motors_[i]->read();
             if (size != -1) {
                 // unintended data was read, save it but start another non blocking read
-                read_error_count_[i] = 0;
+                nonblock_not_ready_error_count_[i] = 0;
                 statuses_[i] = *motors_[i]->status();
                 motors_[i]->read();
             }
@@ -170,8 +171,9 @@ std::vector<Status> &MotorManager::read() {
         if (size == -1) {
             if (motors_[i]->is_nonblocking() && errno == EAGAIN) {
                 // no data read at this time
-               read_error_count_[i]++;
+               nonblock_not_ready_error_count_[i]++;
             } else {
+                read_error_count_[i]++;
                 // no data, error is in errno
                 std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
                 if (!reconnect_) {
@@ -195,6 +197,7 @@ std::vector<Status> &MotorManager::read() {
                 }
             }
         } else {
+            nonblock_not_ready_error_count_[i] = 0;
             read_error_count_[i] = 0;
         }
         statuses_[i] = *motors_[i]->status();
