@@ -126,4 +126,17 @@ UserSpaceMotor::~UserSpaceMotor() { close(); }
 
 SimulatedMotor::~SimulatedMotor() { ::close(fd_); }
 
+static std::vector<std::string> mode_color_list = MOTOR_MODE_COLORS;
+static std::vector<std::string> mode_upper_color_list = MOTOR_MODE_UPPER_COLORS;
+
+std::string &mode_color(ModeDesired mode) {
+    if (mode < mode_color_list.size()) {
+        return mode_color_list[mode];
+    } else if (mode <= 255 && mode > 255-mode_upper_color_list.size()) {
+        return mode_upper_color_list[mode-(255-mode_upper_color_list.size()+1)];
+    } else {
+        return mode_upper_color_list[mode_upper_color_list.size()-1];
+    }
+}
+
 }  // namespace obot
