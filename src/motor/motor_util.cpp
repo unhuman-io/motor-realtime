@@ -102,6 +102,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> set_api_data;
     bool api_mode = false;
     int run_stats = 100;
+    int timeout_ms = 10;
     bool allow_simulated = false;
     Motor::MessagesCheck check_messages_version = Motor::MessagesCheck::MAJOR;
     std::vector<std::pair<std::string, Motor::MessagesCheck>> messages_check_map {
@@ -196,6 +197,7 @@ int main(int argc, char** argv) {
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)")->expected(1,-1);
     app.add_flag("--api", api_mode, "Enter API mode");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
+    auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });
@@ -264,6 +266,12 @@ int main(int argc, char** argv) {
 
     if (lock_motors) {
         m.lock();
+    }
+
+    if (*set_timeout_option) {
+        for (auto m : motors) {
+            m->set_timeout_ms(timeout_ms);
+        }
     }
 
     if (version) {
