@@ -324,6 +324,7 @@ class SimulatedMotor : public Motor {
        motor_txt_ = std::move(std::unique_ptr<SimulatedTextFile>(new SimulatedTextFile()));
        clock_gettime(CLOCK_MONOTONIC, &last_time_);
        board_name_ = "simulated";
+       config_ = "simulated";
        messages_version_ = operator[]("messages_version").get();
     }
    virtual ~SimulatedMotor() override;
@@ -448,6 +449,7 @@ class UserSpaceMotor : public Motor {
         board_name_ = operator[]("board_name").get();
         board_rev_ = operator[]("board_rev").get();
         board_num_ = operator[]("board_num").get();
+        config_ = operator[]("config").get();
     }
     virtual ~UserSpaceMotor() override;
     virtual int lock() override {

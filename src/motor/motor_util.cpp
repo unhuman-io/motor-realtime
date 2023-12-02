@@ -302,6 +302,7 @@ int main(int argc, char** argv) {
         int board_name_width = 0;
         int board_rev_width = 0;
         int board_num_width = 0;
+        int config_width = 0;
         if (motor_list.size() > 0) {
             for (auto m : motor_list) {
                 name_width = std::max(name_width, (int) m->name().size()+3);
@@ -312,6 +313,7 @@ int main(int argc, char** argv) {
                     board_name_width = std::max(12, (int) m->board_name().size()+3);
                     board_rev_width = std::max(11, (int) m->board_rev().size()+3);
                     board_num_width = std::max(11, (int) m->board_num().size()+3);
+                    config_width = std::max(7, (int) m->config().size()+3);
                 }
             }
         }
@@ -345,10 +347,11 @@ int main(int argc, char** argv) {
                 if (verbose_list) {
                     std::cout << std::setw(board_name_width) << "Board name"
                         << std::setw(board_rev_width) << "Board rev"
-                        << std::setw(board_num_width) << "Board num";
+                        << std::setw(board_num_width) << "Board num"
+                        << std::setw(config_width) << "Config";
                 }             
                 std::cout << std::endl;
-                std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width + device_num_width + board_name_width + board_rev_width + board_num_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
+                std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width + device_num_width + board_name_width + board_rev_width + board_num_width + config_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
                 for (auto m : motor_list) {
                     std::cout << std::setw(dev_path_width) << m->dev_path()
                             << std::setw(name_width) << m->name()
@@ -359,7 +362,8 @@ int main(int argc, char** argv) {
                     if (verbose_list) {
                         std::cout << std::setw(board_name_width) << m->board_name()
                             << std::setw(board_rev_width) << m->board_rev()
-                            << std::setw(board_num_width) << m->board_num();
+                            << std::setw(board_num_width) << m->board_num()
+                            << std::setw(config_width) << m->config();
                     }        
                     std::cout << std::endl;
                 }

@@ -40,6 +40,7 @@ Motor::Motor(std::string dev_path) {
     board_name_ = operator[]("board_name").get();
     board_rev_ = operator[]("board_rev").get();
     board_num_ = operator[]("board_num").get();
+    config_ = operator[]("config").get();
 }
 
 Motor::~Motor() { close(); }
