@@ -538,6 +538,8 @@ class UserSpaceMotor : public Motor {
     };
 };
 
+std::string &mode_color(ModeDesired mode);
+
 }  // namespace obot
 
 #endif
