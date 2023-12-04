@@ -299,12 +299,22 @@ int main(int argc, char** argv) {
         int path_width = 6;
         int dev_path_width = 5;
         int device_num_width = 8;
+        int board_name_width = 0;
+        int board_rev_width = 0;
+        int board_num_width = 0;
+        int config_width = 0;
         if (motor_list.size() > 0) {
             for (auto m : motor_list) {
                 name_width = std::max(name_width, (int) m->name().size()+3);
                 path_width = std::max(path_width, (int) m->base_path().size()+3);
                 dev_path_width = std::max(dev_path_width, (int) m->dev_path().size());
                 version_width = std::max(version_width, (int) (verbose_list ? m->version() : m->short_version()).size()+3);
+                if (verbose_list) {
+                    board_name_width = std::max(12, (int) m->board_name().size()+3);
+                    board_rev_width = std::max(11, (int) m->board_rev().size()+3);
+                    board_num_width = std::max(11, (int) m->board_num().size()+3);
+                    config_width = std::max(7, (int) m->config().size()+3);
+                }
             }
         }
         if (list_names || list_path || list_devpath || list_serial_number || list_devnum) {
@@ -333,15 +343,29 @@ int main(int argc, char** argv) {
             if (motor_list.size() > 0) {
                 std::cout << std::setw(dev_path_width) << "Dev" << std::setw(name_width) << "Name"
                             << std::setw(serial_number_width) << " Serial number"
-                            << std::setw(version_width) << "Version" << std::setw(path_width) << std::left << "  Path" << std::right << std::setw(device_num_width) << "Devnum" << std::endl;
-                std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width + device_num_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
+                            << std::setw(version_width) << "Version" << std::setw(path_width) << std::left << "  Path" << std::right << std::setw(device_num_width) << "Devnum";
+                if (verbose_list) {
+                    std::cout << std::setw(board_name_width) << "Board name"
+                        << std::setw(board_rev_width) << "Board rev"
+                        << std::setw(board_num_width) << "Board num"
+                        << std::setw(config_width) << "Config";
+                }             
+                std::cout << std::endl;
+                std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width + device_num_width + board_name_width + board_rev_width + board_num_width + config_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
                 for (auto m : motor_list) {
                     std::cout << std::setw(dev_path_width) << m->dev_path()
                             << std::setw(name_width) << m->name()
                             << std::setw(serial_number_width) << m->serial_number()
                             << std::setw(version_width) << (verbose_list ? m->version() : m->short_version())
                             << std::setw(path_width) << std::left << "  " + m->base_path() << std::right
-                            << std::setw(device_num_width) << (int) m->devnum() << std::endl;
+                            << std::setw(device_num_width) << (int) m->devnum();
+                    if (verbose_list) {
+                        std::cout << std::setw(board_name_width) << m->board_name()
+                            << std::setw(board_rev_width) << m->board_rev()
+                            << std::setw(board_num_width) << m->board_num()
+                            << std::setw(config_width) << m->config();
+                    }        
+                    std::cout << std::endl;
                 }
             }
         }

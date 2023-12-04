@@ -272,11 +272,10 @@ class Motor : public MotorDescription {
     virtual bool check_messages_version(MessagesCheck check = MAJOR) { 
         if (check == MAJOR) {
             std::string realtime_messages_version = MOTOR_MESSAGES_VERSION;
-            std::string motor_messages_version = operator[]("messages_version").get();
             return realtime_messages_version.substr(0, realtime_messages_version.find('.'))
-                == motor_messages_version.substr(0, motor_messages_version.find('.'));
+                == messages_version_.substr(0, messages_version_.find('.'));
         } else if (check == MINOR) {
-            return MOTOR_MESSAGES_VERSION == operator[]("messages_version").get();
+            return MOTOR_MESSAGES_VERSION == messages_version_;
         } else {
             return true;
         }
@@ -324,6 +323,9 @@ class SimulatedMotor : public Motor {
        fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
        motor_txt_ = std::move(std::unique_ptr<SimulatedTextFile>(new SimulatedTextFile()));
        clock_gettime(CLOCK_MONOTONIC, &last_time_);
+       board_name_ = "simulated";
+       config_ = "simulated";
+       messages_version_ = operator[]("messages_version").get();
     }
    virtual ~SimulatedMotor() override;
    virtual ssize_t read() override {  
@@ -444,6 +446,12 @@ class UserSpaceMotor : public Motor {
         udev_unref(udev);  
         open();
         motor_txt_ = std::move(std::unique_ptr<USBFile>(new USBFile(fd_, 1)));
+
+        messages_version_ = operator[]("messages_version").get();
+        board_name_ = operator[]("board_name").get();
+        board_rev_ = operator[]("board_rev").get();
+        board_num_ = operator[]("board_num").get();
+        config_ = operator[]("config").get();
     }
     virtual ~UserSpaceMotor() override;
     virtual int lock() override {

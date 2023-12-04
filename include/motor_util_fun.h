@@ -16,11 +16,17 @@ class MotorDescription {
     std::string dev_path() const { return dev_path_; }
     uint8_t devnum() const { return devnum_; }
     std::string version() const { return version_; }
+    std::string board_name() const { return board_name_; }
+    std::string board_rev() const { return board_rev_; }
+    std::string board_num() const { return board_num_; }
+    std::string messages_version() const { return messages_version_; }
+    std::string config() const { return config_; }
     virtual std::string short_version() const { return version_; }
     virtual void set_timeout_ms(int timeout_ms) {};
     virtual int get_timeout_ms() const { return 0; };
  protected:
     std::string name_, serial_number_, base_path_, dev_path_, version_;
+    std::string board_name_, board_rev_, board_num_, messages_version_, config_;
     uint8_t devnum_;
 };
 
