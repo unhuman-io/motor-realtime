@@ -389,6 +389,8 @@ class SimulatedMotor : public Motor {
    }
    void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
    virtual std::vector<std::string> get_api_options() override;
+   virtual void set_timeout_ms(int) override {}
+   virtual int get_timeout_ms() const override { return 0; }
  private:
     // a - b in seconds
     double clock_diff(timespec &a, timespec &b) {
@@ -543,6 +545,8 @@ class UserSpaceMotor : public Motor {
         .buffer_length = sizeof(status_),
     };
 };
+
+std::string &mode_color(ModeDesired mode);
 
 }  // namespace obot
 

@@ -1,3 +1,7 @@
 add_executable(test_simulated_motor test_simulated_motor.cpp)
 target_link_libraries(test_simulated_motor motor_manager)
 add_test(NAME test_simulated_motor COMMAND test_simulated_motor)
+
+add_executable(test_motor test_motor.cpp)
+target_link_libraries(test_motor motor_manager)
+add_test(NAME test_motor COMMAND test_motor)
