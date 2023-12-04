@@ -46,5 +46,8 @@ int main() {
     assert(std::abs(m.read()[0].joint_position - 0.01 - joint_position) < .001);
     std::cout << m.read() << std::endl;
     assert(m.read()[0].host_timestamp_received == 6);
+    auto motor = m.motors()[0];
+    motor->set_timeout_ms(10);
+    motor->get_timeout_ms();
     return 0;
 }
