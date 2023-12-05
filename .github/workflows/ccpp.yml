@@ -98,7 +98,7 @@ jobs:
     - uses: actions/checkout@master
       with:
         submodules: true
-#        fetch-depth: 0
+        fetch-depth: 0
     - uses: uraimo/run-on-arch-action@master
       name: Run commands
       id: runcmd
@@ -111,6 +111,7 @@ jobs:
         dockerRunArgs: |
           --volume "${PWD}/packages:/packages"
         run: |
+          git config --global --add safe.directory /home/runner/work/motor-realtime/motor-realtime
           cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_API=1 .
           make -j2
           make package
