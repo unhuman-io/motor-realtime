@@ -154,6 +154,7 @@ jobs:
         dockerRunArgs: |
           --volume "${PWD}/packages:/packages"
         run: |
+          git config --global --add safe.directory /home/runner/work/motor-realtime/motor-realtime
           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
           make -j2
           make install
