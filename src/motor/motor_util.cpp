@@ -299,10 +299,10 @@ int main(int argc, char** argv) {
         int path_width = 6;
         int dev_path_width = 5;
         int device_num_width = 8;
-        int board_name_width = 0;
-        int board_rev_width = 0;
-        int board_num_width = 0;
-        int config_width = 0;
+        int board_name_width = verbose_list ? 12 : 0;
+        int board_rev_width = verbose_list ? 11 : 0;
+        int board_num_width = verbose_list ? 11 : 0;
+        int config_width = verbose_list ? 7 : 0;
         if (motor_list.size() > 0) {
             for (auto m : motor_list) {
                 name_width = std::max(name_width, (int) m->name().size()+3);
@@ -310,10 +310,10 @@ int main(int argc, char** argv) {
                 dev_path_width = std::max(dev_path_width, (int) m->dev_path().size());
                 version_width = std::max(version_width, (int) (verbose_list ? m->version() : m->short_version()).size()+3);
                 if (verbose_list) {
-                    board_name_width = std::max(12, (int) m->board_name().size()+3);
-                    board_rev_width = std::max(11, (int) m->board_rev().size()+3);
-                    board_num_width = std::max(11, (int) m->board_num().size()+3);
-                    config_width = std::max(7, (int) m->config().size()+3);
+                    board_name_width = std::max(board_name_width, (int) m->board_name().size()+3);
+                    board_rev_width = std::max(board_rev_width, (int) m->board_rev().size()+3);
+                    board_num_width = std::max(board_num_width, (int) m->board_num().size()+3);
+                    config_width = std::max(config_width, (int) m->config().size()+3);
                 }
             }
         }
