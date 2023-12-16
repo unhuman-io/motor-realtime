@@ -134,7 +134,7 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
         for (auto &motor : motors) {
             if (motor->check_messages_version(check_messages_version_) == false) {
                   throw std::runtime_error("Motor messages version mismatch " + motor->name() + 
-                     ": " + (*motor)["messages_version"].get() + ", motor-realtime: " + MOTOR_MESSAGES_VERSION);
+                     ": " + motor->messages_version()  + ", motor-realtime: " + MOTOR_MESSAGES_VERSION);
             }
         }
     }
