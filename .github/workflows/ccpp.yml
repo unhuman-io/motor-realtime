@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.distro }}
     
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@main
       with:
         submodules: true
         fetch-depth: 0
@@ -61,7 +61,7 @@ jobs:
     - name: archive
       run: tar -czf artifacts_${{ matrix.distro }}.tgz artifacts/ 
     - name: Archive production artifacts2
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@main
       with:
         name: artifacts
         path: artifacts_${{ matrix.distro }}.tgz
@@ -124,7 +124,7 @@ jobs:
             apt-get install -y cmake-data=3.13.4-1 cmake=3.13.4-1
           fi
     - name: Archive production artifacts
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@main
       with:
         name: packages
         path: packages
