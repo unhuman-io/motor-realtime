@@ -2,12 +2,7 @@
 
 #include "motor.h"
 
-
-
-//#include <sys/types.h>
-//#include <sys/socket.h>
 #include <netdb.h>
-// #include <arpa/inet.h>
 
 namespace obot {
 
@@ -46,6 +41,7 @@ class UDPFile : public TextFile {
     int timeout_ms_ = 10;
     std::string port_;
     std::string ip_;
+    std::string addrstr_;
  private:
     sockaddr_in addr_ = {};
 };
