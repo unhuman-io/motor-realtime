@@ -48,6 +48,7 @@ for name in aio.values():
    # print("\n%s reading : %f V" % (name, result))
 
 output_dict = {"fast_loop_param": {}}
+output_dict2 = {"fast_loop_param": {}}
 
 ps5V.set_voltage(5)
 ps5V.set_current(.2)
@@ -180,78 +181,86 @@ while not "drv8323s" in s:
 print(s)
 assert s.endswith("drv8323s configure success")
 
-# set mode pwm, measure 48V current
-m.set_command_mode(motor.ModeDesired.Voltage) # 50% duty cycle voltage
-m.write_saved_commands()
-time.sleep(1)
-i48V = ps48V.get_current()
-print("48V current PWM enabled: {}".format(i48V))
+for csa_gain in [(10, "240"), (20, "280"), (40, "2c0")]:
+    test_motor["drv_csa_reg"] = csa_gain[1]
+    # set mode pwm, measure 48V current
+    m.set_command_mode(motor.ModeDesired.Voltage) # 50% duty cycle voltage
+    m.write_saved_commands()
+    time.sleep(1)
+    i48V = ps48V.get_current()
+    print("48V current PWM enabled: {}".format(i48V))
 
-# zero current sensors
-test_motor["zero_current_sensors"] = "8"
-time.sleep(8.5)
-def record_current_sensor_bias(name):
-    bias = api_average(test_motor[name+"_bias"], 1000)
-    print("{} bias: {:.3f}".format(name, bias))
-    assert abs(bias) < 10
-    output_dict["fast_loop_param"][name + "_bias"] = "{:.3f}".format(bias)
+    # zero current sensors
+    test_motor["zero_current_sensors"] = "8"
+    time.sleep(8.5)
+    def record_current_sensor_bias(name):
+        bias = api_average(test_motor[name+"_bias"], 1000)
+        print("{} bias: {:.3f}".format(name, bias))
+        assert abs(bias) < 10*float(csa_gain[0])/10
+        output_dict["fast_loop_param"][name + "_bias"] = "{:.3f}".format(bias)
 
-record_current_sensor_bias("ia")
-record_current_sensor_bias("ib")
-record_current_sensor_bias("ic")
+    record_current_sensor_bias("ia")
+    record_current_sensor_bias("ib")
+    record_current_sensor_bias("ic")
 
-time.sleep(.1)
-# set mode damped and run 10A current through phases
-m.set_command_mode(motor.ModeDesired.Open)
-m.write_saved_commands()
-time.sleep(.1)
-m.set_command_mode(motor.ModeDesired.Damped)
-m.write_saved_commands()
-time.sleep(.1)
-m.set_command_mode(motor.ModeDesired.Open)
-m.write_saved_commands()
-time.sleep(.1)
-m.set_command_mode(motor.ModeDesired.Damped)
-m.write_saved_commands()
+    time.sleep(.1)
+    # set mode damped and run 10A current through phases
+    m.set_command_mode(motor.ModeDesired.Open)
+    m.write_saved_commands()
+    time.sleep(.1)
+    m.set_command_mode(motor.ModeDesired.Damped)
+    m.write_saved_commands()
+    time.sleep(.1)
+    m.set_command_mode(motor.ModeDesired.Open)
+    m.write_saved_commands()
+    time.sleep(.1)
+    m.set_command_mode(motor.ModeDesired.Damped)
+    m.write_saved_commands()
 
-names = [dio["i+_a"], dio["i-_b"], dio["i-_c"], dio["i-_48v"]]
-aValues = [1, 1, 0, 0]
-numFrames = len(names)
-ljm.eWriteNames(handle, numFrames, names, aValues)
-ps10A.set_voltage(3)
-ps10A.set_current(10)
-ps10A.set_on()
+    names = [dio["i+_a"], dio["i-_b"], dio["i-_c"], dio["i-_48v"]]
+    aValues = [1, 1, 0, 0]
+    numFrames = len(names)
+    ljm.eWriteNames(handle, numFrames, names, aValues)
+    ps10A.set_voltage(3)
+    ps10A.set_current(10)
+    ps10A.set_on()
 
-time.sleep(2)
-#input("enter to continue")
+    time.sleep(2)
+    #input("enter to continue")
 
-def record_current_sensor_calibration(name):
-    name_map={"ia": "adc1", "ib": "adc2", "ic": "adc3"}
-    current = api_average(test_motor[name], 10000)
-    print("{} read: {}".format(name, current))
-    if name != "i48V":
-        assert abs(abs(current) - 10) < .3
-        output_dict["fast_loop_param"][name_map[name] + "_gain"] = "-3.3/4096/(.0005*10)*{:.3f}".format(10/abs(current))
-        output_dict["fast_loop_param"][name+"_bias"] = output_dict["fast_loop_param"][name+"_bias"] + "*{:.3f}".format(10/abs(current))
-    else:
-        assert abs(abs(current) - 5) < 1
+    def record_current_sensor_calibration(name):
+        name_map={"ia": "adc1", "ib": "adc2", "ic": "adc3"}
+        current = api_average(test_motor[name], 10000)
+        print("{} read: {}".format(name, current))
+        if name != "i48V":
+            assert abs(abs(current)*10.0/float(csa_gain[0]) - 10) < .5
+            if csa_gain[0] == 10:
+                output_dict["fast_loop_param"][name_map[name] + "_gain"] = "-3.3/4096/(.0005*10)*{:.3f}".format(10/abs(current))
+                output_dict["fast_loop_param"][name+"_bias"] = output_dict["fast_loop_param"][name+"_bias"] + "*{:.3f}".format(10/abs(current))
+            else:
+                output_dict2["fast_loop_param"][name_map[name] + "_gain" + str(csa_gain[0])] = "-3.3/4096/(.0005*{})*{:.3f}".format(csa_gain[0], 10*float(csa_gain[0])/10/abs(current))
+        else:
+            assert abs(abs(current) - 5) < 1
 
-record_current_sensor_calibration("ia")
-record_current_sensor_calibration("ib")
+    record_current_sensor_calibration("ia")
+    record_current_sensor_calibration("ib")
 
-ps10A.set_off()
-time.sleep(.5)
+    ps10A.set_off()
+    time.sleep(.5)
 
-names = [dio["i+_a"], dio["i-_b"], dio["i-_c"]]
-aValues = [1, 0, 1]
-numFrames = len(names)
-ljm.eWriteNames(handle, numFrames, names, aValues)
+    names = [dio["i+_a"], dio["i-_b"], dio["i-_c"]]
+    aValues = [1, 0, 1]
+    numFrames = len(names)
+    ljm.eWriteNames(handle, numFrames, names, aValues)
 
-ps10A.set_on()
-time.sleep(2)
-#input("enter to continue")
+    ps10A.set_on()
+    time.sleep(2)
+    #input("enter to continue")
 
-record_current_sensor_calibration("ic")
+    record_current_sensor_calibration("ic")
+
+    ps10A.set_off()
+    time.sleep(.1)
 
 
 # set mode damped high
@@ -284,5 +293,8 @@ print(json.dumps(output_dict, indent=4))
 with open(serial_number + ".json",'w') as f:
     json.dump(output_dict, f, indent=4)
 
+print(json.dumps(output_dict2, indent=4))
+with open(serial_number + "_csa_gain.json",'w') as f:
+    json.dump(output_dict2, f, indent=4)
 
 print("sn: {} ok!".format(serial_number))
