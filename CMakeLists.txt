@@ -34,6 +34,7 @@ option(BUILD_SHARED_LIBS "Build libraries shared" ON)
 option(BUILD_PYTHON_API "build a python api module" OFF)
 option(BUILD_MOTOR_UTIL "build motor util command line program" ON)
 option(INSTALL_COMPLETION "install bash completion script" ON)
+option(INSTALL_MOTOR_EMBEDDED "install motor embedded" ON)
 
 # the RPATH to be used when installing, but only if it's not a system directory
 list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
