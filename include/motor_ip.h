@@ -63,6 +63,11 @@ class MotorIP : public Motor {
     uint32_t port() const { return std::atol(realtime_communication_.port_.c_str()); }
     virtual ssize_t read() override;
     virtual ssize_t write() override;
+    virtual int lock() final {
+        std::cerr << "Locking not supported on IP motor" << std::endl;
+        errno = 1;
+        return -1;
+    }
 
  private:
     UDPFile realtime_communication_;
