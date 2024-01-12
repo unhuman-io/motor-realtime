@@ -225,33 +225,30 @@ class Motor : public MotorDescription {
     enum MessagesCheck {NONE, MAJOR, MINOR};
     Motor() = default;
     Motor(std::string dev_path);
-    virtual ~Motor();
+    virtual ~Motor() = default;
     virtual ssize_t read() = 0;
     virtual ssize_t write() = 0;
     
-    /// @brief If supported by the inherited motor class, lock it so that only one process can write to it at a time.
+    /// @brief Lock the file descriptor so that only one process can write to it at a time.
     /// @return 0 on success, -1 on failure
     virtual int lock() { return 0; }
 
-    virtual int set_nonblock() { nonblock_ = true;
-        return fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK); }
-    virtual int clear_nonblock() { nonblock_ = false;
-        return fcntl(fd_, F_SETFL, fd_flags_ & ~O_NONBLOCK); }
+    /// @brief Set the file descriptor to nonblocking mode.
+    /// @return 0 on success, -1 on failure
+    virtual int set_nonblock() { return 0; }
+
+    /// @brief Clear the nonblocking flag on the file descriptor.
+    /// @return 0 on success, -1 on failure
+    virtual int clear_nonblock() { return 0; }
+
+    /// @brief Getter function to check if the Motor's file descriptor is in nonblocking mode.
+    /// @return True if the file descriptor is in nonblocking mode, false otherwise.
     bool is_nonblocking() const { return nonblock_; }
-    virtual ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
-			ssize_t read_error = read(); 
-            int fcntl_error2 = fcntl(fd_, F_SETFL, fd_flags_);
-            if (fcntl_error < 0 || fcntl_error2 < 0) {
-                std::cout << "Aread fcntl error" << std::endl;
-            }
-            if (read_error != -1) {
-                std::cout << "Nonzero aread" << std::endl;
-            } else {
-                if (errno != EAGAIN) {
-                    std::cout << "Aread error " << errno << std::endl;
-                }
-            }
-            return read_error; }
+
+    /// @brief Read data form the motor in nonblocking mode.
+    /// @return Number of bytes read on success, -1 on failure
+    virtual ssize_t aread() = 0;
+
     virtual bool check_messages_version(MessagesCheck check = MAJOR) { 
         if (check == MAJOR) {
             std::string realtime_messages_version = MOTOR_MESSAGES_VERSION;
@@ -275,15 +272,14 @@ class Motor : public MotorDescription {
     virtual std::vector<std::string> get_api_options();
     uint32_t get_cpu_frequency() { return std::stoi((*this)["cpu_frequency"].get()); }
  protected:
-    int open() { 
-        fd_ = ::open(dev_path_.c_str(), O_RDWR); 
-        if (lockf(fd_, F_TEST, 0)) {
-            no_write_ = true;
-        }
-        fd_flags_ = fcntl(fd_, F_GETFL); 
-        return fd_;
-    }
-    int close() { return ::close(fd_); }
+    /// @brief Open the communication channel with the motor controller.
+    /// @return -1 on failure, or non-zero value on success.
+    virtual int open() = 0;
+
+    /// @brief Close the communication channel with the motor controller.
+    /// @return -1 on failure, or non-zero value on success.
+    virtual int close() = 0;
+
     int fd_ = 0;
     int fd_flags_;
     bool nonblock_ = false;
@@ -298,7 +294,7 @@ class SimulatedMotor : public Motor {
  public:
    SimulatedMotor(std::string name) { 
        name_ = name;
-       fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
+       fd_ = open();
        motor_txt_ = std::move(std::unique_ptr<SimulatedTextFile>(new SimulatedTextFile()));
        clock_gettime(CLOCK_MONOTONIC, &last_time_);
        board_name_ = "simulated";
@@ -369,6 +365,18 @@ class SimulatedMotor : public Motor {
    virtual std::vector<std::string> get_api_options() override;
    virtual void set_timeout_ms(int) override {}
    virtual int get_timeout_ms() const override { return 0; }
+   
+   /// @brief Simulated motor is always ready to read, therefore this is just a wrapper around `read()`.
+   /// @return Number of bytes read on success, -1 on failure
+   ssize_t aread() override { return read(); }
+ protected:
+    /// @brief Simulated motor opens /dev/zero so that poll can see a file.
+    /// @return file descriptor on success, -1 on failure.
+    virtual int open() override { return ::open("/dev/zero", O_RDONLY); }
+
+    /// @brief Close the file descriptor
+    /// @return 0 on success, -1 on failure.
+    virtual int close() override { return ::close(fd_); }
  private:
     // a - b in seconds
     double clock_diff(timespec &a, timespec &b) {
@@ -489,14 +497,18 @@ class UserSpaceMotor : public Motor {
         return retval;
     }
  private:
-    int open() {
-        int retval = Motor::open();
+    int open() override {
+        fd_ = ::open(dev_path_.c_str(), O_RDWR);
+        if (lockf(fd_, F_TEST, 0)) {
+            no_write_ = true;
+        }
+        fd_flags_ = fcntl(fd_, F_GETFL);
         struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
         int ioval = ::ioctl(fd_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
         if (ioval < 0) {
             throw std::runtime_error("Motor open error " + std::to_string(errno) + ": " + strerror(errno));
         }
-        return retval;
+        return fd_;
     }
     int close() {
         int interface_num = 0;

@@ -1,13 +1,13 @@
 #pragma once
 
-#include "motor.h"
-
 #include <netdb.h>
+
+#include "motor.h"
 
 namespace obot {
 
 class UDPFile : public TextFile {
- public:
+   public:
     struct ObotPacket {
         ObotPacket() : obot{'O', 'B', 'O', 'T'} {}
         char obot[4];
@@ -22,7 +22,7 @@ class UDPFile : public TextFile {
             port_ = "7770";
         } else {
             ip_ = address.substr(0, n);
-            port_ = address.substr(n+1,-1);
+            port_ = address.substr(n + 1, -1);
             if (!port_.size()) {
                 port_ = "7770";
             }
@@ -32,30 +32,29 @@ class UDPFile : public TextFile {
     void open();
     int poll();
     virtual void flush();
-    virtual ssize_t read(char * /* data */, unsigned int /* length */);
-    virtual ssize_t write(const char * /* data */, unsigned int /* length */);
-    virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */);
-    uint8_t send_mailbox_ = 2; // text api
-    uint8_t recv_mailbox_ = 1; // text api
-    int fd_;
+    virtual ssize_t read(char* /* data */, unsigned int /* length */);
+    virtual ssize_t write(const char* /* data */, unsigned int /* length */);
+    virtual ssize_t writeread(const char* /* *data_out */, unsigned int /* length_out */,
+                              char* /* data_in */, unsigned int /* length_in */);
+    uint8_t send_mailbox_ = 2;  // text api
+    uint8_t recv_mailbox_ = 1;  // text api
+    int fd_{-1};
     int timeout_ms_ = 10;
     std::string port_;
     std::string ip_;
     std::string addrstr_;
- private:
+
+   private:
     sockaddr_in addr_ = {};
 };
 
 class MotorIP : public Motor {
- public:
-    MotorIP(std::string address) : realtime_communication_(address) {
-        motor_txt_ = std::move(std::unique_ptr<UDPFile>(new UDPFile(address)));
-        realtime_communication_.send_mailbox_ = 4;
-        realtime_communication_.recv_mailbox_ = 3;
-        fd_ = realtime_communication_.fd_;
+   public:
+    MotorIP(std::string address) : realtime_communication_(address), address_(address) {
+        fd_ = open();
         connect();
     }
-    
+
     virtual void set_timeout_ms(int timeout_ms) override;
     void connect();
 
@@ -68,9 +67,30 @@ class MotorIP : public Motor {
         errno = 1;
         return -1;
     }
+    ssize_t aread() override;
 
- private:
+   protected:
+    /// @brief Open the connection
+    /// @return File descriptor on success, -1 on failure
+    int open() final {
+        motor_txt_ = std::move(std::unique_ptr<UDPFile>(new UDPFile(address_)));
+        realtime_communication_.send_mailbox_ = 4;
+        realtime_communication_.recv_mailbox_ = 3;
+        return realtime_communication_.fd_;
+    }
+
+    /// @brief Close the connection
+    /// @return 0 on success, -1 on failure
+    int close() final {
+        if (fd_ != -1) {
+            return ::close(fd_);
+        }
+        return 0;
+    }
+
+   private:
     UDPFile realtime_communication_;
+    std::string address_;
 };
 
-}; // namespace obot
+};  // namespace obot

@@ -146,4 +146,8 @@ ssize_t MotorIP::write() {
     return realtime_communication_.write((char *) &command_, sizeof(command_));
 }
 
+ssize_t MotorIP::aread() {
+  throw std::runtime_error("Asynchronous read not implemented for MotorIP class.");
+} 
+
 }; // namespace obot

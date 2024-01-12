@@ -91,4 +91,47 @@ int MotorUSB::lock() {
     return err;
 }
 
+int MotorUSB::set_nonblock() {
+    nonblock_ = true;
+    return fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
+}
+
+int MotorUSB::clear_nonblock() {
+    nonblock_ = false;
+    return fcntl(fd_, F_SETFL, fd_flags_ & ~O_NONBLOCK);
+}
+
+ssize_t MotorUSB::aread() {
+    int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
+    ssize_t read_error = read();
+    int fcntl_error2 = fcntl(fd_, F_SETFL, fd_flags_);
+    if (fcntl_error < 0 || fcntl_error2 < 0) {
+        std::cout << "Aread fcntl error" << std::endl;
+    }
+    if (read_error != -1) {
+        std::cout << "Nonzero aread" << std::endl;
+    } else {
+        if (errno != EAGAIN) {
+            std::cout << "Aread error " << errno << std::endl;
+        }
+    }
+    return read_error;
+}
+
+int MotorUSB::open() {
+    fd_ = ::open(dev_path_.c_str(), O_RDWR);
+    if (lockf(fd_, F_TEST, 0)) {
+        no_write_ = true;
+    }
+    fd_flags_ = fcntl(fd_, F_GETFL);
+    return fd_;
+}
+
+int MotorUSB::close() {
+    if (fd_ != -1) {
+        return ::close(fd_);
+    }
+    return 0;
+}
+
 }  // namespace obot

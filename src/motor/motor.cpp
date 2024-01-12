@@ -2,8 +2,6 @@
 
 namespace obot {
 
-Motor::~Motor() { close(); }
-
 std::string Motor::get_fast_log() {
     std::string s_read, s_out;
     s_out += "timestamp, position, iq_des, iq_meas_filt, ia, ib, ic, va, vb, vc, vbus\n";
