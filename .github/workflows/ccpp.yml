@@ -227,3 +227,7 @@ jobs:
         ! ./bin/motor_util | grep "dfu device"
 
         time ./bin/motor_util
+
+        cd share/motor-realtime
+        PYTHONPATH=. ./python/example.py
+        
