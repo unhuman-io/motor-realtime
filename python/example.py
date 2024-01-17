@@ -13,4 +13,3 @@ m.write_saved_commands()
 print(m.commands())
 s = m.read()[0]
 print(s.host_timestamp_received)
-m.write([])
