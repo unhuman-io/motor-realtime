@@ -1,4 +1,4 @@
-add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp realtime_thread.cpp motor_thread.cpp motor_app.cpp)
+add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cpp realtime_thread.cpp motor_thread.cpp motor_app.cpp)
 target_link_libraries(motor_manager udev pthread cli11)
 target_include_directories(motor_manager PUBLIC ${CMAKE_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
@@ -6,6 +6,7 @@ set(MOTOR_MANAGER_PUBLIC_HEADERS
     ${CMAKE_SOURCE_DIR}/include/motor_messages.h
     ${CMAKE_SOURCE_DIR}/include/motor.h
     ${CMAKE_SOURCE_DIR}/include/motor_ip.h
+    ${CMAKE_SOURCE_DIR}/include/motor_uart.h
     ${CMAKE_SOURCE_DIR}/include/realtime_thread.h
     ${CMAKE_SOURCE_DIR}/include/motor_thread.h
     ${CMAKE_SOURCE_DIR}/include/motor_app.h
@@ -50,12 +51,14 @@ if(INSTALL_MOTOR_EMBEDDED)
     configure_file(${CMAKE_SOURCE_DIR}/include/motor_manager.h motor_manager_embedded/motor_manager.h COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/include/motor.h motor_manager_embedded/motor.h COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/include/motor_ip.h motor_manager_embedded/motor_ip.h COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/include/motor_uart.h motor_manager_embedded/motor_uart.h COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/include/motor_util_fun.h motor_manager_embedded/motor_util_fun.h COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/include/motor_messages.h motor_manager_embedded/motor_messages.h COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/include/motor_messages/motor_messages.h motor_manager_embedded/motor_messages/motor_messages.h COPYONLY)
     configure_file(motor_manager.cpp motor_manager_embedded/motor_manager.cpp COPYONLY)
     configure_file(motor.cpp motor_manager_embedded/motor.cpp COPYONLY)
     configure_file(motor_ip.cpp motor_manager_embedded/motor_ip.cpp COPYONLY)
+    configure_file(motor_uart.cpp motor_manager_embedded/motor_uart.cpp COPYONLY)
     configure_file(motor_manager_embedded/CMakeLists.txt motor_manager_embedded/CMakeLists.txt COPYONLY)
     configure_file(motor_manager_embedded/BUILD motor_manager_embedded/BUILD COPYONLY)
     add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/motor_manager_embedded ${CMAKE_CURRENT_BINARY_DIR}/motor_manager_embedded_build)

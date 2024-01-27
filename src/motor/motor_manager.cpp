@@ -1,6 +1,7 @@
 #include "motor_manager.h"
 #include "motor.h"
 #include "motor_ip.h"
+#include "motor_uart.h"
 
 #include <libudev.h>
 
@@ -148,6 +149,17 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
     }
     read_error_count_.resize(motors_.size(), 0);
     nonblock_not_ready_error_count_.resize(motors_.size(), 0);
+}
+
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std::vector<std::string> devpaths, bool connect, bool allow_simulated) {
+    std::vector<std::shared_ptr<Motor>> m(devpaths.size());
+    for (uint8_t i=0; i<devpaths.size(); i++) {
+        m[i] = std::make_shared<MotorUART>(devpaths[i]);
+    }
+    if (connect) {
+        set_motors(m);
+    }
+    return m;
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool allow_simulated) {

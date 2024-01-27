@@ -1,5 +1,7 @@
 #include "motor_manager.h"
 #include "motor.h"
+#include "motor_uart.h"
+#include <memory>
 #include <iostream>
 #include <iomanip>
 #include <chrono>
@@ -85,6 +87,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> paths = {};
     std::vector<std::string> devpaths = {};
     std::vector<std::string> serial_numbers = {};
+    std::vector<std::string> uart_paths = {};
     std::vector<std::string> ips = {};
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map;
@@ -195,6 +198,7 @@ int main(int argc, char** argv) {
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
     app.add_option("-i,--ips", ips, "Connect to IP(S)")->type_name("IP")->expected(-1);
+    app.add_option("-a,--uart-paths", uart_paths, "Connect to UART_PATH(S) [BAUD_RATE]")->type_name("UART_PATH")->expected(-1);
     app.add_flag("--lock", lock_motors, "Lock write access to motors");
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)")->expected(1,-1);
     app.add_flag("--api", api_mode, "Enter API mode");
@@ -235,6 +239,24 @@ int main(int argc, char** argv) {
         auto tmp_motors = m.get_motors_by_ip(ips);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
+    if (uart_paths.size()) {
+        uint32_t baud_rate = 0;
+        if (uart_paths.size() > 1) {
+            char *p;
+            long i = std::strtol(uart_paths.back().c_str(), &p, 10);
+            if (*p == 0) {
+                baud_rate = i;
+                uart_paths.pop_back();
+            }
+        }
+        auto tmp_motors = m.get_motors_uart_by_devpath(uart_paths);
+        if (baud_rate) {
+            for (auto &m : tmp_motors) {
+                std::static_pointer_cast<MotorUART>(m)->set_baud_rate(baud_rate);
+            }
+        }
+        motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+    }
     bool messages_mismatch = false;
     std::string messages_mismatch_error;
     // remove null motors
@@ -259,7 +281,7 @@ int main(int argc, char** argv) {
         }
     }
     
-    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !ips.size()) {
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !ips.size()) {
         try {
             motors = m.get_connected_motors();
         } catch (std::runtime_error &e) {
