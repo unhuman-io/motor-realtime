@@ -54,14 +54,33 @@ void MotorUART::set_baud_rate(uint32_t baud_rate) {
 }
 
 ssize_t MotorUART::read() {
+  int retval;
   const uint8_t read_command[4] = {0xF0, 0x0F, 3, 0};
-  ::write(fd_, read_command, sizeof(read_command));
+  retval = ::write(fd_, read_command, sizeof(read_command));
+  if (retval != sizeof(read_command)) {
+    return retval;
+  }
   uint8_t ack_len[3];
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  ::read(fd_, ack_len, sizeof(ack_len));
-  std::cout << "ack " << std::hex << +ack_len[0] << " " << +ack_len[1] << " " << +ack_len[2] << std::dec << std::endl;
+  retval = ::read(fd_, ack_len, sizeof(ack_len));
+  if (retval != sizeof(ack_len)) {
+    return retval;
+  }
+  std::cout << "ack " << std::hex << +ack_len[0] << " " << +ack_len[1] << " " << +ack_len[2] << " sizeof status " << sizeof(status_) << std::dec << std::endl;
   if (ack_len[0] == 0x79 && ack_len[1] == 0x79 && ack_len[2] == 0x3b) {
-    return ::read(fd_, &status_, sizeof(status_));
+    Status status_tmp;
+    retval = ::read(fd_, &status_tmp, sizeof(status_tmp));
+    if (retval != sizeof(status_tmp)) {
+      return retval;
+    }
+    retval = ::read(fd_, ack_len, 2);
+    if (retval != 2) {
+      return retval;
+    }
+    if (ack_len[1] == 0x79) {
+      status_ = status_tmp;
+      return sizeof(status_);
+    }
   }
   return 0;
 }
