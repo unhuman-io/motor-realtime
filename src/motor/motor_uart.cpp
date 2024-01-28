@@ -58,23 +58,28 @@ ssize_t MotorUART::read() {
   const uint8_t read_command[4] = {0xF0, 0x0F, 3, 0};
   retval = ::write(fd_, read_command, sizeof(read_command));
   if (retval != sizeof(read_command)) {
+    read_error_++;
     return retval;
   }
   uint8_t ack_len[3];
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   retval = ::read(fd_, ack_len, sizeof(ack_len));
   if (retval != sizeof(ack_len)) {
+    read_error_++;
     return retval;
   }
-  std::cout << "ack " << std::hex << +ack_len[0] << " " << +ack_len[1] << " " << +ack_len[2] << " sizeof status " << sizeof(status_) << std::dec << std::endl;
+  std::cout << "ack " << std::hex << +ack_len[0] << " " << +ack_len[1] << " " << +ack_len[2] << 
+      " sizeof status " << sizeof(status_) << " read error " << read_error_ << std::dec << std::endl;
   if (ack_len[0] == 0x79 && ack_len[1] == 0x79 && ack_len[2] == 0x3b) {
     Status status_tmp;
     retval = ::read(fd_, &status_tmp, sizeof(status_tmp));
     if (retval != sizeof(status_tmp)) {
+      read_error_++;
       return retval;
     }
     retval = ::read(fd_, ack_len, 2);
     if (retval != 2) {
+      read_error_++;
       return retval;
     }
     if (ack_len[1] == 0x79) {
@@ -82,6 +87,7 @@ ssize_t MotorUART::read() {
       return sizeof(status_);
     }
   }
+  read_error_++;
   return 0;
 }
 

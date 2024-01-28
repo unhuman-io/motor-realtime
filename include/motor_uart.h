@@ -16,7 +16,7 @@ class MotorUART : public Motor {
     virtual ssize_t write() override;
 
  private:
-    
+    uint32_t read_error_ = 0;
 };
 
 }; // namespace obot
