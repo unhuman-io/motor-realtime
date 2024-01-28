@@ -8,20 +8,23 @@
 
 namespace obot {
 
-MotorUART::MotorUART(std::string dev_path) {
+MotorUART::MotorUART(std::string dev_path, uint32_t baud_rate) {
   dev_path_ = dev_path;
   int result = open();
-
   if (result < 0) {
     throw std::runtime_error("Error opening " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
+  pollfds_[0].fd = fd_;
+  pollfds_[0].events = POLLIN;
   // only one item can access uart devices due to protocol
   result = lock();
   if (result < 0) {
     throw std::runtime_error("Error locking: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
-  set_baud_rate();
-  std::cout << "fd " << fd_ << std::endl;
+  set_baud_rate(baud_rate);
+  if (sync() < 0) {
+    throw std::runtime_error("Error syncing: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+  }
   //motor_txt_ = std::move(std::unique_ptr<SimulatedTextFile>(new SimulatedTextFile()));
   board_name_ = "uart";
   config_ = "uart";
@@ -33,7 +36,12 @@ void MotorUART::set_timeout_ms(int timeout_ms) {
 
 void MotorUART::set_baud_rate(uint32_t baud_rate) {
   struct termios tio;
-  int result = tcgetattr(fd_, &tio);
+  int result;
+  result = tcflush(fd_, TCIOFLUSH);
+  if (result < 0) {
+    throw std::runtime_error("Error tcflush: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+  }
+  result = tcgetattr(fd_, &tio);
   if (result < 0) {
     throw std::runtime_error("Error tcgetattr: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
@@ -92,7 +100,68 @@ ssize_t MotorUART::read() {
 }
 
 ssize_t MotorUART::write() {
-    return 0;
+  int retval;
+  const uint8_t write_command[5] = {0xF1, 0x0E, 4, sizeof(command_)-1, 0};
+  retval = ::write(fd_, write_command, sizeof(write_command));
+  if (retval != sizeof(write_command)) {
+    write_error_++;
+    return retval;
+  }
+  uint8_t ack_len[2];
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  retval = ::read(fd_, ack_len, sizeof(ack_len));
+  if (retval != sizeof(ack_len)) {
+    write_error_++;
+    return retval;
+  }
+  retval = ::write(fd_, &command_, sizeof(command_));
+  if (retval != sizeof(command_)) {
+    write_error_++;
+    return retval;
+  }
+  uint8_t checksum[1] = {};
+  retval = ::write(fd_, checksum, sizeof(checksum));
+  if (retval != sizeof(checksum)) {
+    write_error_++;
+    return retval;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  retval = ::read(fd_, ack_len, 1);
+  if (retval != 1) {
+    write_error_++;
+    return retval;
+  }
+  return sizeof(command_);
+}
+
+int MotorUART::sync() {
+  uint8_t dummy[1] = {};
+  uint8_t ack[1] = {};
+  int retval;
+  // maximum tries of 256 due to protocol
+  for (int i=0; i<256; i++) {
+    retval = ::write(fd_, dummy, sizeof(dummy));
+    if (retval != sizeof(dummy)) {
+      sync_error_++;
+      return retval;
+    }
+    const timespec ts = {.tv_nsec = 400*1000};
+    retval = ppoll(pollfds_, 1, &ts, nullptr);
+    if (retval < 0) {
+      sync_error_++;
+      return retval;
+    } else if (retval > 0) {
+      retval = ::read(fd_, ack, sizeof(ack));
+      if (retval != sizeof(ack)) {
+        write_error_++;
+        return retval;
+      } else {
+        return 0;
+      }
+    }
+  }
+  errno = EIO;
+  return -1;
 }
 
 }; // namespace obot

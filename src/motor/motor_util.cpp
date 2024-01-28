@@ -1,7 +1,6 @@
 #include "motor_manager.h"
 #include "motor.h"
 #include "motor_uart.h"
-#include <memory>
 #include <iostream>
 #include <iomanip>
 #include <chrono>
@@ -249,11 +248,11 @@ int main(int argc, char** argv) {
                 uart_paths.pop_back();
             }
         }
-        auto tmp_motors = m.get_motors_uart_by_devpath(uart_paths);
+        std::vector<std::shared_ptr<Motor>> tmp_motors;
         if (baud_rate) {
-            for (auto &m : tmp_motors) {
-                std::static_pointer_cast<MotorUART>(m)->set_baud_rate(baud_rate);
-            }
+            tmp_motors = m.get_motors_uart_by_devpath(uart_paths, baud_rate);
+        } else {
+            tmp_motors = m.get_motors_uart_by_devpath(uart_paths);
         }
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
