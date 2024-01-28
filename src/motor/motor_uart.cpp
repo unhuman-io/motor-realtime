@@ -31,10 +31,15 @@ MotorUART::MotorUART(std::string dev_path, uint32_t baud_rate) {
   if (sync() < 0) {
     throw std::runtime_error("Error syncing: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
-  //motor_txt_ = std::move(std::unique_ptr<SimulatedTextFile>(new SimulatedTextFile()));
-  board_name_ = "uart";
-  config_ = "uart";
-  messages_version_ = MOTOR_MESSAGES_VERSION;
+  
+  version_ = operator[]("version").get();
+  messages_version_ = operator[]("messages_version").get();
+  board_name_ = operator[]("board_name").get();
+  board_rev_ = operator[]("board_rev").get();
+  board_num_ = operator[]("board_num").get();
+  config_ = operator[]("config").get();
+  serial_number_ = operator[]("serial").get();
+  name_ = operator[]("name").get();
 }
 
 void MotorUART::set_timeout_ms(int timeout_ms) {
@@ -76,7 +81,7 @@ ssize_t MotorUART::write() {
 }
 
 int MotorUART::sync() {
-  uint8_t dummy[1] = {};
+  uint8_t dummy[1] = {0x7F};
   uint8_t ack[1] = {};
   int retval;
   // maximum tries of 256 due to protocol
@@ -86,7 +91,8 @@ int MotorUART::sync() {
       sync_error_++;
       return retval;
     }
-    const timespec ts = {.tv_nsec = 400*1000};
+    timespec ts = {};
+    ts.tv_nsec = 400*1000;
     retval = ppoll(pollfds_, 1, &ts, nullptr);
     if (retval < 0) {
       sync_error_++;
