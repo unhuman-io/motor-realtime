@@ -10,8 +10,9 @@ class Mailbox : public TextFile {
     virtual ssize_t read(char * data, unsigned int length) override;
     virtual ssize_t write(const char * data, unsigned int length) override;
     virtual ssize_t writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) override;
-    uint8_t send_mailbox_ = 2; // text api
-    uint8_t recv_mailbox_ = 1; // text api
+    uint8_t send_mailbox_ = 1; // realtime command
+    uint8_t recv_mailbox_ = 2; // realtime status
+    uint8_t send_recv_mailbox_ = 3; // both
     int fd_;
  private:
     uint32_t read_error_ = 0;
