@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/operators.h>
 #include "motor_manager.h"
+#include "motor_usb.h"
 #include <sstream>
 
 namespace py = pybind11;
@@ -188,38 +189,38 @@ PYBIND11_MODULE(motor, m)
         .def("set_command_position_tuning", &MotorManager::set_command_position_tuning)
         .def("set_command_current_tuning", &MotorManager::set_command_current_tuning);
 
-    py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
+    py::class_<MotorUSB, std::shared_ptr<MotorUSB>>(m, "MotorUSB")
         .def(py::init<const std::string &>())
-        .def("name", &Motor::name)
-        .def("serial_number", &Motor::serial_number)
-        .def("path", &Motor::base_path)
-        .def("devnum", &Motor::devnum)
-        .def("board_name", &Motor::board_name)
-        .def("board_rev", &Motor::board_rev)
-        .def("board_num", &Motor::board_num)
-        .def("messages_version", &Motor::messages_version)
-        .def("config", &Motor::config)
-        .def("get_fast_log", &Motor::get_fast_log)
-        .def("__repr__", [](const Motor &m){ return "<Motor " + m.name() + ">"; })
-        .def("__getitem__", &Motor::operator[])
-        .def("__setitem__", [](Motor &m, const std::string key, const std::string value)
+        .def("name", &MotorUSB::name)
+        .def("serial_number", &MotorUSB::serial_number)
+        .def("path", &MotorUSB::base_path)
+        .def("devnum", &MotorUSB::devnum)
+        .def("board_name", &MotorUSB::board_name)
+        .def("board_rev", &MotorUSB::board_rev)
+        .def("board_num", &MotorUSB::board_num)
+        .def("messages_version", &MotorUSB::messages_version)
+        .def("config", &MotorUSB::config)
+        .def("get_fast_log", &MotorUSB::get_fast_log)
+        .def("__repr__", [](const MotorUSB &m){ return "<MotorUSB " + m.name() + ">"; })
+        .def("__getitem__", &MotorUSB::operator[])
+        .def("__setitem__", [](MotorUSB &m, const std::string key, const std::string value)
              { m[key].set(value); })
-        .def("get_api_options", &Motor::get_api_options)
-        .def("error_mask", [](Motor &m)
+        .def("get_api_options", &MotorUSB::get_api_options)
+        .def("error_mask", [](MotorUSB &m)
              { 
             MotorError mask;
             mask.all = std::stoul(m["error_mask"].get(), 0, 16);
             return motor_error_dict(mask); })
-        .def("set_error_mask", [](Motor &m, py::dict d){ 
+        .def("set_error_mask", [](MotorUSB &m, py::dict d){ 
             MotorError e = dict_to_motor_error(d);
             std::stringstream s;
             s << std::hex << e.all;
             std::string shex(s.str());
             return m["error_mask"].set(shex); })
-        .def("get_cpu_frequency", &Motor::get_cpu_frequency)
-        .def("set_nonblock", &Motor::set_nonblock)
-        .def("get_timeout_ms", &Motor::get_timeout_ms)
-        .def("set_timeout_ms", &Motor::set_timeout_ms);
+        .def("get_cpu_frequency", &MotorUSB::get_cpu_frequency)
+        .def("set_nonblock", &MotorUSB::set_nonblock)
+        .def("get_timeout_ms", &MotorUSB::get_timeout_ms)
+        .def("set_timeout_ms", &MotorUSB::set_timeout_ms);
 
     py::class_<TextAPIItem>(m, "TextAPIItem")
         .def("__repr__", &TextAPIItem::get)

@@ -26,8 +26,8 @@ class MotorDescription {
         auto pos = std::min(s.find(" "), s.find("-g"));
         return s.substr(0,pos);
     }
-    virtual void set_timeout_ms(int timeout_ms) {};
-    virtual int get_timeout_ms() const { return 0; };
+    virtual void set_timeout_ms(int timeout_ms) {}
+    virtual int get_timeout_ms() const { return 0; }
  protected:
     std::string name_, serial_number_, base_path_, dev_path_, version_;
     std::string board_name_, board_rev_, board_num_, messages_version_, config_;

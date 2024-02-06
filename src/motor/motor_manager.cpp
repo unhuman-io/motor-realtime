@@ -1,6 +1,7 @@
 #include "motor_manager.h"
 #include "motor.h"
 #include "motor_ip.h"
+#include "motor_usb.h"
 
 #include <libudev.h>
 
@@ -74,7 +75,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
             if (user_space_driver_ == true) {
                 m.push_back(std::make_shared<UserSpaceMotor>(dev_path));
             } else {
-                m.push_back(std::make_shared<Motor>(dev_path));
+                m.push_back(std::make_shared<MotorUSB>(dev_path));
             }
         } catch (std::runtime_error &e) {
             // There is a runtime_error if the motor is disconnected during this function

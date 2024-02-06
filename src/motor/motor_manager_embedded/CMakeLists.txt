@@ -1,3 +1,3 @@
-add_library(motor_manager_embedded motor_manager.cpp motor.cpp)
+add_library(motor_manager_embedded motor_manager.cpp motor.cpp motor_usb.cpp)
 #target_include_directories(motor_manager_embedded PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/motor_manager_embedded)
 target_link_libraries(motor_manager_embedded udev)
