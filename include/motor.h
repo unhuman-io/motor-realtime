@@ -270,7 +270,7 @@ class Motor : public MotorDescription {
     TextFile* motor_text() { return motor_txt_.get(); }
     std::string get_fast_log();
     virtual std::vector<std::string> get_api_options();
-    uint32_t get_cpu_frequency() { return std::stoi((*this)["cpu_frequency"].get()); }
+    virtual uint32_t get_cpu_frequency() { return std::stoi((*this)["cpu_frequency"].get()); }
  protected:
     /// @brief Open the communication channel with the motor controller.
     /// @return -1 on failure, or non-zero value on success.
