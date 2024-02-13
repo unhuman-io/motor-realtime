@@ -75,15 +75,15 @@ void MotorUART::set_baud_rate(uint32_t baud_rate) {
 }
 
 ssize_t MotorUART::read() {
-  static int count = 0;
+  //static int count = 0;
   ssize_t result = realtime_mailbox_.read((char *) &status_, sizeof(status_));
   if (status_.host_timestamp_received != command_.host_timestamp) {
-    count++;
-    if (count > 1){
-    std::cout << "host timestamp received: " << status_.host_timestamp_received << ", sent" << command_.host_timestamp << std::endl;
-    std::this_thread::sleep_for(std::chrono::microseconds(8000));
-    std::cout << "result " << result << std::endl;
-    }
+    // count++;
+    // if (count > 1){
+    // std::cout << "host timestamp received: " << status_.host_timestamp_received << ", sent" << command_.host_timestamp << std::endl;
+    // std::this_thread::sleep_for(std::chrono::microseconds(8000));
+    // std::cout << "result " << result << std::endl;
+    // }
     
   }
   return result;
@@ -133,12 +133,12 @@ ssize_t Mailbox::read(char * data, unsigned int length) {
     read_error_++;
     return retval;
   }
-  std::this_thread::sleep_for(std::chrono::microseconds(800));
+  std::this_thread::sleep_for(std::chrono::microseconds(1000));
   retval = ::read(fd_, data, length);
   // std::cout << "read " << retval << std::endl;
   if (retval < length) {
     read_error_++;
-    std::cout << "read error " << retval << std::endl;
+    //std::cout << "read error " << retval << std::endl;
     return retval;
   }
   return retval;
@@ -161,13 +161,14 @@ ssize_t Mailbox::write(const char * data, unsigned int length) {
 ssize_t Mailbox::writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
   uint8_t write_command[1+length_out];
   write_command[0] = send_recv_mailbox_;
+  std::this_thread::sleep_for(std::chrono::microseconds(1000));
   std::memcpy(&write_command[1], data_out, length_out);
   int retval = ::write(fd_, write_command, length_out+1);
   if (retval != length_out+1) {
     write_error_++;
     return retval;
   }
-  std::this_thread::sleep_for(std::chrono::microseconds(800));
+  std::this_thread::sleep_for(std::chrono::microseconds(1000));
   retval = ::read(fd_, data_in, length_in);
   // std::cout << "read in" << retval << std::endl;
   if (retval < 0) {
