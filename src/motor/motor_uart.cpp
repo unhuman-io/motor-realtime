@@ -33,14 +33,15 @@ MotorUART::MotorUART(std::string dev_path, uint32_t baud_rate) {
   //   throw std::runtime_error("Error syncing: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   // }
   
-  // version_ = operator[]("version").get();
-  // messages_version_ = operator[]("messages_version").get();
-  // board_name_ = operator[]("board_name").get();
-  // board_rev_ = operator[]("board_rev").get();
-  // board_num_ = operator[]("board_num").get();
-  // config_ = operator[]("config").get();
-  // serial_number_ = operator[]("serial").get();
-  // name_ = operator[]("name").get();
+  version_ = operator[]("version").get();
+  messages_version_ = operator[]("messages_version").get();
+  name_ = operator[]("name").get();
+  board_name_ = operator[]("board_name").get();
+  board_rev_ = operator[]("board_rev").get();
+  board_num_ = operator[]("board_num").get();
+  config_ = operator[]("config").get();
+  serial_number_ = operator[]("serial").get();
+  
 }
 
 void MotorUART::set_timeout_ms(int timeout_ms) {
@@ -120,6 +121,7 @@ ssize_t Mailbox::read(char * data, unsigned int length) {
     read_error_++;
     return retval;
   }
+  std::this_thread::sleep_for(std::chrono::microseconds(2000));
   retval = ::read(fd_, data, length);
   // std::cout << "read " << retval << std::endl;
   if (retval < length) {
@@ -152,8 +154,9 @@ ssize_t Mailbox::writeread(const char * data_out, unsigned int length_out, char 
     write_error_++;
     return retval;
   }
+  std::this_thread::sleep_for(std::chrono::microseconds(2000));
   retval = ::read(fd_, data_in, length_in);
-  std::cout << "read in" << retval << std::endl;
+  // std::cout << "read in" << retval << std::endl;
   if (retval < 0) {
     read_error_++;
     return retval;
