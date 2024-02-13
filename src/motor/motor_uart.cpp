@@ -75,7 +75,18 @@ void MotorUART::set_baud_rate(uint32_t baud_rate) {
 }
 
 ssize_t MotorUART::read() {
-  return realtime_mailbox_.read((char *) &status_, sizeof(status_));
+  static int count = 0;
+  ssize_t result = realtime_mailbox_.read((char *) &status_, sizeof(status_));
+  if (status_.host_timestamp_received != command_.host_timestamp) {
+    count++;
+    if (count > 1){
+    std::cout << "host timestamp received: " << status_.host_timestamp_received << ", sent" << command_.host_timestamp << std::endl;
+    std::this_thread::sleep_for(std::chrono::microseconds(8000));
+    std::cout << "result " << result << std::endl;
+    }
+    
+  }
+  return result;
 }
 
 ssize_t MotorUART::write() {
@@ -115,25 +126,27 @@ int MotorUART::sync() {
 
 ssize_t Mailbox::read(char * data, unsigned int length) {
   int retval;
+  std::this_thread::sleep_for(std::chrono::microseconds(400));
   const uint8_t read_command[1] = {recv_mailbox_};
   retval = ::write(fd_, read_command, sizeof(read_command));
   if (retval != sizeof(read_command)) {
     read_error_++;
     return retval;
   }
-  std::this_thread::sleep_for(std::chrono::microseconds(2000));
+  std::this_thread::sleep_for(std::chrono::microseconds(800));
   retval = ::read(fd_, data, length);
   // std::cout << "read " << retval << std::endl;
   if (retval < length) {
     read_error_++;
+    std::cout << "read error " << retval << std::endl;
     return retval;
   }
-  read_error_++;
-  return 0;
+  return retval;
 }
 
 ssize_t Mailbox::write(const char * data, unsigned int length) {
   int retval;
+  std::this_thread::sleep_for(std::chrono::microseconds(400));
   uint8_t write_command[1+length];
   write_command[0] = send_mailbox_;
   std::memcpy(&write_command[1], data, length);
@@ -154,7 +167,7 @@ ssize_t Mailbox::writeread(const char * data_out, unsigned int length_out, char 
     write_error_++;
     return retval;
   }
-  std::this_thread::sleep_for(std::chrono::microseconds(2000));
+  std::this_thread::sleep_for(std::chrono::microseconds(800));
   retval = ::read(fd_, data_in, length_in);
   // std::cout << "read in" << retval << std::endl;
   if (retval < 0) {
