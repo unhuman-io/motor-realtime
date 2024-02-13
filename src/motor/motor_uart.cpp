@@ -8,15 +8,13 @@
 
 namespace obot {
 
-MotorUART::MotorUART(std::string dev_path, uint32_t baud_rate) {
+MotorUARTRaw::MotorUARTRaw(std::string dev_path, uint32_t baud_rate) {
   dev_path_ = dev_path;
   int result = open();
   if (result < 0) {
     throw std::runtime_error("Error opening " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
   realtime_mailbox_.fd_ = fd_;
-  pollfds_[0].fd = fd_;
-  pollfds_[0].events = POLLIN;
   motor_txt_ = std::move(std::unique_ptr<Mailbox>(new Mailbox()));
   Mailbox * text_mailbox = static_cast<Mailbox *>(motor_txt_.get());
   text_mailbox->fd_ = fd_;
@@ -44,10 +42,10 @@ MotorUART::MotorUART(std::string dev_path, uint32_t baud_rate) {
   
 }
 
-void MotorUART::set_timeout_ms(int timeout_ms) {
+void MotorUARTRaw::set_timeout_ms(int timeout_ms) {
 }
 
-void MotorUART::set_baud_rate(uint32_t baud_rate) {
+void MotorUARTRaw::set_baud_rate(uint32_t baud_rate) {
   struct termios tio;
   int result;
   result = tcflush(fd_, TCIOFLUSH);
@@ -74,7 +72,7 @@ void MotorUART::set_baud_rate(uint32_t baud_rate) {
   }
 }
 
-ssize_t MotorUART::read() {
+ssize_t MotorUARTRaw::read() {
   //static int count = 0;
   ssize_t result = realtime_mailbox_.read((char *) &status_, sizeof(status_));
   if (status_.host_timestamp_received != command_.host_timestamp) {
@@ -89,39 +87,8 @@ ssize_t MotorUART::read() {
   return result;
 }
 
-ssize_t MotorUART::write() {
+ssize_t MotorUARTRaw::write() {
   return realtime_mailbox_.write((char *) &command_, sizeof(command_));
-}
-
-int MotorUART::sync() {
-  uint8_t dummy[1] = {0x7F};
-  uint8_t ack[1] = {};
-  int retval;
-  // maximum tries of 256 due to protocol
-  for (int i=0; i<256; i++) {
-    retval = ::write(fd_, dummy, sizeof(dummy));
-    if (retval != sizeof(dummy)) {
-      sync_error_++;
-      return retval;
-    }
-    timespec ts = {};
-    ts.tv_nsec = 400*1000;
-    retval = ppoll(pollfds_, 1, &ts, nullptr);
-    if (retval < 0) {
-      sync_error_++;
-      return retval;
-    } else if (retval > 0) {
-      retval = ::read(fd_, ack, sizeof(ack));
-      if (retval != sizeof(ack)) {
-        sync_error_++;
-        return retval;
-      } else {
-        return 0;
-      }
-    }
-  }
-  errno = EIO;
-  return -1;
 }
 
 ssize_t Mailbox::read(char * data, unsigned int length) {

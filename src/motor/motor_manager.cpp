@@ -151,10 +151,14 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
     nonblock_not_ready_error_count_.resize(motors_.size(), 0);
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std::vector<std::string> devpaths, uint32_t baud_rate, bool connect, bool allow_simulated) {
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std::vector<std::string> devpaths, bool raw, uint32_t baud_rate, bool connect, bool allow_simulated) {
     std::vector<std::shared_ptr<Motor>> m(devpaths.size());
     for (uint8_t i=0; i<devpaths.size(); i++) {
-        m[i] = std::make_shared<MotorUART>(devpaths[i], baud_rate);
+        if (raw) {
+            m[i] = std::make_shared<MotorUARTRaw>(devpaths[i], baud_rate);
+        } else {
+            throw std::runtime_error("motor uart not raw");
+        }
     }
     if (connect) {
         set_motors(m);

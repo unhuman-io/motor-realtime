@@ -19,9 +19,9 @@ class Mailbox : public TextFile {
     uint32_t write_error_ = 0;
 };
 
-class MotorUART : public Motor {
+class MotorUARTRaw : public Motor {
  public:
-    MotorUART(std::string dev_path, uint32_t baud_rate = 4000000);
+    MotorUARTRaw(std::string dev_path, uint32_t baud_rate = 4000000);
     //virtual ~MotorUART() override;
     
     virtual void set_timeout_ms(int timeout_ms) override;
@@ -29,12 +29,9 @@ class MotorUART : public Motor {
 
     virtual ssize_t read() override;
     virtual ssize_t write() override;
-    int sync();
 
  private:
     Mailbox realtime_mailbox_;
-    struct pollfd pollfds_[1] = {};
-    uint32_t sync_error_ = 0;
 };
 
 }; // namespace obot
