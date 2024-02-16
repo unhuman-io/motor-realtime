@@ -1,7 +1,7 @@
 #include "motor_uart.h"
 #include <errno.h>
 #include "poll.h"
-#include <termios.h>
+#include <asm/termbits.h>
 
 #include <thread>
 #include <chrono>
@@ -46,29 +46,22 @@ void MotorUARTRaw::set_timeout_ms(int timeout_ms) {
 }
 
 void MotorUARTRaw::set_baud_rate(uint32_t baud_rate) {
-  struct termios tio;
   int result;
-  result = tcflush(fd_, TCIOFLUSH);
+  struct termios2 tio2 = {};
+
+  ioctl(fd_, TCGETS2, &tio2);
+  tio2.c_cflag = CS8 | CREAD | CLOCAL | CBAUDEX;
+  tio2.c_lflag = 0;
+  tio2.c_iflag = 0;
+  tio2.c_oflag = 0;
+  tio2.c_cc[VMIN] = 0;
+  tio2.c_cc[VTIME] = 1;
+  tio2.c_ispeed = baud_rate;
+  tio2.c_ospeed = baud_rate;
+  result = ioctl(fd_, TCSETS2, &tio2);
+
   if (result < 0) {
-    throw std::runtime_error("Error tcflush: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
-  }
-  result = tcgetattr(fd_, &tio);
-  if (result < 0) {
-    throw std::runtime_error("Error tcgetattr: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
-  }
-  tio.c_cflag = CS8 | CREAD | CLOCAL;
-  tio.c_lflag = 0;
-  tio.c_iflag = 0;
-  tio.c_oflag = 0;
-  tio.c_cc[VMIN] = 0;
-  tio.c_cc[VTIME] = 1;
-  result = cfsetspeed(&tio, baud_rate);
-  if (result < 0) {
-    throw std::runtime_error("Error cfsetspeed: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
-  }
-  result = tcsetattr(fd_, TCSANOW, &tio);
-  if (result < 0) {
-    throw std::runtime_error("Error tcsetattr: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    throw std::runtime_error("Error tcsets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
 }
 
