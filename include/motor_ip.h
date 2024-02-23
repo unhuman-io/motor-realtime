@@ -66,6 +66,9 @@ class MotorIP : public Motor {
 
  private:
     UDPFile realtime_communication_;
+    static const int kProtocolOverheadBytes = 6;
+    uint8_t read_buffer_[sizeof(MotorStatus) + kProtocolOverheadBytes];
+    uint8_t write_buffer_[sizeof(MotorCommand) + kProtocolOverheadBytes];
 };
 
 }; // namespace obot
