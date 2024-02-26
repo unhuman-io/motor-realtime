@@ -8,11 +8,18 @@ namespace obot {
 
 class UDPFile : public TextFile {
  public:
+    /*
+    * [ Start bytes (2) ] = {0xCA, 0xFE}
+    * [ Frame ID (1) ]
+    * [ Payload Length (1) ]
+    * [ Payload (n) ]
+    * [ CRC (2) ]
+    */
     struct ObotPacket {
-        ObotPacket() : obot{'O', 'B', 'O', 'T'} {}
-        char obot[4];
-        uint8_t command;
-        uint8_t mailbox;
+        ObotPacket() : start_bytes{0xCA, 0xFE} {}
+        uint8_t start_bytes[2];
+        uint8_t frame_id;
+        uint8_t length;
         uint8_t data[1024];
     };
     UDPFile(std::string address) {
@@ -35,8 +42,9 @@ class UDPFile : public TextFile {
     virtual ssize_t read(char * /* data */, unsigned int /* length */);
     virtual ssize_t write(const char * /* data */, unsigned int /* length */);
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */);
-    uint8_t send_mailbox_ = 2; // text api
-    uint8_t recv_mailbox_ = 1; // text api
+    uint8_t send_frame_id_ = 1; // command
+    uint8_t recv_frame_id_ = 2; // status
+    uint8_t send_recv_frame_id_ = 3; // command_status
     int fd_;
     int timeout_ms_ = 10;
     std::string port_;
@@ -50,8 +58,8 @@ class MotorIP : public Motor {
  public:
     MotorIP(std::string address) : realtime_communication_(address) {
         motor_txt_ = std::move(std::unique_ptr<UDPFile>(new UDPFile(address)));
-        realtime_communication_.send_mailbox_ = 4;
-        realtime_communication_.recv_mailbox_ = 3;
+        // send_recv_frame_id_ = 4;
+        // recv_frame_id_ = 5;
         fd_ = realtime_communication_.fd_;
         connect();
     }
@@ -67,8 +75,8 @@ class MotorIP : public Motor {
  private:
     UDPFile realtime_communication_;
     static const int kProtocolOverheadBytes = 6;
-    uint8_t read_buffer_[sizeof(MotorStatus) + kProtocolOverheadBytes];
-    uint8_t write_buffer_[sizeof(MotorCommand) + kProtocolOverheadBytes];
+    UDPFile::ObotPacket read_buffer_;
+    UDPFile::ObotPacket write_buffer_;
 };
 
 }; // namespace obot

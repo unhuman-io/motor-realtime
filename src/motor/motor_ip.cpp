@@ -89,7 +89,7 @@ void UDPFile::open() {
     }
     std::memcpy(&addr_, result->ai_addr, result->ai_addrlen);
     freeaddrinfo(result);
-    flush();
+    //flush();
 }
 
 void UDPFile::flush() {
@@ -114,45 +114,53 @@ int UDPFile::poll() {
 }
 
 ssize_t UDPFile::read(char * data, unsigned int length) {
-    ObotPacket packet;
-    packet.command = 2;
-    packet.mailbox = recv_mailbox_;
-    int send_result = sendto(fd_, &packet, 6, 0, (sockaddr *) &addr_, sizeof(addr_));
-    if (send_result < 0) {
-      return send_result;
-    }
+  ObotPacket send_packet;
+  send_packet.frame_id = recv_frame_id_;
+  send_packet.length = 0;
+  uint16_t crc = crc16((uint8_t*)data, 0);
+  send_packet.data[length] = (crc >> 8) & 0xFF;
+  send_packet.data[length+1] = crc & 0xFF;
 
-    int poll_result = poll();
-    if (poll_result < 0) {
-      return poll_result;
-    }
-    int recv_result = recv(fd_, data, length-1, 0);
-    if (recv_result > 0) {
-      data[recv_result] = 0;
-    }
+  int send_result = sendto(fd_, &send_packet, 6, 0, (sockaddr *) &addr_, sizeof(addr_));
+  if (send_result < 0) {
+    return send_result;
+  }
+
+  ObotPacket recv_packet;
+  int recv_result = recv(fd_, &recv_packet, length+6, 0);
+
+  if (recv_result < 0) {
     return recv_result;
+  }
+
+  if (recv_packet.length < length) {
+    return -1;
+  }
+  std::memcpy(data, recv_packet.data, recv_packet.length);
+
+  // if (recv_result > 0) {
+  //   data[recv_result] = 0;
+  // }
+
+  return recv_result;
 }
 
 ssize_t UDPFile::write(const char * data, unsigned int length) {
     ObotPacket packet;
-    packet.command = 1;
-    packet.mailbox = send_mailbox_;
+    // Pack data into packet
+    // todo: use generate_packet()
+    std::memcpy(packet.data, data, length);
+    packet.frame_id = send_frame_id_;
+    packet.length = length;
+    std::cout << "send length " << length << std::endl;
+    // Calculate CRC of command payload
+    uint16_t crc = crc16((uint8_t*)data, length);
+    packet.data[length] = (crc >> 8) & 0xFF;
+    packet.data[length+1] = crc & 0xFF;
+
     std::memcpy(packet.data, data, length);
     int send_result = sendto(fd_, &packet, 6+length, 0, (sockaddr *) &addr_, sizeof(addr_));
-    if (send_result < 0) {
-      return send_result;
-    }
-
-    int poll_result = poll();
-    if (poll_result < 0) {
-      return poll_result;
-    }
-    char data_in[20];
-    int recv_result = recv(fd_, data_in, 19, 0);
-    if (recv_result > 0) {
-      data_in[recv_result] = 0;
-    }
-    return recv_result;
+    return send_result;
 }
 
 ssize_t UDPFile::writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
@@ -164,17 +172,17 @@ ssize_t UDPFile::writeread(const char * data_out, unsigned int length_out, char 
 }
 
 void MotorIP::connect() {
-    name_ = operator[]("name").get();
+    //name_ = operator[]("name").get();
     if (name_ == "") {
       name_ = ip() + ":" + std::to_string(port());
     }
-    version_ = operator[]("version").get();
-    messages_version_ = operator[]("messages_version").get();
-    board_name_ = operator[]("board_name").get();
-    board_rev_ = operator[]("board_rev").get();
-    board_num_ = operator[]("board_num").get();
-    config_ = operator[]("config").get();
-    serial_number_ = operator[]("serial").get();
+    // version_ = operator[]("version").get();
+    // messages_version_ = operator[]("messages_version").get();
+    // board_name_ = operator[]("board_name").get();
+    // board_rev_ = operator[]("board_rev").get();
+    // board_num_ = operator[]("board_num").get();
+    // config_ = operator[]("config").get();
+    // serial_number_ = operator[]("serial").get();
     dev_path_ = realtime_communication_.addrstr_;
     base_path_ = ip();
     devnum_ = port();
@@ -187,47 +195,14 @@ void MotorIP::set_timeout_ms(int timeout_ms) {
 }
 
 ssize_t MotorIP::read() {
-  // Store packet in buffer
-  int ret = realtime_communication_.read((char *) &read_buffer_, sizeof(read_buffer_));
-  
-  /*
-   * [ Start bytes (2) ]
-   * [ Frame ID (1) ]
-   * [ Payload Length (1) ]
-   * [ Payload (n) ]
-   * [ CRC (2) ]
-  */
-
-  // Unpack buffer into status
-  int frame_id = read_buffer_[2];
-  int payload_length = read_buffer_[3];
-  if (payload_length != sizeof(status_)) {
-    return -1;
-  }
-  std::memcpy(&status_, read_buffer_+4, payload_length);
+  std::cout << "read " << std::endl;
+  int ret = realtime_communication_.read((char *) &status_, sizeof(status_));
   return ret;
 }
 
 ssize_t MotorIP::write() {
-  /*
-   * [ Start bytes (2) ]
-   * [ Frame ID (1) ]
-   * [ Payload Length (1) ]
-   * [ Payload (n) ]
-   * [ CRC (2) ]
-  */
-
-  // Pack command into write buffer
-  std::memcpy(write_buffer_+4, &command_, sizeof(command_));
-  write_buffer_[0] = 0xCA;
-  write_buffer_[1] = 0xFE;
-  write_buffer_[2] = 4; // Frame ID is hardcoded to ASCII commands
-  write_buffer_[3] = sizeof(command_);
-  // Calculate CRC of command payload
-  uint16_t crc = crc16((uint8_t*)&command_, sizeof(command_));
-  write_buffer_[4+sizeof(command_)] = (crc >> 8) & 0xFF;
-  write_buffer_[4+sizeof(command_)+1] = crc & 0xFF;
-  return realtime_communication_.write((char *) &write_buffer_, sizeof(write_buffer_));
+  std::cout << "write " << std::endl;
+  return realtime_communication_.write((char *) &command_, sizeof(command_));
 }
 
 }; // namespace obot
