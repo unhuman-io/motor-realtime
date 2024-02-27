@@ -39,8 +39,8 @@ class UDPFile : public TextFile {
     void open();
     int poll();
     virtual void flush();
-    virtual ssize_t read(char * /* data */, unsigned int /* length */);
-    virtual ssize_t write(const char * /* data */, unsigned int /* length */);
+    virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false);
+    virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false);
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */);
     uint8_t send_frame_id_ = 1; // command
     uint8_t recv_frame_id_ = 2; // status
@@ -58,8 +58,10 @@ class MotorIP : public Motor {
  public:
     MotorIP(std::string address) : realtime_communication_(address) {
         motor_txt_ = std::move(std::unique_ptr<UDPFile>(new UDPFile(address)));
-        // send_recv_frame_id_ = 4;
-        // recv_frame_id_ = 5;
+        UDPFile * motor_txt = static_cast<UDPFile *>(motor_txt_.get());
+        motor_txt->send_recv_frame_id_ = 4;
+        motor_txt->recv_frame_id_ = 5;
+        motor_txt->send_frame_id_ = 4;
         fd_ = realtime_communication_.fd_;
         connect();
     }

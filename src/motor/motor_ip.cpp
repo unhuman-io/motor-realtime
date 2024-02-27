@@ -113,48 +113,65 @@ int UDPFile::poll() {
     return poll_result;
 }
 
-ssize_t UDPFile::read(char * data, unsigned int length) {
-  ObotPacket send_packet;
-  send_packet.frame_id = recv_frame_id_;
-  send_packet.length = 0;
-  uint16_t crc = crc16((uint8_t*)data, 0);
-  send_packet.data[length] = (crc >> 8) & 0xFF;
-  send_packet.data[length+1] = crc & 0xFF;
+ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
+  if (!write_read) {
+    ObotPacket send_packet;
+    send_packet.frame_id = recv_frame_id_;
+    send_packet.length = 0;
+    uint16_t crc = crc16((uint8_t*)&send_packet, 4);
+    send_packet.data[send_packet.length] = (crc >> 8) & 0xFF;
+    send_packet.data[send_packet.length+1] = crc & 0xFF;
 
-  int send_result = sendto(fd_, &send_packet, 6, 0, (sockaddr *) &addr_, sizeof(addr_));
-  if (send_result < 0) {
-    return send_result;
+    int send_result = sendto(fd_, &send_packet, send_packet.length+6, 0, (sockaddr *) &addr_, sizeof(addr_));
+    if (send_result < 0) {
+      return send_result;
+    }
   }
 
   ObotPacket recv_packet;
   int recv_result = recv(fd_, &recv_packet, length+6, 0);
-
+  std::cout << "recv.length " << (int) recv_packet.length << std::endl;
   if (recv_result < 0) {
     return recv_result;
   }
 
-  if (recv_packet.length < length) {
-    return -1;
+  if (recv_result > 4) {
+    if (recv_result - 6 < recv_packet.length) {
+      int recv_result2 = recv(fd_, &((uint8_t *) &recv_packet)[recv_result], recv_packet.length-recv_result+6, 0);
+      if (recv_result2 < 0) {
+        return recv_result2;
+      }
+      // if still not length
+      if (recv_result2 + recv_result - 6 != recv_packet.length) {
+        std::cout << "recv_result " << recv_result << std::endl;
+        return 0;
+      }
+    }
+  } else {
+    return 0;
   }
+  
+  recv_packet.data[recv_packet.length] = 0;
   std::memcpy(data, recv_packet.data, recv_packet.length);
 
-  // if (recv_result > 0) {
-  //   data[recv_result] = 0;
-  // }
-
-  return recv_result;
+  return recv_packet.length;
 }
 
-ssize_t UDPFile::write(const char * data, unsigned int length) {
+ssize_t UDPFile::write(const char * data, unsigned int length, bool write_read) {
     ObotPacket packet;
     // Pack data into packet
     // todo: use generate_packet()
     std::memcpy(packet.data, data, length);
-    packet.frame_id = send_frame_id_;
+    if (write_read) {
+      packet.frame_id = send_recv_frame_id_;
+    } else {
+      packet.frame_id = send_frame_id_;
+    }
+    
     packet.length = length;
     std::cout << "send length " << length << std::endl;
     // Calculate CRC of command payload
-    uint16_t crc = crc16((uint8_t*)data, length);
+    uint16_t crc = crc16((uint8_t*)&packet, length+4);
     packet.data[length] = (crc >> 8) & 0xFF;
     packet.data[length+1] = crc & 0xFF;
 
@@ -164,25 +181,27 @@ ssize_t UDPFile::write(const char * data, unsigned int length) {
 }
 
 ssize_t UDPFile::writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
-    int write_result = write(data_out, length_out);
+    int write_result = write(data_out, length_out, true);
     if (write_result < 0) {
       return write_result;
     }
-    return read(data_in, length_in);
+    int read_result = read(data_in, length_in, true);
+    std::cout << "api " << read_result << " " << data_in[0] << std::endl;
+    return read_result;
 }
 
 void MotorIP::connect() {
-    //name_ = operator[]("name").get();
+    name_ = operator[]("name").get();
     if (name_ == "") {
       name_ = ip() + ":" + std::to_string(port());
     }
-    // version_ = operator[]("version").get();
-    // messages_version_ = operator[]("messages_version").get();
-    // board_name_ = operator[]("board_name").get();
-    // board_rev_ = operator[]("board_rev").get();
-    // board_num_ = operator[]("board_num").get();
-    // config_ = operator[]("config").get();
-    // serial_number_ = operator[]("serial").get();
+    version_ = operator[]("version").get();
+    messages_version_ = operator[]("messages_version").get();
+    board_name_ = operator[]("board_name").get();
+    board_rev_ = operator[]("board_rev").get();
+    board_num_ = operator[]("board_num").get();
+    config_ = operator[]("config").get();
+    serial_number_ = operator[]("serial").get();
     dev_path_ = realtime_communication_.addrstr_;
     base_path_ = ip();
     devnum_ = port();
