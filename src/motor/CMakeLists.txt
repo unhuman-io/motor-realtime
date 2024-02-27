@@ -1,5 +1,5 @@
 add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp realtime_thread.cpp motor_thread.cpp motor_app.cpp)
-target_link_libraries(motor_manager udev pthread cli11)
+target_link_libraries(motor_manager udev pthread cli11 obot-protocol)
 target_include_directories(motor_manager PUBLIC ${CMAKE_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
     ${CMAKE_SOURCE_DIR}/include/motor_manager.h
@@ -17,7 +17,7 @@ set(MOTOR_MANAGER_PUBLIC_HEADERS
 set_target_properties(motor_manager PROPERTIES PUBLIC_HEADER 
     "${MOTOR_MANAGER_PUBLIC_HEADERS}")
 if(BUILD_SHARED_LIBS)
-    install(TARGETS motor_manager
+    install(TARGETS motor_manager obot-protocol
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()

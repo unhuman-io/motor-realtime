@@ -5,3 +5,6 @@
 	path = include/motor_messages
 	url = ../motor_messages
 	branch = main
+[submodule "3rdparty/obot-protocol"]
+	path = 3rdparty/obot-protocol
+	url = ../obot-protocol

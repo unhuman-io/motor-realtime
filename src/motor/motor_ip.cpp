@@ -56,8 +56,9 @@ inline uint16_t crc16(const uint8_t* buf, uint32_t len) {  // NOLINT
   return crc;
 }
 
-void UDPFile::open() {
+void MotorIP::open() {
     fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
+    //std::cout << "socket fd " << fd_ << std::endl;
     addrinfo hints = {};
     hints.ai_family = AF_INET;      // IPv4
     hints.ai_socktype = SOCK_DGRAM; // UDP
@@ -128,33 +129,18 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
     }
   }
 
-  ObotPacket recv_packet;
-  int recv_result = recv(fd_, &recv_packet, length+6, 0);
-  std::cout << "recv.length " << (int) recv_packet.length << std::endl;
-  if (recv_result < 0) {
-    return recv_result;
-  }
+  std::unique_lock<std::mutex> lk(rx_data_cv_m_);
+  std::cv_status status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(50));
 
-  if (recv_result > 4) {
-    if (recv_result - 6 < recv_packet.length) {
-      int recv_result2 = recv(fd_, &((uint8_t *) &recv_packet)[recv_result], recv_packet.length-recv_result+6, 0);
-      if (recv_result2 < 0) {
-        return recv_result2;
-      }
-      // if still not length
-      if (recv_result2 + recv_result - 6 != recv_packet.length) {
-        std::cout << "recv_result " << recv_result << std::endl;
-        return 0;
-      }
-    }
+  if (status == std::cv_status::timeout) {
+    //std::cout << "timed out" << std::endl;
+    errno = -ETIMEDOUT;
+    return -1;
   } else {
-    return 0;
+    //std::cout << "cv result " << (int) status << std::endl;
+    std::memcpy(data, rx_buf_, length);
+    return length;
   }
-  
-  recv_packet.data[recv_packet.length] = 0;
-  std::memcpy(data, recv_packet.data, recv_packet.length);
-
-  return recv_packet.length;
 }
 
 ssize_t UDPFile::write(const char * data, unsigned int length, bool write_read) {
@@ -169,7 +155,7 @@ ssize_t UDPFile::write(const char * data, unsigned int length, bool write_read) 
     }
     
     packet.length = length;
-    std::cout << "send length " << length << std::endl;
+    //std::cout << "send length " << length << std::endl;
     // Calculate CRC of command payload
     uint16_t crc = crc16((uint8_t*)&packet, length+4);
     packet.data[length] = (crc >> 8) & 0xFF;
@@ -181,16 +167,34 @@ ssize_t UDPFile::write(const char * data, unsigned int length, bool write_read) 
 }
 
 ssize_t UDPFile::writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
-    int write_result = write(data_out, length_out, true);
-    if (write_result < 0) {
-      return write_result;
+    for (int i = 0; i<3; i++) {
+      int write_result = write(data_out, length_out, true);
+      if (write_result < 0) {
+        //std::cout << "write result " << write_result << std::endl;
+        return write_result;
+      }
+      int read_result = read(data_in, length_in, true);
+      if (read_result <= 0) {
+        // retry
+        continue;
+      }
+      //std::cout << "api " << read_result << " " << data_in[0] << std::endl;
+      return read_result;
     }
-    int read_result = read(data_in, length_in, true);
-    std::cout << "api " << read_result << " " << data_in[0] << std::endl;
-    return read_result;
+    return -1;
+}
+
+void UDPFile::rx_callback(const uint8_t* buf, uint16_t len) {
+  {
+    std::lock_guard<std::mutex> lk(rx_data_cv_m_);
+    std::memcpy(rx_buf_, buf, len);
+    rx_buf_[len] = 0;
+  }
+  rx_data_cv_.notify_one();
 }
 
 void MotorIP::connect() {
+    fd_flags_ = fcntl(fd_, F_GETFL);
     name_ = operator[]("name").get();
     if (name_ == "") {
       name_ = ip() + ":" + std::to_string(port());
@@ -202,10 +206,10 @@ void MotorIP::connect() {
     board_num_ = operator[]("board_num").get();
     config_ = operator[]("config").get();
     serial_number_ = operator[]("serial").get();
-    dev_path_ = realtime_communication_.addrstr_;
+    dev_path_ = addrstr_;
     base_path_ = ip();
     devnum_ = port();
-    fd_flags_ = fcntl(fd_, F_GETFL); 
+    
 }
 
 void MotorIP::set_timeout_ms(int timeout_ms) {
@@ -214,14 +218,34 @@ void MotorIP::set_timeout_ms(int timeout_ms) {
 }
 
 ssize_t MotorIP::read() {
-  std::cout << "read " << std::endl;
+  //std::cout << "read " << std::endl;
   int ret = realtime_communication_.read((char *) &status_, sizeof(status_));
+  if (ret < 0) {
+    return 0;
+  }
   return ret;
 }
 
 ssize_t MotorIP::write() {
-  std::cout << "write " << std::endl;
+  //std::cout << "write " << std::endl;
   return realtime_communication_.write((char *) &command_, sizeof(command_));
+}
+
+void MotorIP::rx_data() {
+  //std::cout << "rx_data started, fd_ " << fd_ << std::endl;
+  while(1) {
+    // assume blocking i/o
+    int result = recv(fd_, rx_lin_buffer_, RX_BUFFER_SIZE, 0);
+    //std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
+    if (result < 0) {
+      throw std::runtime_error("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    }
+    for (int i=0; i<result; i++) {
+      rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
+      current_read_idx_ = (current_read_idx_ + 1) % RX_BUFFER_SIZE;
+    }
+    parser_.process((current_read_idx_ - 1) % RX_BUFFER_SIZE);
+  }
 }
 
 }; // namespace obot
