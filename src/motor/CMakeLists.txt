@@ -32,6 +32,7 @@ if(BUILD_MOTOR_UTIL)
 
     add_executable(motor_usbmon motor_usbmon.cpp)
     target_link_libraries(motor_usbmon motor_manager cli11 pthread)
+    target_include_directories(motor_util PUBLIC ${CMAKE_BINARY_DIR})
     install(TARGETS motor_usbmon DESTINATION bin)
 endif()
 
