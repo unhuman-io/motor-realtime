@@ -1,5 +1,5 @@
 add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp realtime_thread.cpp motor_thread.cpp motor_app.cpp)
-target_link_libraries(motor_manager udev pthread cli11 obot-protocol)
+target_link_libraries(motor_manager PUBLIC udev pthread cli11 obot-protocol)
 target_include_directories(motor_manager PUBLIC ${CMAKE_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
     ${CMAKE_SOURCE_DIR}/include/motor_manager.h
@@ -26,13 +26,12 @@ install(FILES ${CMAKE_SOURCE_DIR}/include/motor_messages/motor_messages.h
 
 if(BUILD_MOTOR_UTIL)
     add_executable(motor_util motor_util.cpp motor_util_fun.cpp)
-    target_link_libraries(motor_util motor_manager cli11 pthread rt)
+    target_link_libraries(motor_util motor_manager)
     target_include_directories(motor_util PUBLIC ${CMAKE_BINARY_DIR})
     install(TARGETS motor_util DESTINATION bin)
 
     add_executable(motor_usbmon motor_usbmon.cpp)
-    target_link_libraries(motor_usbmon motor_manager cli11 pthread)
-    target_include_directories(motor_util PUBLIC ${CMAKE_BINARY_DIR})
+    target_link_libraries(motor_usbmon motor_manager)
     install(TARGETS motor_usbmon DESTINATION bin)
 endif()
 
