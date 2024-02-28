@@ -17,7 +17,7 @@ set(MOTOR_MANAGER_PUBLIC_HEADERS
 set_target_properties(motor_manager PROPERTIES PUBLIC_HEADER 
     "${MOTOR_MANAGER_PUBLIC_HEADERS}")
 if(BUILD_SHARED_LIBS)
-    install(TARGETS motor_manager obot-protocol
+    install(TARGETS motor_manager
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
