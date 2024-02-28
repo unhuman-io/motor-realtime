@@ -31,7 +31,7 @@ if(BUILD_MOTOR_UTIL)
     install(TARGETS motor_util DESTINATION bin)
 
     add_executable(motor_usbmon motor_usbmon.cpp)
-    target_link_libraries(motor_usbmon motor_manager cli11)
+    target_link_libraries(motor_usbmon motor_manager cli11 pthread)
     install(TARGETS motor_usbmon DESTINATION bin)
 endif()
 
