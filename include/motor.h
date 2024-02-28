@@ -180,7 +180,7 @@ class TextAPIItem {
         auto nbytes = motor_txt_->writeread(s2.c_str(), s2.size(), c, 64);
         if (nbytes < 0) {
             if (!no_throw_) {
-                throw std::runtime_error("text api set error " + std::to_string(nbytes) + ": " + strerror(-nbytes));
+                throw std::runtime_error("text api set error " + std::to_string(errno) + ": " + strerror(errno));
             } else {
                 return "";
             } 
@@ -193,7 +193,7 @@ class TextAPIItem {
         auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_DATA_SIZE);
         if (nbytes < 0) {
             if (!no_throw_) {
-                throw std::runtime_error("text api get error " + std::to_string(nbytes) + ": " + strerror(-nbytes));
+                throw std::runtime_error("text api get error " + std::to_string(errno) + ": " + strerror(errno));
             } else {
                 return "";
             } 
@@ -205,7 +205,7 @@ class TextAPIItem {
     void operator=(const std::string s) {
         set(s);
     }
-    bool no_throw_ = true;
+    bool no_throw_ = false;
  private:
     TextFile *motor_txt_;
     std::string name_;
