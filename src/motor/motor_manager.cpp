@@ -1,5 +1,6 @@
 #include "motor_manager.h"
 #include "motor.h"
+#include "motor_ip.h"
 
 #include <libudev.h>
 
@@ -65,6 +66,7 @@ static std::vector<std::string> udev (bool user_space_driver=false)
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool connect) {
+    free_motors();
     auto dev_paths = udev(user_space_driver_);
     std::vector<std::shared_ptr<Motor>> m;
     for (auto dev_path : dev_paths) {
@@ -128,6 +130,14 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vec
 }
 
 void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
+    if (check_messages_version_) {
+        for (auto &motor : motors) {
+            if (motor->check_messages_version(check_messages_version_) == false) {
+                  throw std::runtime_error("Motor messages version mismatch " + motor->name() + 
+                     ": " + motor->messages_version()  + ", motor-realtime: " + MOTOR_MESSAGES_VERSION);
+            }
+        }
+    }
     motors_ = motors;
     commands_.resize(motors_.size());
     statuses_.resize(motors_.size());
@@ -137,6 +147,18 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
         pollfds_[i].events = POLLIN;
     }
     read_error_count_.resize(motors_.size(), 0);
+    nonblock_not_ready_error_count_.resize(motors_.size(), 0);
+}
+
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool allow_simulated) {
+    std::vector<std::shared_ptr<Motor>> m(ips.size());
+    for (uint8_t i=0; i<ips.size(); i++) {
+        m[i] = std::make_shared<MotorIP>(ips[i]);
+    }
+    if (connect) {
+        set_motors(m);
+    }
+    return m;
 }
 
 void MotorManager::start_nonblocking_read() {
@@ -145,7 +167,7 @@ void MotorManager::start_nonblocking_read() {
             auto size = motors_[i]->read();
             if (size != -1) {
                 // unintended data was read, save it but start another non blocking read
-                read_error_count_[i] = 0;
+                nonblock_not_ready_error_count_[i] = 0;
                 statuses_[i] = *motors_[i]->status();
                 motors_[i]->read();
             }
@@ -161,8 +183,9 @@ std::vector<Status> &MotorManager::read() {
         if (size == -1) {
             if (motors_[i]->is_nonblocking() && errno == EAGAIN) {
                 // no data read at this time
-               read_error_count_[i]++;
+               nonblock_not_ready_error_count_[i]++;
             } else {
+                read_error_count_[i]++;
                 // no data, error is in errno
                 std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
                 if (!reconnect_) {
@@ -186,6 +209,7 @@ std::vector<Status> &MotorManager::read() {
                 }
             }
         } else {
+            nonblock_not_ready_error_count_[i] = 0;
             read_error_count_[i] = 0;
         }
         statuses_[i] = *motors_[i]->status();
@@ -194,6 +218,36 @@ std::vector<Status> &MotorManager::read() {
         throw std::runtime_error(err_msg);
     }
     return statuses_;
+}
+
+std::vector<Status> MotorManager::read_average(uint32_t num_average) {
+    poll();
+    std::vector<Status> statuses = read();
+    for (uint32_t i=0; i<num_average-1; i++) {
+        poll();
+        auto tmp = read();
+        for (int j=0; j<statuses.size(); j++) {
+            Status &status = statuses[j];
+            status.motor_position += tmp[j].motor_position;
+            status.joint_position += tmp[j].joint_position;
+            status.iq += tmp[j].iq;
+            status.torque += tmp[j].torque;
+            status.motor_encoder += tmp[j].motor_encoder;
+            status.motor_velocity += tmp[j].motor_velocity;
+            status.joint_velocity += tmp[j].joint_velocity;
+        }
+    }
+    for (int j=0; j<statuses.size(); j++) {
+        Status &status = statuses[j];
+        status.motor_position /= num_average;
+        status.joint_position /= num_average;
+        status.iq /= num_average;
+        status.torque /= num_average;
+        status.motor_encoder /= num_average;
+        status.motor_velocity /= num_average;
+        status.joint_velocity /= num_average;
+    }
+    return statuses;
 }
 
 void MotorManager::lock() {
@@ -215,7 +269,9 @@ void MotorManager::write(std::vector<Command> &commands) {
     }
     for (uint8_t i=0; i<motors_.size(); i++) {
         *motors_[i]->command() = commands[i];
-        motors_[i]->write();
+        if (motors_[i]->write() < 0) {
+            throw std::runtime_error("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+        }
     }
 }
 
@@ -228,6 +284,12 @@ void MotorManager::aread() {
 void MotorManager::set_commands(const std::vector<Command> &commands) {
     for (uint8_t i=0; i<commands_.size(); i++) {
         commands_[i] = commands[i];
+    }
+}
+
+void MotorManager::clear_commands() {
+    for (uint8_t i=0; i<commands_.size(); i++) {
+        std::memset(&commands_[i], 0, sizeof(commands_[i]));
     }
 }
 
@@ -281,6 +343,7 @@ void MotorManager::set_command_reserved(const std::vector<float> &reserved) {
 
 void MotorManager::set_command_stepper_tuning(TuningMode mode, double amplitude, double frequency, 
     double bias, double kv) {
+    clear_commands();
     set_command_mode(ModeDesired::STEPPER_TUNING);
     for (uint8_t i=0; i<commands_.size(); i++) {
         commands_[i].stepper_tuning.amplitude = amplitude;
@@ -291,9 +354,12 @@ void MotorManager::set_command_stepper_tuning(TuningMode mode, double amplitude,
     }
 }
 
-void MotorManager::set_command_stepper_velocity(double voltage, double velocity) {
+void MotorManager::set_command_stepper_velocity(double current,  double velocity, double voltage, StepperMode mode) {
+    clear_commands();
     set_command_mode(ModeDesired::STEPPER_VELOCITY);
     for (uint8_t i=0; i<commands_.size(); i++) {
+        commands_[i].stepper_velocity.current = current;
+        commands_[i].stepper_velocity.stepper_mode = mode;
         commands_[i].stepper_velocity.voltage = voltage;
         commands_[i].stepper_velocity.velocity = velocity;
     }
@@ -301,6 +367,7 @@ void MotorManager::set_command_stepper_velocity(double voltage, double velocity)
 
 void MotorManager::set_command_position_tuning(TuningMode mode, double amplitude, double frequency, 
     double bias) {
+    clear_commands();
     set_command_mode(ModeDesired::POSITION_TUNING);
     for (uint8_t i=0; i<commands_.size(); i++) {
         commands_[i].position_tuning.amplitude = amplitude;
@@ -312,6 +379,7 @@ void MotorManager::set_command_position_tuning(TuningMode mode, double amplitude
 
 void MotorManager::set_command_current_tuning(TuningMode mode, double amplitude, double frequency, 
     double bias) {
+    clear_commands();
     set_command_mode(ModeDesired::CURRENT_TUNING);
     for (uint8_t i=0; i<commands_.size(); i++) {
         commands_[i].current_tuning.amplitude = amplitude;
@@ -425,14 +493,16 @@ std::string MotorManager::command_headers() const {
     return ss.str();
 }
 
-std::string MotorManager::status_headers() const {
+std::string MotorManager::status_headers(bool mini) const {
     std::stringstream ss;
     int length = motors_.size();
-    for (int i=0;i<length;i++) {
-        ss << "mcu_timestamp" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "host_timestamp_received" << i << ", ";
+    if (!mini) {
+        for (int i=0;i<length;i++) {
+            ss << "mcu_timestamp" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "host_timestamp_received" << i << ", ";
+        }
     }
     for (int i=0;i<length;i++) {
         ss << "motor_position" << i << ", ";
@@ -446,38 +516,40 @@ std::string MotorManager::status_headers() const {
     for (int i=0;i<length;i++) {
         ss << "torque" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
-        ss << "motor_encoder" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "rr_index" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "rr_data" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "reserved" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "motor_velocity" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "joint_velocity" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "iq_desired" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "mode" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "error" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "misc" << i << ", ";
-    }
-    for (int i=0;i<length;i++) {
-        ss << "mode_error_text" << i << ", ";
+    if (!mini) {
+        for (int i=0;i<length;i++) {
+            ss << "motor_encoder" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "rr_index" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "rr_data" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "reserved" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "motor_velocity" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "joint_velocity" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "iq_desired" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "mode" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "error" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "misc" << i << ", ";
+        }
+        for (int i=0;i<length;i++) {
+            ss << "mode_error_text" << i << ", ";
+        }
     }
     return ss.str();
 }
@@ -492,7 +564,8 @@ const std::map<const ModeDesired, const std::string> MotorManager::mode_map{
         {ModeDesired::POSITION_TUNING, "position_tuning"}, {ModeDesired::VOLTAGE, "voltage"}, 
         {ModeDesired::PHASE_LOCK, "phase_lock"}, {ModeDesired::STEPPER_TUNING, "stepper_tuning"},
         {ModeDesired::STEPPER_VELOCITY, "stepper_velocity"}, {ModeDesired::HARDWARE_BRAKE, "hardware_brake"},
-        {ModeDesired::JOINT_POSITION, "joint_position"}, {ModeDesired::FIND_LIMITS, "find_limits"},
+        {ModeDesired::JOINT_POSITION, "joint_position"}, {ModeDesired::ADMITTANCE, "admittance"}, 
+        {ModeDesired::FIND_LIMITS, "find_limits"},
         {ModeDesired::DRIVER_ENABLE, "driver_enable"}, {ModeDesired::DRIVER_DISABLE, "driver_disable"},
         {ModeDesired::CLEAR_FAULTS, "clear_faults"},
         {ModeDesired::FAULT, "fault"}, {ModeDesired::SLEEP, "sleep"},

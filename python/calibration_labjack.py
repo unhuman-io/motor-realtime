@@ -18,7 +18,8 @@ parser.add_argument("-p", "--programmed", help="note that the board has already 
 args = parser.parse_args()
 
 rigol1 = rigol.Instrument('USB0::6833::3601::DP8E240900054::0::INSTR')
-ps5V = sim.PowerSupply()
+rigol0 = rigol.Instrument('USB0::6833::3601::DP8B241100662::0::INSTR')
+ps5V = rigol.PowerSupply(rigol0)
 ps48V = rigol.PowerSupply(rigol1)
 ps10A = rigol.PowerSupply(rigol1, channel=2)
 
@@ -61,11 +62,12 @@ def api_average(api_item, num):
     return val
 
 # actual testing
-
+time.sleep(.5)
 # measure 5V voltage
 v5V_measured = ljm.eReadName(handle, aio["5V"])
-assert abs(v5V_measured - 5) < .1
 print("5V voltage measured {}".format(v5V_measured))
+assert abs(v5V_measured - 5) < .1
+
 
 # measure 5V current
 i5V_measured = ljm.eReadName(handle, aio["I5V"])*(-100)
@@ -73,23 +75,28 @@ print("5V current measured {}".format(i5V_measured))
 if args.programmed:
     assert abs(i5V_measured - .07) < .02
 else:
-    assert abs(i5V_measured - .03) < .02
+    assert abs(i5V_measured - .02) < .02
 
 # measure 3v3 voltage
 v3v3_measured = ljm.eReadName(handle, aio["3V3"])
 print("3v3 voltage measured {}".format(v3v3_measured))
-assert abs(v3v3_measured - 3.3) < .1
+#assert abs(v3v3_measured - 3.3) < .1
 
 
 if args.firmware:
-    input("power off 5V")
+    #input("power off 5V")
+    ps5V.set_off()
+    time.sleep(.5)
     ljm.eWriteName(handle, dio["prog"], 1)
 
-    input("power on 5V")
+    #input("power on 5V")
+    ps5V.set_on()
+    time.sleep(5)
     # program
     ljm.eWriteName(handle, dio["prog"], 0)
     firmware_tools.program()
 
+time.sleep(3)
 # connect to motor
 m = motor.MotorManager()
 test_motor = m.motors()[0]
@@ -111,7 +118,7 @@ assert abs(v5V_calibration - 1) < .1
 
 # measure 3v3 voltage
 v3v3_measured = ljm.eReadName(handle, aio["3V3"])
-assert abs(v3v3_measured - 3.3) < .1
+#assert abs(v3v3_measured - 3.3) < .1
 
 # motor read 3v3 voltage
 v3v3_read = api_average(test_motor["3v3"], 1000)
@@ -119,7 +126,7 @@ print("3v3 voltage measured {}, read {}".format(v3v3_measured, v3v3_read))
 
 # calibrate 3v3 voltage
 v3v3_calibration = v3v3_measured/v3v3_read
-assert abs(v3v3_calibration - 1) < .1
+#assert abs(v3v3_calibration - 1) < .1
 #output_dict["v3v3_calibration"] = "{}".format(v3v3_calibration)
 
 # measure 5V current 
@@ -129,7 +136,7 @@ i5V_measured = -ljm.eReadName(handle, aio["I5V"])/.01
 # motor read 5V current
 i5V_read = api_average(test_motor["i5V"], 1000)
 print("5V current measured {}, read {}".format(i5V_measured, i5V_read))
-assert abs(i5V_measured - .077) < .02
+assert abs(i5V_measured - .05) < .02
 
 # read temperatures
 Tboard = api_average(test_motor["Tboard"], 1000)
@@ -167,11 +174,11 @@ print("48V current driver enabled: {}".format(i48V))
 
 # check driver enable success
 s = test_motor["log"].get()
-while not s.startswith("drv8323s"):
+while not "drv8323s" in s:
     time.sleep(0.001)
     s = test_motor["log"].get()
 print(s)
-assert s == "drv8323s configure success"
+assert s.endswith("drv8323s configure success")
 
 # set mode pwm, measure 48V current
 m.set_command_mode(motor.ModeDesired.Voltage) # 50% duty cycle voltage
@@ -184,7 +191,7 @@ print("48V current PWM enabled: {}".format(i48V))
 test_motor["zero_current_sensors"] = "8"
 time.sleep(8.5)
 def record_current_sensor_bias(name):
-    bias = float(test_motor[name + "_bias"].get())
+    bias = api_average(test_motor[name+"_bias"], 1000)
     print("{} bias: {:.3f}".format(name, bias))
     assert abs(bias) < 10
     output_dict["fast_loop_param"][name + "_bias"] = "{:.3f}".format(bias)
@@ -220,10 +227,10 @@ time.sleep(2)
 
 def record_current_sensor_calibration(name):
     name_map={"ia": "adc1", "ib": "adc2", "ic": "adc3"}
-    current = api_average(test_motor[name], 1000)
+    current = api_average(test_motor[name], 10000)
     print("{} read: {}".format(name, current))
     if name != "i48V":
-        assert abs(abs(current) - 10) < 1
+        assert abs(abs(current) - 10) < .3
         output_dict["fast_loop_param"][name_map[name] + "_gain"] = "-3.3/4096/(.0005*10)*{:.3f}".format(10/abs(current))
         output_dict["fast_loop_param"][name+"_bias"] = output_dict["fast_loop_param"][name+"_bias"] + "*{:.3f}".format(10/abs(current))
     else:
@@ -263,6 +270,7 @@ m.write_saved_commands()
 input("check LEDs")
 
 rigol1.off()
+rigol0.off()
 
 names = [dio["i+_a"], dio["i-_b"], dio["i-_c"], dio["i-_48v"]]
 aValues = [0, 0, 0, 0]

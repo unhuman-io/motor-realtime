@@ -3,8 +3,8 @@ project(motor-realtime)
 include(GNUInstallDirs)
 enable_testing()
 
-set(VERSION_MAJOR "0.13")
-set(VERSION_MINOR "0")
+set(VERSION_MAJOR "0")
+set(VERSION_MINOR "14")
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libudev1")
@@ -19,6 +19,7 @@ else()
     set(CPACK_PACKAGE_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}")
 endif()
 set(VERSION "${CPACK_PACKAGE_VERSION}.${GIT_VERSION}")
+message("VERSION " ${VERSION})
 set(CPACK_OUTPUT_FILE_PREFIX packages)
 EXECUTE_PROCESS( COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCH)
 set(CPACK_PACKAGE_FILE_NAME motor-realtime-${ARCH})
@@ -26,13 +27,14 @@ configure_file(rt_version.h.in rt_version.h)
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA)
 INCLUDE(CPack)
 
-set (CMAKE_CXX_STANDARD 11)
+set (CMAKE_CXX_STANDARD 14)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 option(BUILD_SHARED_LIBS "Build libraries shared" ON)
 option(BUILD_PYTHON_API "build a python api module" OFF)
 option(BUILD_MOTOR_UTIL "build motor util command line program" ON)
 option(INSTALL_COMPLETION "install bash completion script" ON)
+option(INSTALL_MOTOR_EMBEDDED "install motor embedded" ON)
 
 # the RPATH to be used when installing, but only if it's not a system directory
 list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
@@ -82,4 +84,6 @@ add_subdirectory(test)
 
 add_subdirectory(example)
 install(DIRECTORY example 
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/${CMAKE_PROJECT_NAME})
+install(DIRECTORY scripts USE_SOURCE_PERMISSIONS
     DESTINATION ${CMAKE_INSTALL_DATADIR}/${CMAKE_PROJECT_NAME})

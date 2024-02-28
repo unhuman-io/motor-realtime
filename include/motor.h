@@ -37,8 +37,12 @@ class TextFile {
     std::string writeread(const std::string str) {
         char str_in[MAX_API_DATA_SIZE+1];
         ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_DATA_SIZE);
+        if (s < 0) {
+            throw std::runtime_error("text writeread failure " + std::to_string(errno) + ": " + strerror(errno));
+        }
         str_in[s] = 0;
-        return str_in;
+        std::string s_out(str_in, s);
+        return s_out;
     }
 };
 
@@ -53,7 +57,7 @@ class SimulatedTextFile : public TextFile {
     }
  private:
     std::map<std::string, std::string> dict_ = {{"cpu_frequency", "1000000000"}, {"error_mask", "0"}, {"log", "log end"}, 
-        {"fast log", "ok\ntimestamp,"}};
+        {"fast log", "ok\ntimestamp,"}, {"messages_version", MOTOR_MESSAGES_VERSION}};
     friend class SimulatedMotor;
 };
 
@@ -75,9 +79,11 @@ class SysfsFile : public TextFile {
     virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
         lockf(fd_, F_LOCK, 0);
-        write(data_out, length_out);
-        ::lseek(fd_, 0, SEEK_SET);
-        auto retval = read(data_in, length_in);
+        auto retval = write(data_out, length_out);
+        if (retval >= 0) {
+            ::lseek(fd_, 0, SEEK_SET);
+            retval = read(data_in, length_in);
+        }
         ::lseek(fd_, 0, SEEK_SET);
         lockf(fd_, F_ULOCK, 0);
         return retval;
@@ -89,11 +95,7 @@ class SysfsFile : public TextFile {
         auto retval = ::read(fd_, data, length);
 
         if (retval < 0) {
-            if (errno == ETIMEDOUT) {
-                return 0;
-            } else {
-                throw std::runtime_error("Sysfs read error " + std::to_string(errno) + ": " + strerror(errno));
-            }
+            throw std::runtime_error("Sysfs read error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
@@ -120,9 +122,11 @@ class USBFile : public TextFile {
     virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
         lockf(fd_, F_LOCK, 0);
-        write(data_out, length_out);
-        ::lseek(fd_, 0, SEEK_SET);
-        auto retval = read(data_in, length_in);
+        auto retval = write(data_out, length_out);
+        if (retval >= 0) {
+            ::lseek(fd_, 0, SEEK_SET);
+            retval = read(data_in, length_in);
+        }
         ::lseek(fd_, 0, SEEK_SET);
         lockf(fd_, F_ULOCK, 0);
         return retval;
@@ -172,20 +176,36 @@ class TextAPIItem {
 
     std::string set(std::string s) {
         std::string s2 = name_ + "=" + s;
-        char c[64];
+        char c[65];
         auto nbytes = motor_txt_->writeread(s2.c_str(), s2.size(), c, 64);
+        if (nbytes < 0) {
+            if (!no_throw_) {
+                throw std::runtime_error("text api set error " + std::to_string(nbytes) + ": " + strerror(-nbytes));
+            } else {
+                return "";
+            } 
+        }
         c[nbytes] = 0;
         return c;
     }
-    std::string get() const {        
-        char c[MAX_API_DATA_SIZE] = {};
+    std::string get() const {     
+        char c[MAX_API_DATA_SIZE+1] = {};
         auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_DATA_SIZE);
+        if (nbytes < 0) {
+            if (!no_throw_) {
+                throw std::runtime_error("text api get error " + std::to_string(nbytes) + ": " + strerror(-nbytes));
+            } else {
+                return "";
+            } 
+        }
         c[nbytes] = 0;
+        
         return c;
     }
     void operator=(const std::string s) {
         set(s);
     }
+    bool no_throw_ = true;
  private:
     TextFile *motor_txt_;
     std::string name_;
@@ -199,8 +219,23 @@ inline double& operator<<(double& d, TextAPIItem const& item) {
     d = std::stod(item.get());
     return d;
 }
-class Motor {
+
+static int get_lock_pid(int fd, pid_t *pid) {
+    struct flock lock;
+    lock.l_type = F_WRLCK;
+    lock.l_start = 0;
+    lock.l_whence = 0;
+    lock.l_len = 0;
+    int err = ::fcntl(fd, F_GETLK, &lock);
+    if (err == 0) {
+        *pid = lock.l_pid;
+    }
+    return err;
+}
+
+class Motor : public MotorDescription {
  public:
+    enum MessagesCheck {NONE, MAJOR, MINOR};
     Motor() {}
     Motor(std::string dev_path);
     virtual ~Motor();
@@ -208,14 +243,26 @@ class Motor {
     virtual ssize_t write() { if (!no_write_) {
         return ::write(fd_, &command_, sizeof(command_));
      } else {
-        std::cerr << "motor " + name() + " locked, not writeable" << std::endl;;
-        return 0;
+        std::cerr << "motor " + name() + " locked";
+        pid_t pid;
+        int err = get_lock_pid(fd_, &pid);
+        if (err == 0) {
+            std::cerr << " by process: " << pid;
+        }
+        std::cerr << ", not writeable" << std::endl;;
+        return -1;
      } }
     virtual int lock() { 
         ::lseek(fd_, 0, SEEK_SET);
         int err = lockf(fd_, F_TLOCK, 0); 
         if (err) {
-            std::cerr << "error locking " + name() << std::endl;
+            std::cerr << "error locking " + name();
+            pid_t pid;
+            int err2 = get_lock_pid(fd_, &pid);
+            if (err2 == 0) {
+                std::cerr << ", already locked by process: " << pid;
+            }
+            std::cerr << std::endl;
         }
         return err;
     }
@@ -238,18 +285,19 @@ class Motor {
                 }
             }
             return read_error; }
-    std::string name() const { return name_; }
-    std::string serial_number() const { return serial_number_; }
-    std::string base_path() const {return base_path_; }
-    std::string dev_path() const { return dev_path_; }
-    uint8_t devnum() const { return devnum_; }
-    std::string version() const { return version_; }
-    bool check_messages_version() { return MOTOR_MESSAGES_VERSION == operator[]("messages_version").get(); }
-    std::string short_version() const {
-        std::string s = version();
-        auto pos = std::min(s.find(" "), s.find("-g"));
-        return s.substr(0,pos);
+    virtual bool check_messages_version(MessagesCheck check = MAJOR) { 
+        if (check == MAJOR) {
+            std::string realtime_messages_version = MOTOR_MESSAGES_VERSION;
+            return realtime_messages_version.substr(0, realtime_messages_version.find('.'))
+                == messages_version_.substr(0, messages_version_.find('.'));
+        } else if (check == MINOR) {
+            return MOTOR_MESSAGES_VERSION == messages_version_;
+        } else {
+            return true;
+        }
     }
+    virtual void set_timeout_ms(int timeout_ms);
+    virtual int get_timeout_ms() const;
     // note will probably not be the final interface
     TextAPIItem operator[](const std::string s) { TextAPIItem t(motor_txt_.get(), s); return t; }
     int fd() const { return fd_; }
@@ -273,11 +321,10 @@ class Motor {
     int fd_flags_;
     bool nonblock_ = false;
     bool no_write_ = false;
-    std::string serial_number_, name_, dev_path_, base_path_, version_;
     Status status_ = {};
     Command command_ = {};
+    std::string attr_path_;
     std::unique_ptr<TextFile> motor_txt_;
-    uint8_t devnum_ = 255;
 };
 
 class SimulatedMotor : public Motor {
@@ -287,6 +334,9 @@ class SimulatedMotor : public Motor {
        fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
        motor_txt_ = std::move(std::unique_ptr<SimulatedTextFile>(new SimulatedTextFile()));
        clock_gettime(CLOCK_MONOTONIC, &last_time_);
+       board_name_ = "simulated";
+       config_ = "simulated";
+       messages_version_ = operator[]("messages_version").get();
     }
    virtual ~SimulatedMotor() override;
    virtual ssize_t read() override {  
@@ -300,6 +350,8 @@ class SimulatedMotor : public Motor {
            case VELOCITY:
                 status_.motor_position += velocity_*dt;
                 status_.joint_position = status_.motor_position/gear_ratio_;
+                status_.motor_velocity = velocity_;
+                status_.joint_velocity = velocity_/gear_ratio_;
                 break;           
            case CURRENT_TUNING:
                 status_.iq = active_command_.current_tuning.bias + 
@@ -311,6 +363,8 @@ class SimulatedMotor : public Motor {
                 velocity_ += status_.torque/inertia_;
                 status_.motor_position += velocity_*dt;
                 status_.joint_position = status_.motor_position/gear_ratio_;
+                status_.motor_velocity = velocity_;
+                status_.joint_velocity = velocity_/gear_ratio_;
                 break;
        }
        return sizeof(status_);
@@ -346,6 +400,8 @@ class SimulatedMotor : public Motor {
    }
    void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
    virtual std::vector<std::string> get_api_options() override;
+   virtual void set_timeout_ms(int) override {}
+   virtual int get_timeout_ms() const override { return 0; }
  private:
     // a - b in seconds
     double clock_diff(timespec &a, timespec &b) {
@@ -401,6 +457,12 @@ class UserSpaceMotor : public Motor {
         udev_unref(udev);  
         open();
         motor_txt_ = std::move(std::unique_ptr<USBFile>(new USBFile(fd_, 1)));
+
+        messages_version_ = operator[]("messages_version").get();
+        board_name_ = operator[]("board_name").get();
+        board_rev_ = operator[]("board_rev").get();
+        board_num_ = operator[]("board_num").get();
+        config_ = operator[]("config").get();
     }
     virtual ~UserSpaceMotor() override;
     virtual int lock() override {
@@ -494,6 +556,8 @@ class UserSpaceMotor : public Motor {
         .buffer_length = sizeof(status_),
     };
 };
+
+std::string &mode_color(ModeDesired mode);
 
 }  // namespace obot
 

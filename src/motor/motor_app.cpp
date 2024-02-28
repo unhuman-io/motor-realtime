@@ -23,23 +23,53 @@
 #define gettid() syscall(SYS_gettid)
 #include <csignal>
 
+#include "CLI11.hpp"
+
 namespace obot {
 
 sig_atomic_t volatile running = 1;
 
-MotorApp::MotorApp(int /* argc */, char ** /* argv */, MotorThread *motor_thread) 
+MotorApp::MotorApp(int argc, char ** argv, MotorThread *motor_thread, std::string app_name) 
     : motor_thread_(motor_thread) {
+	app_name_ = app_name;
+	int i = parse_args(argc, argv);
+	std::cout << "parse args " << i << std::endl;
+	if (i > 0) {
+		exit(1);
+	}
+}
 
+int MotorApp::parse_args(int argc, char **argv) {
+	CLI::App app(app_name_);
+	auto name_option = app.add_option("-n,--names", names_, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
+	app.add_flag("--allow-simulated", allow_simulated_, "Allow simulated motors if not connected")->needs(name_option);
+	uint32_t frequency = motor_thread_->get_frequency();
+	auto frequency_option = app.add_option("--frequency", frequency, "App frequency (Hz)")->capture_default_str();
+	uint32_t poll_timeout_ns = 500*1000;
+	auto poll_timeout_option = app.add_option("--poll-timeout", poll_timeout_ns, "Poll timeout (ns)")->capture_default_str();
+	CLI11_PARSE(app, argc, argv);
+	if (*frequency_option) {
+		motor_thread_->set_frequency(frequency);
+	}
+	if (*poll_timeout_option) {
+		motor_thread_->set_poll_timeout(poll_timeout_ns);
+	}
+	return 0;
 }
 
 void MotorApp::select_motors(MotorManager *m) {
-	m->get_connected_motors();
+	if (names_.size() > 0) {
+		m->get_motors_by_name(names_, true, allow_simulated_);
+	} else {
+		m->get_connected_motors();
+	}
 }
 
 int MotorApp::run() {
 	//auto motors = motor_manager.get_motors_by_name({"J1", "J2", "J3", "J4", "J5", "J6"});
 	// or just get all the motors
     printf("main thread [%ld]\n", gettid());
+	
     auto &motor_manager = motor_thread_->motor_manager();
 	select_motors(&motor_manager);
     motor_thread_->init();

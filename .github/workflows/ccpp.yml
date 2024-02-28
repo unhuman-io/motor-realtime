@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.distro }}
     
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@main
       with:
         submodules: true
         fetch-depth: 0
@@ -32,7 +32,7 @@ jobs:
       if: ${{ !(matrix.distro == 'ubuntu-22.04') }}
       run: for f in packages/*.deb; do mv $f ${f%.deb}_${{ matrix.distro }}.deb; done
     - name: Archive production artifacts
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v3
       with:
         name: packages
         path: packages
@@ -61,7 +61,7 @@ jobs:
     - name: archive
       run: tar -czf artifacts_${{ matrix.distro }}.tgz artifacts/ 
     - name: Archive production artifacts2
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v3
       with:
         name: artifacts
         path: artifacts_${{ matrix.distro }}.tgz
@@ -98,7 +98,7 @@ jobs:
     - uses: actions/checkout@master
       with:
         submodules: true
-#        fetch-depth: 0
+        fetch-depth: 0
     - uses: uraimo/run-on-arch-action@master
       name: Run commands
       id: runcmd
@@ -111,6 +111,7 @@ jobs:
         dockerRunArgs: |
           --volume "${PWD}/packages:/packages"
         run: |
+          git config --global --add safe.directory /home/runner/work/motor-realtime/motor-realtime
           cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_API=1 .
           make -j2
           make package
@@ -123,7 +124,7 @@ jobs:
             apt-get install -y cmake-data=3.13.4-1 cmake=3.13.4-1
           fi
     - name: Archive production artifacts
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v3
       with:
         name: packages
         path: packages
@@ -153,6 +154,7 @@ jobs:
         dockerRunArgs: |
           --volume "${PWD}/packages:/packages"
         run: |
+          git config --global --add safe.directory /home/runner/work/motor-realtime/motor-realtime
           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
           make -j2
           make install
@@ -167,7 +169,7 @@ jobs:
     - name: archive2
       run: tar -czf artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz artifacts/ 
     - name: Archive production artifacts2
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v3
       with:
         name: artifacts
         path: artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
@@ -185,3 +187,47 @@ jobs:
         files: |
           ./artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
         tag: main
+
+  test:
+    timeout-minutes: 10
+    needs: [build]
+    runs-on: [self-hosted, motor_enc]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu-20.04, ubuntu-22.04]
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: artifacts
+    - name: test
+      run: |
+        ls
+        tar xzf artifacts_${{ matrix.distro }}.tgz
+        cd artifacts/
+        ./bin/motor_util
+        ./bin/motor_util --set-timeout 10
+        ./bin/motor_util -l
+        ./bin/motor_util -l | grep Board\ name
+        ./bin/motor_util -l | grep motor
+        ./bin/motor_util -u
+        ./bin/motor_util -u -l
+        ./bin/motor_util -u -l | grep Board\ name
+        ./bin/motor_util -u -l | grep motor
+
+        # [ $(./bin/motor_util -p 1-3.1 | wc -l) -eq 4 ]
+        # [ $(./bin/motor_util -p 1-3.1 --no-list | wc -l) -eq 0 ]
+        dfu-util -e -p 1-3.1 || true
+        sleep 1
+        ./bin/motor_util | grep "dfu device"
+        /usr/share/motor-realtime/scripts/dfu_leave_all.sh
+        sleep 2
+        ! ./bin/motor_util | grep "dfu device"
+
+        time ./bin/motor_util
+
+        cd share/motor-realtime
+        PYTHONPATH=. ./python/example.py
+        

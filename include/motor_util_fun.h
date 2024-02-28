@@ -3,8 +3,36 @@
 #include <time.h>
 #include <cstdint>
 #include <stdexcept>
+#include <vector>
+#include "motor_messages.h"
 
 namespace obot {
+
+class MotorDescription {
+ public:
+    std::string name() const { return name_; }
+    std::string serial_number() const { return serial_number_; }
+    std::string base_path() const {return base_path_; }
+    std::string dev_path() const { return dev_path_; }
+    uint32_t devnum() const { return devnum_; }
+    std::string version() const { return version_; }
+    std::string board_name() const { return board_name_; }
+    std::string board_rev() const { return board_rev_; }
+    std::string board_num() const { return board_num_; }
+    std::string messages_version() const { return messages_version_; }
+    std::string config() const { return config_; }
+    virtual std::string short_version() const {
+        std::string s = version();
+        auto pos = std::min(s.find(" "), s.find("-g"));
+        return s.substr(0,pos);
+    }
+    virtual void set_timeout_ms(int timeout_ms) {};
+    virtual int get_timeout_ms() const { return 0; };
+ protected:
+    std::string name_, serial_number_, base_path_, dev_path_, version_;
+    std::string board_name_, board_rev_, board_num_, messages_version_, config_;
+    uint32_t devnum_;
+};
 
 // up to 2 seconds
 class Timer {
@@ -33,5 +61,13 @@ class Timer {
     uint32_t time_start_;
     uint32_t timeout_ns_;
 };
+
+std::vector<std::string> udev_list_dfu();
+class DFUDevice : public MotorDescription {
+ public:
+    DFUDevice(std::string dev_path);
+};
+
+std::string short_status(std::vector<Status> statuses);
 
 }  // namespace obot

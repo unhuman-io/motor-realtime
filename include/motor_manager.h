@@ -38,16 +38,26 @@ class MotorManager {
  public:
     static const std::map<const ModeDesired, const std::string> mode_map;
 
-    MotorManager(bool user_space_driver = false) : user_space_driver_(user_space_driver) {}
+    MotorManager(bool user_space_driver = false, Motor::MessagesCheck check_messages_version = Motor::MessagesCheck::MAJOR) :
+       user_space_driver_(user_space_driver),
+       check_messages_version_(check_messages_version) {}
     std::vector<std::shared_ptr<Motor>> get_connected_motors(bool connect = true);
     std::vector<std::shared_ptr<Motor>> get_motors_by_name(std::vector<std::string> names, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_serial_number(std::vector<std::string> serial_numbers, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_path(std::vector<std::string> paths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_devpath(std::vector<std::string> devpaths, bool connect = true, bool allow_simulated = false);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_ip(std::vector<std::string> ips, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
+    void free_motors() {
+      for(auto &m : motors_) {
+         m.reset();
+      }
+    }
     void set_motors(std::vector<std::shared_ptr<Motor>> motors);
     std::vector<Command> &commands() { return commands_; }
     std::vector<Status> &read();
+    std::vector<Status> &get_statuses() noexcept { return statuses_; }
+    std::vector<Status> read_average(uint32_t num_average = 1);
     void write(std::vector<Command> &);
     void write_saved_commands();
     void aread();
@@ -55,11 +65,13 @@ class MotorManager {
     int poll(uint32_t timeout_ms = 1);
     int multipoll(uint32_t timeout_ns = 0);
     void lock();
+    void check_messages_version(Motor::MessagesCheck check_messages_version) { check_messages_version_ = check_messages_version; }
 
     void set_auto_count(bool on=true) { auto_count_ = on; }
     uint32_t get_auto_count() const { return count_; }
     void set_reconnect(bool reconnect=true) { reconnect_ = reconnect; }
     void set_commands(const std::vector<Command> &commands);
+    void clear_commands();
     void set_command_count(int32_t count);
     void set_command_mode(uint8_t mode);
     void set_command_mode(const std::vector<uint8_t> &mode);
@@ -74,18 +86,20 @@ class MotorManager {
          double amplitude, double frequency, double bias);
     void set_command_position_tuning(TuningMode tuning_mode, 
          double amplitude, double frequency, double bias);
-    void set_command_stepper_velocity(double voltage, double velocity);
+    void set_command_stepper_velocity(double current,  double velocity, double voltage = 0, StepperMode mode = StepperMode::STEPPER_CURRENT);
 
     std::string command_headers() const;
-    std::string status_headers() const;
+    std::string status_headers(bool mini = false) const;
     int serialize_command_size() const;
     int serialize_saved_commands(char *data) const;
     bool deserialize_saved_commands(char *data);
     const std::vector<int> &get_read_error_count() const { return read_error_count_; }
+    const std::vector<int> &get_nonblock_not_ready_error_count() const { return nonblock_not_ready_error_count_; }
  private:
     std::vector<std::shared_ptr<Motor>> get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<int> read_error_count_;
+    std::vector<int> nonblock_not_ready_error_count_;
     std::vector<Command> commands_;
     std::vector<Status> statuses_;
     bool user_space_driver_;
@@ -94,6 +108,7 @@ class MotorManager {
     bool reconnect_ = false;
     FrequencyLimiter reconnect_rate_ = std::chrono::milliseconds(100);
     std::vector<pollfd> pollfds_;
+    Motor::MessagesCheck check_messages_version_;
 };
 
 inline std::vector<float> get_joint_position(std::vector<Status> statuses) {
@@ -188,9 +203,38 @@ inline std::istream& operator>>(std::istream& is, std::vector<Command> &command)
    return is;
 }
 
-#define PRINT_FLAG(flag) if (s.flags.error.flag) os << #flag " "
+#define PRINT_FLAG(flag) if (error.flag) os << #flag " "
 
-inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> status)
+inline std::ostream& operator<<(std::ostream& os, const MotorError &error)
+{
+   if (error.all) {
+      PRINT_FLAG(sequence);
+      PRINT_FLAG(bus_voltage_low);
+      PRINT_FLAG(bus_voltage_high);
+      PRINT_FLAG(bus_current);
+      PRINT_FLAG(microcontroller_temperature);
+      PRINT_FLAG(board_temperature);
+      PRINT_FLAG(motor_temperature);
+      PRINT_FLAG(driver_fault);
+      PRINT_FLAG(motor_overcurrent);
+      PRINT_FLAG(motor_phase_open);
+      PRINT_FLAG(motor_encoder);
+      PRINT_FLAG(motor_encoder_limit);
+      PRINT_FLAG(output_encoder);
+      PRINT_FLAG(output_encoder_limit);
+      PRINT_FLAG(torque_sensor);
+      PRINT_FLAG(controller_tracking);
+      PRINT_FLAG(host_fault);
+      PRINT_FLAG(driver_not_enabled);
+      PRINT_FLAG(encoder_disagreement);
+      PRINT_FLAG(torque_sensor_disagreement);
+      PRINT_FLAG(motor_soft_limit);
+      PRINT_FLAG(fault);
+   }
+   return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> &status)
 {
 
    for (auto s : status) {
@@ -221,10 +265,10 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
             os << s.rr_data.data << ", ";
             break;
          case UINT32_T:
-            os << *reinterpret_cast<uint32_t *>(&s.rr_data.data) << ", ";
+            os << s.rr_data.data_u32 << ", ";
             break;
          case INT32_T:
-            os << *reinterpret_cast<int32_t *>(&s.rr_data.data) << ", ";
+            os << s.rr_data.data_i32 << ", ";
             break;
       }
    }
@@ -253,30 +297,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> stat
    os << std::dec;
    for (auto s : status) {
       os << MotorManager::mode_map.at(static_cast<ModeDesired>(s.flags.mode)) << " ";
-      if (s.flags.error.all) {
-         PRINT_FLAG(sequence);
-         PRINT_FLAG(bus_voltage_low);
-         PRINT_FLAG(bus_voltage_high);
-         PRINT_FLAG(bus_current);
-         PRINT_FLAG(microcontroller_temperature);
-         PRINT_FLAG(board_temperature);
-         PRINT_FLAG(motor_temperature);
-         PRINT_FLAG(driver_fault);
-         PRINT_FLAG(motor_overcurrent);
-         PRINT_FLAG(motor_phase_open);
-         PRINT_FLAG(motor_encoder);
-         PRINT_FLAG(motor_encoder_limit);
-         PRINT_FLAG(output_encoder);
-         PRINT_FLAG(output_encoder_limit);
-         PRINT_FLAG(torque_sensor);
-         PRINT_FLAG(controller_tracking);
-         PRINT_FLAG(host_fault);
-         PRINT_FLAG(driver_not_enabled);
-         PRINT_FLAG(encoder_disagreement);
-         PRINT_FLAG(torque_sensor_disagreement);
-         PRINT_FLAG(fault);
-      }
-      os << ", ";
+      os << s.flags.error << ", ";
    }
    return os;
 }

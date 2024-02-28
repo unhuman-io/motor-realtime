@@ -1,8 +1,8 @@
 if(BUILD_MOTOR_UTIL)
-    file(DOWNLOAD "https://github.com/CLIUtils/CLI11/releases/download/v1.9.1/CLI11.hpp" 3rdparty/CLI11.hpp
-        EXPECTED_MD5 05de518a9321e3b6393fe574ac72c6e8)
-    file(DOWNLOAD "https://github.com/CLIUtils/CLI11/raw/v1.9.1/LICENSE" 3rdparty/LICENSE/LICENSE-CLI11
-        EXPECTED_MD5 b73927b18d5c6cd8d2ed28a6ad539733)
+    file(DOWNLOAD "https://github.com/CLIUtils/CLI11/releases/download/v2.3.2/CLI11.hpp" 3rdparty/CLI11.hpp
+        EXPECTED_MD5 b67d76d9df58edcd8b301cad0c0e323b)
+    file(DOWNLOAD "https://github.com/CLIUtils/CLI11/raw/v2.3.2/LICENSE" 3rdparty/LICENSE/LICENSE-CLI11
+        EXPECTED_MD5 afb20fe5f67e21074b10b864d9563c11)
     add_library(cli11 INTERFACE)
     target_include_directories(cli11 SYSTEM INTERFACE ${CMAKE_BINARY_DIR}/3rdparty/)
     install(FILES ${CMAKE_BINARY_DIR}/3rdparty/LICENSE/LICENSE-CLI11 DESTINATION 

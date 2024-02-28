@@ -20,6 +20,7 @@ Motor::Motor(std::string dev_path) {
     name_ = udev_device_check_and_get_sysattr_value(dev, "device/interface");
 
     std::string text_api_path = udev_device_get_syspath(dev);
+    attr_path_ = text_api_path + "/device";
     motor_txt_ = std::move(std::unique_ptr<SysfsFile>(new SysfsFile(text_api_path + "/device/text_api")));
 
     struct udev_device *dev_parent = udev_device_get_parent_with_subsystem_devtype(
@@ -34,22 +35,39 @@ Motor::Motor(std::string dev_path) {
     udev_device_unref(dev);
     udev_unref(udev);
     open();
+
+    messages_version_ = operator[]("messages_version").get();
+    board_name_ = operator[]("board_name").get();
+    board_rev_ = operator[]("board_rev").get();
+    board_num_ = operator[]("board_num").get();
+    config_ = operator[]("config").get();
 }
 
 Motor::~Motor() { close(); }
 
 std::string Motor::get_fast_log() {
-    std::string s_read;
-    do {
-        s_read = motor_txt_->writeread("log");
-    } while (s_read != "log end");
-    s_read = motor_txt_->writeread("fast_log");
-    std::string s_log;
-    do {
-        s_read = motor_txt_->writeread("log");
-        s_log += s_read + '\n';
-    } while (s_read != "log end");
-    return s_log;
+    std::string s_read, s_out;
+    s_out += "timestamp, position, iq_des, iq_meas_filt, ia, ib, ic, va, vb, vc, vbus\n";
+
+    for(int j=0; j<10; j++) {
+        s_read = motor_txt_->writeread("fast_log");
+        for(int i=0; i<10; i++) {
+            FastLog log = *(FastLog *) (s_read.c_str() + i*sizeof(FastLog));
+            s_out += 
+                std::to_string(log.timestamp) + ", " +
+                std::to_string(log.measured_motor_position) + ", " +
+                std::to_string(log.command_iq) + ", " +
+                std::to_string(log.measured_iq) + ", " +
+                std::to_string(log.measured_ia) + ", " +
+                std::to_string(log.measured_ib) + ", " +
+                std::to_string(log.measured_ic) + ", " +
+                std::to_string(log.command_va) + ", " +
+                std::to_string(log.command_vb) + ", " +
+                std::to_string(log.command_vc) + ", " +
+                std::to_string(log.vbus) + "\n";
+        }
+    }
+    return s_out;
 }
 
 std::vector<std::string> Motor::get_api_options() {
@@ -70,6 +88,35 @@ std::vector<std::string> SimulatedMotor::get_api_options() {
     return v;
 }
 
+void Motor::set_timeout_ms(int timeout_ms) {
+    std::string timeout_path = attr_path_ + "/timeout_ms";
+    int fd = ::open(timeout_path.c_str(), O_RDWR);
+    if (fd < 0) {
+        throw std::runtime_error("timeout_ms open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + timeout_path);
+    }
+    std::string s = std::to_string(timeout_ms);
+    int retval = ::write(fd, s.c_str(), s.size());
+    if (retval < 0) {
+        throw std::runtime_error("set timeout error " + std::to_string(errno) + ": " + strerror(errno));
+    }
+    ::close(fd);
+}
+
+int Motor::get_timeout_ms() const {
+    std::string timeout_path = attr_path_ + "/timeout_ms";
+    int fd = ::open(timeout_path.c_str(), O_RDWR);
+    if (fd < 0) {
+        throw std::runtime_error("timeout_ms open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + timeout_path);
+    }
+    char c[64];
+    int retval = ::read(fd, c, 64);
+    if (retval < 0) {
+        throw std::runtime_error("get timeout error " + std::to_string(errno) + ": " + strerror(errno));
+    }
+    ::close(fd);
+    return std::atoi(c);
+}
+
 TextFile::~TextFile() {}
 
 SysfsFile::~SysfsFile() {
@@ -84,5 +131,18 @@ USBFile::~USBFile() {}
 UserSpaceMotor::~UserSpaceMotor() { close(); }
 
 SimulatedMotor::~SimulatedMotor() { ::close(fd_); }
+
+static std::vector<std::string> mode_color_list = MOTOR_MODE_COLORS;
+static std::vector<std::string> mode_upper_color_list = MOTOR_MODE_UPPER_COLORS;
+
+std::string &mode_color(ModeDesired mode) {
+    if (mode < mode_color_list.size()) {
+        return mode_color_list[mode];
+    } else if (mode <= 255 && mode > 255-mode_upper_color_list.size()) {
+        return mode_upper_color_list[mode-(255-mode_upper_color_list.size()+1)];
+    } else {
+        return mode_upper_color_list[mode_upper_color_list.size()-1];
+    }
+}
 
 }  // namespace obot
