@@ -52,19 +52,21 @@ std::string Motor::get_fast_log() {
     for(int j=0; j<10; j++) {
         s_read = motor_txt_->writeread("fast_log");
         for(int i=0; i<10; i++) {
-            FastLog log = *(FastLog *) (s_read.c_str() + i*sizeof(FastLog));
-            s_out += 
-                std::to_string(log.timestamp) + ", " +
-                std::to_string(log.measured_motor_position) + ", " +
-                std::to_string(log.command_iq) + ", " +
-                std::to_string(log.measured_iq) + ", " +
-                std::to_string(log.measured_ia) + ", " +
-                std::to_string(log.measured_ib) + ", " +
-                std::to_string(log.measured_ic) + ", " +
-                std::to_string(log.command_va) + ", " +
-                std::to_string(log.command_vb) + ", " +
-                std::to_string(log.command_vc) + ", " +
-                std::to_string(log.vbus) + "\n";
+            if (s_read.length() >= (i+1)*sizeof(FastLog)) {
+                FastLog log = *(FastLog *) (s_read.c_str() + i*sizeof(FastLog));
+                s_out += 
+                    std::to_string(log.timestamp) + ", " +
+                    std::to_string(log.measured_motor_position) + ", " +
+                    std::to_string(log.command_iq) + ", " +
+                    std::to_string(log.measured_iq) + ", " +
+                    std::to_string(log.measured_ia) + ", " +
+                    std::to_string(log.measured_ib) + ", " +
+                    std::to_string(log.measured_ic) + ", " +
+                    std::to_string(log.command_va) + ", " +
+                    std::to_string(log.command_vb) + ", " +
+                    std::to_string(log.command_vc) + ", " +
+                    std::to_string(log.vbus) + "\n";
+            }
         }
     }
     return s_out;
