@@ -205,7 +205,7 @@ class TextAPIItem {
     void operator=(const std::string s) {
         set(s);
     }
-    bool no_throw_ = false;
+    bool no_throw_ = true;
  private:
     TextFile *motor_txt_;
     std::string name_;

@@ -107,7 +107,7 @@ int UDPFile::poll() {
     tmp.events = POLLIN;
     int poll_result = ::poll(&tmp, 1, timeout_ms_);
     if (poll_result == 0) {
-        return -ETIMEDOUT;
+        return ETIMEDOUT;
     } else if (poll_result < 0) {
         return poll_result;
     }
@@ -134,7 +134,7 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
 
   if (status == std::cv_status::timeout) {
     //std::cout << "timed out" << std::endl;
-    errno = -ETIMEDOUT;
+    errno = ETIMEDOUT;
     return -1;
   } else {
     //std::cout << "cv result " << (int) status << std::endl;
