@@ -228,6 +228,12 @@ inline std::ostream& operator<<(std::ostream& os, const MotorError &error)
       PRINT_FLAG(driver_not_enabled);
       PRINT_FLAG(encoder_disagreement);
       PRINT_FLAG(torque_sensor_disagreement);
+      PRINT_FLAG(init_failure);
+      PRINT_FLAG(motor_encoder_warning);
+      PRINT_FLAG(output_encoder_warning);
+      PRINT_FLAG(torque_sensor_warning);
+      PRINT_FLAG(motor_current_limit);
+      PRINT_FLAG(motor_voltage_limit);
       PRINT_FLAG(motor_soft_limit);
       PRINT_FLAG(fault);
    }
