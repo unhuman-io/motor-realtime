@@ -155,8 +155,10 @@ jobs:
           --volume "${PWD}/packages:/packages"
         run: |
           git config --global --add safe.directory /home/runner/work/motor-realtime/motor-realtime
-          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
-          make -j2
+          # Note switched build type from RelWithDebInfo to Debug to fix pthread_create missing issued on
+          # aarch64 ubuntu18.04 build
+          cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
+          make -j2 VERBOSE=1
           make install
         install: |
           apt-get update -q -y

@@ -4,7 +4,7 @@ include(GNUInstallDirs)
 enable_testing()
 
 set(VERSION_MAJOR "0")
-set(VERSION_MINOR "13")
+set(VERSION_MINOR "14")
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libudev1")

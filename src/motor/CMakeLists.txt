@@ -1,5 +1,5 @@
 add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cpp realtime_thread.cpp motor_thread.cpp motor_app.cpp)
-target_link_libraries(motor_manager udev pthread cli11)
+target_link_libraries(motor_manager PUBLIC udev pthread cli11 obot-protocol)
 target_include_directories(motor_manager PUBLIC ${CMAKE_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
     ${CMAKE_SOURCE_DIR}/include/motor_manager.h
@@ -27,12 +27,12 @@ install(FILES ${CMAKE_SOURCE_DIR}/include/motor_messages/motor_messages.h
 
 if(BUILD_MOTOR_UTIL)
     add_executable(motor_util motor_util.cpp motor_util_fun.cpp)
-    target_link_libraries(motor_util motor_manager cli11 pthread rt)
+    target_link_libraries(motor_util motor_manager)
     target_include_directories(motor_util PUBLIC ${CMAKE_BINARY_DIR})
     install(TARGETS motor_util DESTINATION bin)
 
     add_executable(motor_usbmon motor_usbmon.cpp)
-    target_link_libraries(motor_usbmon motor_manager cli11)
+    target_link_libraries(motor_usbmon motor_manager)
     install(TARGETS motor_usbmon DESTINATION bin)
 endif()
 
@@ -55,6 +55,9 @@ if(INSTALL_MOTOR_EMBEDDED)
     configure_file(${CMAKE_SOURCE_DIR}/include/motor_util_fun.h motor_manager_embedded/motor_util_fun.h COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/include/motor_messages.h motor_manager_embedded/motor_messages.h COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/include/motor_messages/motor_messages.h motor_manager_embedded/motor_messages/motor_messages.h COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/3rdparty/obot-protocol/crc.h motor_manager_embedded/crc.h COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/3rdparty/obot-protocol/protocol_parser.h motor_manager_embedded/protocol_parser.h COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/3rdparty/obot-protocol/protocol_parser.cpp motor_manager_embedded/protocol_parser.cpp COPYONLY)
     configure_file(motor_manager.cpp motor_manager_embedded/motor_manager.cpp COPYONLY)
     configure_file(motor.cpp motor_manager_embedded/motor.cpp COPYONLY)
     configure_file(motor_ip.cpp motor_manager_embedded/motor_ip.cpp COPYONLY)
