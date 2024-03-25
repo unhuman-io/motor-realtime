@@ -89,6 +89,9 @@ void MotorIP::open() {
       throw std::runtime_error(ip_ + ":" + port_ + ", n_results error: " + std::to_string(n_results));
     }
     std::memcpy(&addr_, result->ai_addr, result->ai_addrlen);
+
+    getnameinfo((const sockaddr *) &addr_, sizeof(addr_), hostname_, sizeof(hostname_), NULL, 0, 0);
+
     freeaddrinfo(result);
     //flush();
 }
@@ -193,23 +196,31 @@ void UDPFile::rx_callback(const uint8_t* buf, uint16_t len) {
   rx_data_cv_.notify_one();
 }
 
-void MotorIP::connect() {
+MotorIP::~MotorIP() {
+  terminate_ = true;
+  rx_thread_.join(); // todo add timeout
+}
+
+bool MotorIP::connect() {
     fd_flags_ = fcntl(fd_, F_GETFL);
+    messages_version_ = operator[]("messages_version").get();
+    if (messages_version_ == "") {
+      return false;
+    }
     name_ = operator[]("name").get();
     if (name_ == "") {
       name_ = ip() + ":" + std::to_string(port());
     }
     version_ = operator[]("version").get();
-    messages_version_ = operator[]("messages_version").get();
     board_name_ = operator[]("board_name").get();
     board_rev_ = operator[]("board_rev").get();
     board_num_ = operator[]("board_num").get();
     config_ = operator[]("config").get();
     serial_number_ = operator[]("serial").get();
-    dev_path_ = addrstr_;
-    base_path_ = ip();
+    dev_path_ = hostname_;
+    base_path_ = addrstr_;
     devnum_ = port();
-    
+    return true;  
 }
 
 void MotorIP::set_timeout_ms(int timeout_ms) {
@@ -235,16 +246,25 @@ void MotorIP::rx_data() {
   //std::cout << "rx_data started, fd_ " << fd_ << std::endl;
   while(1) {
     // assume blocking i/o
-    int result = recv(fd_, rx_lin_buffer_, RX_BUFFER_SIZE, 0);
-    //std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
-    if (result < 0) {
-      throw std::runtime_error("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    pollfd tmp;
+    tmp.fd = fd_;
+    tmp.events = POLLIN;
+    int poll_result = ::poll(&tmp, 1, 5 /* ms */);
+    if (poll_result > 0) {
+      int result = recv(fd_, rx_lin_buffer_, RX_BUFFER_SIZE, 0);
+      //std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
+      if (result < 0) {
+        throw std::runtime_error("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+      }
+      for (int i=0; i<result; i++) {
+        rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
+        current_read_idx_ = (current_read_idx_ + 1) % RX_BUFFER_SIZE;
+      }
+      parser_.process((current_read_idx_ - 1) % RX_BUFFER_SIZE);
     }
-    for (int i=0; i<result; i++) {
-      rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
-      current_read_idx_ = (current_read_idx_ + 1) % RX_BUFFER_SIZE;
+    if (terminate_) {
+      return;
     }
-    parser_.process((current_read_idx_ - 1) % RX_BUFFER_SIZE);
   }
 }
 
