@@ -85,12 +85,14 @@ class MotorIP : public Motor {
         realtime_communication_.fd_ = fd_;
         realtime_communication_.addr_ = addr_;
         rx_thread_ = std::thread([this]{ this->rx_data(); });
-        connect();
+        connected_ = connect();
     }
+    virtual ~MotorIP();
     
     virtual void set_timeout_ms(int timeout_ms) override;
     void open();
-    void connect();
+    bool connect();
+    bool connected() const { return connected_; }
 
     std::string ip() const { return ip_; }
     uint32_t port() const { return std::atol(port_.c_str()); }
@@ -103,6 +105,7 @@ class MotorIP : public Motor {
     std::string ip_;
     std::string addrstr_;
     sockaddr_in addr_ = {};
+    char hostname_[64];
 
  private:
     UDPFile realtime_communication_;
@@ -116,6 +119,8 @@ class MotorIP : public Motor {
     figure::ProtocolParser parser_{rx_buffer_, RX_BUFFER_SIZE};
     std::atomic<uint32_t> current_read_idx_{0};
     std::thread rx_thread_;
+    std::atomic<bool> terminate_{false};
+    bool connected_ = false;
 };
 
 }; // namespace obot
