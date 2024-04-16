@@ -108,7 +108,6 @@ class MotorIP : public Motor {
     char hostname_[64];
 
  private:
-    UDPFile realtime_communication_;
     static const int kProtocolOverheadBytes = 6;
     UDPFile::ObotPacket read_buffer_;
     UDPFile::ObotPacket write_buffer_;
@@ -121,6 +120,7 @@ class MotorIP : public Motor {
     std::thread rx_thread_;
     std::atomic<bool> terminate_{false};
     bool connected_ = false;
+    UDPFile realtime_communication_; // relies on parser_
 };
 
 }; // namespace obot
