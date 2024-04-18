@@ -102,7 +102,7 @@ void MotorIP::open() {
 
 int MotorIP::lock() {
     // lock file to prevent multiple instances from using the same port
-    std::string lock_file = "/tmp/obot." + ip_ + ":" + port_ + ".lock";
+    std::string lock_file = "/tmp/obot." + addrstr_ + ":" + port_ + ".lock";
     int fd_lock = ::open(lock_file.c_str(), O_CREAT | O_RDWR, 0666);
     if (fd_lock < 0) {
       throw std::runtime_error("Error opening lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
