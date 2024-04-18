@@ -93,7 +93,35 @@ void MotorIP::open() {
     getnameinfo((const sockaddr *) &addr_, sizeof(addr_), hostname_, sizeof(hostname_), NULL, 0, 0);
 
     freeaddrinfo(result);
+
+    if (lock() < 0) {
+      throw std::runtime_error("Error locking " + ip_ + ":" + port_);
+    }
     //flush();
+}
+
+int MotorIP::lock() {
+    // lock file to prevent multiple instances from using the same port
+    std::string lock_file = "/tmp/obot." + addrstr_ + ":" + port_ + ".lock";
+    int fd_lock = ::open(lock_file.c_str(), O_CREAT | O_RDWR, 0666);
+    if (fd_lock < 0) {
+      throw std::runtime_error("Error opening lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
+    }
+    int err = ::lseek(fd_lock, 0, SEEK_SET);
+    if (err < 0) {
+      throw std::runtime_error("Error lseek lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
+    }
+    err = lockf(fd_lock, F_TLOCK, 0); 
+    if (err) {
+        std::cerr << "error locking " + lock_file;
+        pid_t pid;
+        int err2 = get_lock_pid(fd_lock, &pid);
+        if (err2 == 0) {
+            std::cerr << ", already locked by process: " << pid;
+        }
+        std::cerr << std::endl;
+    }
+    return err;
 }
 
 void UDPFile::flush() {
