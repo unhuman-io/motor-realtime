@@ -89,6 +89,7 @@ class MotorIP : public Motor {
     }
     virtual ~MotorIP();
     
+    virtual int lock();
     virtual void set_timeout_ms(int timeout_ms) override;
     void open();
     bool connect();
