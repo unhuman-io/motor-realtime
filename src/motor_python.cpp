@@ -217,7 +217,13 @@ PYBIND11_MODULE(motor, m)
         .def("error_mask", [](Motor &m)
              { 
             MotorError mask;
-            mask.all = std::stoul(m["error_mask"].get(), 0, 16);
+            std::string error_mask;
+            try {
+                error_mask = m["error_mask"].get();
+                mask.all = std::stoul(error_mask, 0, 16);
+            } catch (std::invalid_argument) {
+                throw std::runtime_error("Invalid error mask received from motor: " + error_mask);
+            }
             return motor_error_dict(mask); })
         .def("set_error_mask", [](Motor &m, py::dict d){ 
             MotorError e = dict_to_motor_error(d);
