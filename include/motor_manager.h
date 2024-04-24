@@ -46,6 +46,7 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> get_motors_by_serial_number(std::vector<std::string> serial_numbers, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_path(std::vector<std::string> paths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_devpath(std::vector<std::string> devpaths, bool connect = true, bool allow_simulated = false);
+    std::vector<std::shared_ptr<Motor>> get_motors_uart_by_devpath(std::vector<std::string> devpaths, bool raw = false, uint32_t baud_rate = 4000000, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_ip(std::vector<std::string> ips, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
     void free_motors() {
@@ -228,6 +229,12 @@ inline std::ostream& operator<<(std::ostream& os, const MotorError &error)
       PRINT_FLAG(driver_not_enabled);
       PRINT_FLAG(encoder_disagreement);
       PRINT_FLAG(torque_sensor_disagreement);
+      PRINT_FLAG(init_failure);
+      PRINT_FLAG(motor_encoder_warning);
+      PRINT_FLAG(output_encoder_warning);
+      PRINT_FLAG(torque_sensor_warning);
+      PRINT_FLAG(motor_current_limit);
+      PRINT_FLAG(motor_voltage_limit);
       PRINT_FLAG(motor_soft_limit);
       PRINT_FLAG(fault);
    }

@@ -15,3 +15,11 @@ if(BUILD_PYTHON_API)
         ${CMAKE_INSTALL_DATADIR}/${CMAKE_PROJECT_NAME}/LICENSE
         RENAME LICENSE-pybind11)
 endif()
+
+add_library(obot-protocol obot-protocol/protocol_parser.cpp)
+target_include_directories(obot-protocol PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/obot-protocol)
+if(BUILD_SHARED_LIBS)
+    install(TARGETS obot-protocol
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+endif()

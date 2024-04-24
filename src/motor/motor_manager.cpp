@@ -1,6 +1,7 @@
 #include "motor_manager.h"
 #include "motor.h"
 #include "motor_ip.h"
+#include "motor_uart.h"
 
 #include <libudev.h>
 
@@ -150,11 +151,33 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
     nonblock_not_ready_error_count_.resize(motors_.size(), 0);
 }
 
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std::vector<std::string> devpaths, bool raw, uint32_t baud_rate, bool connect, bool allow_simulated) {
+    std::vector<std::shared_ptr<Motor>> m(devpaths.size());
+    for (uint8_t i=0; i<devpaths.size(); i++) {
+        if (raw) {
+            m[i] = std::make_shared<MotorUARTRaw>(devpaths[i], baud_rate);
+        } else {
+            throw std::runtime_error("motor uart not raw");
+        }
+    }
+    if (connect) {
+        set_motors(m);
+    }
+    return m;
+}
+
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool allow_simulated) {
     std::vector<std::shared_ptr<Motor>> m(ips.size());
+    int j = 0;
     for (uint8_t i=0; i<ips.size(); i++) {
-        m[i] = std::make_shared<MotorIP>(ips[i]);
+        std::shared_ptr<MotorIP> motor = std::make_shared<MotorIP>(ips[i]);
+        if (motor->connected()) {
+            m[j++] = motor;
+        } else {
+            std::cerr << "Motor IP: " << motor->addrstr_ << "(" << motor->hostname_ << ") not connected" << std::endl;
+        }
     }
+    m.resize(j);
     if (connect) {
         set_motors(m);
     }

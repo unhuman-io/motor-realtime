@@ -4,14 +4,18 @@ include(GNUInstallDirs)
 enable_testing()
 
 set(VERSION_MAJOR "0")
-set(VERSION_MINOR "14")
+set(VERSION_MINOR "15")
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "Lee Magnusson")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libudev1")
 set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "usb_rt_driver")
-execute_process(COMMAND bash -c "git describe --dirty --always" 
+execute_process(
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    COMMAND bash -c "git describe --dirty --always"
     OUTPUT_VARIABLE GIT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
-execute_process(COMMAND bash -c "git rev-list ${VERSION_MAJOR}.${VERSION_MINOR}.. --count" 
+execute_process(
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    COMMAND bash -c "git rev-list ${VERSION_MAJOR}.${VERSION_MINOR}.. --count"
     OUTPUT_VARIABLE GIT_REV OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 if(${GIT_REV})
     set(CPACK_PACKAGE_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${GIT_REV}")
