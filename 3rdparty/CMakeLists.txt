@@ -17,7 +17,7 @@ if(BUILD_PYTHON_API)
 endif()
 
 add_library(obot-protocol obot-protocol/protocol_parser.cpp)
-target_include_directories(obot-protocol PUBLIC ${CMAKE_SOURCE_DIR}/3rdparty/obot-protocol)
+target_include_directories(obot-protocol PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/obot-protocol)
 if(BUILD_SHARED_LIBS)
     install(TARGETS obot-protocol
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
