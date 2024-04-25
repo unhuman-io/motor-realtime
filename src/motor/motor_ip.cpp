@@ -93,10 +93,7 @@ void MotorIP::open() {
     getnameinfo((const sockaddr *) &addr_, sizeof(addr_), hostname_, sizeof(hostname_), NULL, 0, 0);
 
     freeaddrinfo(result);
-
-    if (lock() < 0) {
-      throw std::runtime_error("Error locking " + ip_ + ":" + port_);
-    }
+    
     //flush();
 }
 
