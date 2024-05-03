@@ -166,7 +166,7 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
     return -1;
   } else {
     //std::cout << "cv result " << (int) status << std::endl;
-    size_t len = std::min(length, rx_len_);
+    size_t len = std::min((size_t) length, rx_len_);
     std::memset(data, 0, length);
     std::memcpy(data, rx_buf_, len);
     return len;
