@@ -166,8 +166,10 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
     return -1;
   } else {
     //std::cout << "cv result " << (int) status << std::endl;
-    std::memcpy(data, rx_buf_, length);
-    return length;
+    size_t len = std::min(length, rx_len_);
+    std::memset(data, 0, length);
+    std::memcpy(data, rx_buf_, len);
+    return len;
   }
 }
 
@@ -216,7 +218,7 @@ void UDPFile::rx_callback(const uint8_t* buf, uint16_t len) {
   {
     std::lock_guard<std::mutex> lk(rx_data_cv_m_);
     std::memcpy(rx_buf_, buf, len);
-    rx_buf_[len] = 0;
+    rx_len_ = len;
   }
   rx_data_cv_.notify_one();
 }
