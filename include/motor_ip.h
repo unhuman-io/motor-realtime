@@ -54,6 +54,7 @@ class UDPFile : public TextFile {
     std::condition_variable rx_data_cv_;
     std::mutex rx_data_cv_m_;
     uint8_t rx_buf_[1024];
+    size_t rx_len_ = 0;
 };
 
 class MotorIP : public Motor {
