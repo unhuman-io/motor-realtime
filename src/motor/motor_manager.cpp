@@ -2,6 +2,7 @@
 #include "motor.h"
 #include "motor_ip.h"
 #include "motor_uart.h"
+#include "motor_can.h"
 
 #include <libudev.h>
 
@@ -178,6 +179,17 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
         }
     }
     m.resize(j);
+    if (connect) {
+        set_motors(m);
+    }
+    return m;
+}
+
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_can(std::vector<std::string> can_interfaces, bool connect, bool allow_simulated) {
+    std::vector<std::shared_ptr<Motor>> m(can_interfaces.size());
+    for (uint8_t i=0; i<can_interfaces.size(); i++) {
+        m[i] = std::make_shared<MotorCAN>(can_interfaces[i]);
+    }
     if (connect) {
         set_motors(m);
     }

@@ -7,6 +7,7 @@ set(MOTOR_MANAGER_PUBLIC_HEADERS
     ${PROJECT_SOURCE_DIR}/include/motor.h
     ${PROJECT_SOURCE_DIR}/include/motor_ip.h
     ${PROJECT_SOURCE_DIR}/include/motor_uart.h
+    ${PROJECT_SOURCE_DIR}/include/motor_can.h
     ${PROJECT_SOURCE_DIR}/include/realtime_thread.h
     ${PROJECT_SOURCE_DIR}/include/motor_thread.h
     ${PROJECT_SOURCE_DIR}/include/motor_app.h
@@ -52,6 +53,7 @@ if(INSTALL_MOTOR_EMBEDDED)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor.h motor_manager_embedded/motor.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_ip.h motor_manager_embedded/motor_ip.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_uart.h motor_manager_embedded/motor_uart.h COPYONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/include/motor_can.h motor_manager_embedded/motor_can.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_util_fun.h motor_manager_embedded/motor_util_fun.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_messages.h motor_manager_embedded/motor_messages.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_messages/motor_messages.h motor_manager_embedded/motor_messages/motor_messages.h COPYONLY)
