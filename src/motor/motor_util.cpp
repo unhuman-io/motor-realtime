@@ -278,6 +278,7 @@ int main(int argc, char** argv) {
             tmp_motors = m.get_motors_can(can_devs);
         }
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+        std::cout << motors.size() << " connected can motor" << (motors.size() == 1 ? "" : "s") << std::endl;
     }
     bool messages_mismatch = false;
     std::string messages_mismatch_error;
@@ -303,7 +304,7 @@ int main(int argc, char** argv) {
         }
     }
     
-    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !ips.size()) {
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !ips.size() && !can_devs.size()){
         try {
             motors = m.get_connected_motors();
         } catch (std::runtime_error &e) {

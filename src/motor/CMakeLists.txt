@@ -1,4 +1,4 @@
-add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cpp realtime_thread.cpp motor_thread.cpp motor_app.cpp)
+add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cpp motor_can.cpp realtime_thread.cpp motor_thread.cpp motor_app.cpp)
 target_link_libraries(motor_manager PUBLIC udev pthread cli11 obot-protocol)
 target_include_directories(motor_manager PUBLIC ${PROJECT_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
@@ -64,6 +64,7 @@ if(INSTALL_MOTOR_EMBEDDED)
     configure_file(motor.cpp motor_manager_embedded/motor.cpp COPYONLY)
     configure_file(motor_ip.cpp motor_manager_embedded/motor_ip.cpp COPYONLY)
     configure_file(motor_uart.cpp motor_manager_embedded/motor_uart.cpp COPYONLY)
+    configure_file(motor_can.cpp motor_manager_embedded/motor_can.cpp COPYONLY)
     configure_file(motor_manager_embedded/CMakeLists.txt motor_manager_embedded/CMakeLists.txt COPYONLY)
     configure_file(motor_manager_embedded/BUILD motor_manager_embedded/BUILD COPYONLY)
     add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/motor_manager_embedded ${CMAKE_CURRENT_BINARY_DIR}/motor_manager_embedded_build)
