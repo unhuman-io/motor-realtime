@@ -14,7 +14,7 @@ class MotorCAN : public Motor {
     virtual ssize_t write() override;
 
  private:
-    std::string address_;
+    std::string intf_;
 };
 
 }; // namespace obot
