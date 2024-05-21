@@ -10,6 +10,7 @@
 #include <poll.h>
 #include "motor_util_fun.h"
 #include <sstream>
+#include <future>
 
 namespace obot {
 
@@ -167,10 +168,15 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool allow_simulated) {
+    std::vector<std::future<std::shared_ptr<MotorIP>>> futures(ips.size());
+    for (uint8_t i=0; i<ips.size(); i++) {
+        futures[i] = std::async([](std::string s){ return std::make_shared<MotorIP>(s); }, ips[i]);
+    }
+
     std::vector<std::shared_ptr<Motor>> m(ips.size());
     int j = 0;
     for (uint8_t i=0; i<ips.size(); i++) {
-        std::shared_ptr<MotorIP> motor = std::make_shared<MotorIP>(ips[i]);
+        std::shared_ptr<MotorIP> motor = futures[i].get();
         if (motor->connected()) {
             m[j++] = motor;
         } else {
