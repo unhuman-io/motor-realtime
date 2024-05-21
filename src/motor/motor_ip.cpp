@@ -69,7 +69,7 @@ void MotorIP::open() {
       throw std::runtime_error("getaddrinfo failed for " + ip_ + ":" + port_ + ", error: " + std::to_string(addr_info_result));
     }
 
-    char addrstr[100];
+    char addrstr[100] = {};
     void *ptr;
     res = result;
     int n_results = 0;
@@ -81,11 +81,12 @@ void MotorIP::open() {
         }
         ptr = &((struct sockaddr_in *) res->ai_addr)->sin_addr;
         addr_len = sizeof(sockaddr_in);
-        inet_ntop (res->ai_family, ptr, addrstr, 100);
+        inet_ntop (res->ai_family, ptr, addrstr, sizeof(addrstr)-1);
         addrstr_ = addrstr;
         res = res->ai_next;
     }
     if (n_results != 1) {
+      // This error has been seen when using localhost
       throw std::runtime_error(ip_ + ":" + port_ + ", n_results error: " + std::to_string(n_results));
     }
     std::memcpy(&addr_, result->ai_addr, result->ai_addrlen);

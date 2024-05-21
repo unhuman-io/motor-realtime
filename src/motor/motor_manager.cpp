@@ -174,7 +174,9 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
         if (motor->connected()) {
             m[j++] = motor;
         } else {
-            std::cerr << "Motor IP: " << motor->addrstr_ << "(" << motor->hostname_ << ") not connected" << std::endl;
+            // ip/port were arguments, addrstr is the result of getaddrinfo(), hostname is the result of getnameinfo()
+            std::cerr << "Motor IP: " << motor->ip_ << ":" << motor->port_ << " / " << motor->addrstr_ 
+                << "(" << motor->hostname_ << ") not connected" << std::endl;
         }
     }
     m.resize(j);
