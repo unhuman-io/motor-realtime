@@ -96,6 +96,9 @@ ssize_t MotorCAN::read() {
     int nbytes = 0;
     if (poll_result > 0) {
         nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+        if (nbytes > 0) {
+            std::memcpy(&status_, frame.data, sizeof(status_));
+        }
     }
     return nbytes;
 }
