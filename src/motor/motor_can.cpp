@@ -105,7 +105,7 @@ ssize_t MotorCAN::read() {
 
 ssize_t MotorCAN::write() {
     struct canfd_frame frame = {};
-	frame.can_id  = devnum_;
+	frame.can_id  = 2 << 7 | devnum_; // 1 : command, 2: command/req status
 	frame.len = 48; //sizeof(command_);
 	std::memcpy(frame.data, &command_, sizeof(command_));
 
