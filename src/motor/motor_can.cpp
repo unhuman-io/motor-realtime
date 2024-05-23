@@ -34,14 +34,14 @@ class CANFile : public TextFile {
             if (poll_result > 0) {
                 nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
                 if (nbytes > 0) {
-                    if (frame.can_id == 5 << 7 | devnum_) {
+                    if (frame.can_id == (5 << 7 | devnum_)) {
                         success = true;
                         length = std::min(length, (unsigned int) frame.len);
                         std::memcpy(data, frame.data, length);
                     }
                 }
             }
-            count++;
+            count++; //todo change to timeout
         } while (!success && count < 10);
         return nbytes;
     }
