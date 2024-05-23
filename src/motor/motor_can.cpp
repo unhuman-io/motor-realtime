@@ -26,17 +26,23 @@ class CANFile : public TextFile {
         pollfd tmp;
         tmp.fd = fd_;
         tmp.events = POLLIN;
-        int poll_result = ::poll(&tmp, 1, 10 /* ms */);
+        int count = 0;
         int nbytes = 0;
-        if (poll_result > 0) {
-            nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
-            if (nbytes > 0) {
-                if (frame.can_id == 5 << 7 | devnum_) {
-                    length = std::min(length, (unsigned int) frame.len);
-                    std::memcpy(data, frame.data, length);
+        bool success = false;
+        do {
+            int poll_result = ::poll(&tmp, 1, 10 /* ms */);
+            if (poll_result > 0) {
+                nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+                if (nbytes > 0) {
+                    if (frame.can_id == 5 << 7 | devnum_) {
+                        success = true;
+                        length = std::min(length, (unsigned int) frame.len);
+                        std::memcpy(data, frame.data, length);
+                    }
                 }
             }
-        }
+            count++;
+        } while (!success && count < 10);
         return nbytes;
     }
 
