@@ -21,7 +21,7 @@ class CANFile : public TextFile {
  public:
     CANFile(int fd, uint32_t devnum) : fd_(fd), devnum_(devnum) {}
 
-    virtual ssize_t read(char * data, unsigned int length, bool write_read = false) {
+    virtual ssize_t read(char * data, unsigned int length) {
         struct canfd_frame frame;
         pollfd tmp;
         tmp.fd = fd_;
@@ -46,13 +46,14 @@ class CANFile : public TextFile {
         return nbytes;
     }
 
-    virtual ssize_t write(const char * data, unsigned int length, bool write_read = false) {
+    virtual ssize_t write(const char * data, unsigned int length) {
         struct canfd_frame frame = {};
-        length = std::min(length, (unsigned int) CANFD_MAX_DLEN);
+        length = std::min(length, (unsigned int) CANFD_MAX_DLEN-1);
         frame.can_id  = 4 << 7 | devnum_;
-        frame.len = length;
+        frame.len = ++length;
         frame.flags = CANFD_BRS;
         std::memcpy(frame.data, data, length);
+        frame.data[length] = 0;
 
         int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
         if (nbytes < 0) {
