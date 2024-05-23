@@ -19,17 +19,52 @@ namespace obot {
 
 class CANFile : public TextFile {
  public:
-    CANFile() {
+    CANFile(int fd, uint32_t devnum) : fd_(fd), devnum_(devnum) {}
+
+    virtual ssize_t read(char * data, unsigned int length, bool write_read = false) {
+        struct canfd_frame frame;
+        pollfd tmp;
+        tmp.fd = fd_;
+        tmp.events = POLLIN;
+        int poll_result = ::poll(&tmp, 1, 10 /* ms */);
+        int nbytes = 0;
+        if (poll_result > 0) {
+            nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+            if (nbytes > 0) {
+                if (frame.can_id == 5 << 7 | devnum_) {
+                    length = std::min(length, (unsigned int) frame.len);
+                    std::memcpy(data, frame.data, length);
+                }
+            }
+        }
+        return nbytes;
     }
-    virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false) {
-        return 0;
+
+    virtual ssize_t write(const char * data, unsigned int length, bool write_read = false) {
+        struct canfd_frame frame = {};
+        length = std::min(length, (unsigned int) CANFD_MAX_DLEN);
+        frame.can_id  = 4 << 7 | devnum_;
+        frame.len = length;
+        frame.flags = CANFD_BRS;
+        std::memcpy(frame.data, data, length);
+
+        int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
+        if (nbytes < 0) {
+            throw std::runtime_error("Error writing canfile " + std::to_string(devnum_) + ": " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        return nbytes;
     }
-    virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false) {
-        return 0;
+
+    virtual ssize_t writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
+        ssize_t nbytes = write(data_out, length_out);
+        if (nbytes < 0) {
+            return nbytes;
+        }
+        return read(data_in, length_in);
     }
-    virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) {
-        return 0;
-    }
+
+    int fd_;
+    uint32_t devnum_;
 };
 
 MotorCAN::MotorCAN(std::string address) {
@@ -54,7 +89,7 @@ MotorCAN::MotorCAN(std::string address) {
         }
     }
     open();
-    motor_txt_ = std::move(std::unique_ptr<CANFile>(new CANFile()));
+    motor_txt_ = std::move(std::unique_ptr<CANFile>(new CANFile(fd_, devnum_)));
 	messages_version_ = MOTOR_MESSAGES_VERSION;
 }
 
@@ -97,7 +132,9 @@ ssize_t MotorCAN::read() {
     if (poll_result > 0) {
         nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
         if (nbytes > 0) {
-            std::memcpy(&status_, frame.data, sizeof(status_));
+            if (frame.can_id == 3 << 7 | devnum_) {
+                std::memcpy(&status_, frame.data, sizeof(status_));
+            }
         }
     }
     return nbytes;
