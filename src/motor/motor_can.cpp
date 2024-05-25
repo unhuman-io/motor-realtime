@@ -13,6 +13,8 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 
+#include <ifaddrs.h>
+
 #include "poll.h"
 
 namespace obot {
@@ -96,37 +98,56 @@ MotorCAN::MotorCAN(std::string address) {
         }
     }
     open();
+    struct can_filter rfilter[1];
+    rfilter[0].can_id   = devnum_;
+    rfilter[0].can_mask = 0x7F | CAN_EFF_FLAG | CAN_RTR_FLAG;
+
+    if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
+        throw std::runtime_error("Error setting filter for " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+    }
+
     motor_txt_ = std::move(std::unique_ptr<CANFile>(new CANFile(fd_, devnum_)));
 	messages_version_ = MOTOR_MESSAGES_VERSION;
 }
 
 void MotorCAN::open() {
+    fd_ = open_socket(dev_path_);
+}
+
+int MotorCAN::open_socket(std::string if_name) {
 	struct sockaddr_can addr;
 	struct ifreq ifr;
     int canfd_on = 1;
 
-	const char *ifname = dev_path_.c_str();
+	const char *ifname = if_name.c_str();
 
-	if ((fd_ = socket(PF_CAN, SOCK_RAW, CAN_RAW)) == -1) {
-		throw std::runtime_error("Error opening socket for " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+    int fd;
+	if ((fd = socket(PF_CAN, SOCK_RAW, CAN_RAW)) == -1) {
+		throw std::runtime_error("Error opening socket for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
 	}
-    if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, &canfd_on, sizeof(canfd_on))){
-        throw std::runtime_error("Error enabling canfd for " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+    if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, &canfd_on, sizeof(canfd_on))){
+        throw std::runtime_error("Error enabling canfd for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
 
-	strcpy(ifr.ifr_name, ifname);
-	ioctl(fd_, SIOCGIFINDEX, &ifr);
+    strcpy(ifr.ifr_name, ifname);
+    
+    if (if_name == "any") {
+        ifr.ifr_ifindex = 0;
+    } else {	
+	    if(ioctl(fd, SIOCGIFINDEX, &ifr)) {
+            throw std::runtime_error("Error getting ifindex for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    }
 	
 	addr.can_family  = AF_CAN;
 	addr.can_ifindex = ifr.ifr_ifindex;
 
-	printf("%s at index %d\n", ifname, ifr.ifr_ifindex);
+	// printf("%s at index %d\n", ifname, ifr.ifr_ifindex);
 
-	if (bind(fd_, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-        throw std::runtime_error("Error binding " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+        throw std::runtime_error("Error binding " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
 	}
-
-
+    return fd;
 }
 
 ssize_t MotorCAN::read() {
@@ -159,6 +180,90 @@ ssize_t MotorCAN::write() {
         throw std::runtime_error("Error writing can " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     return nbytes;
+}
+
+
+static std::vector<std::string> get_can_interfaces() {
+    std::vector<std::string> interfaces;
+    struct ifaddrs *addrs,*tmp;
+
+    if (getifaddrs(&addrs)) {
+        throw std::runtime_error("Error getting interfaces: " + std::to_string(errno) + ": " + strerror(errno));
+    }
+    tmp = addrs;
+
+    while (tmp) {
+        // std::cout << "interface: " << tmp->ifa_name << " flags " << tmp->ifa_flags << std::endl;
+        try {
+            // test if interface supports can
+            if (tmp->ifa_flags & IFF_UP) {
+                int fd = MotorCAN::open_socket(tmp->ifa_name);
+                interfaces.push_back(tmp->ifa_name);
+                ::close(fd);
+            }
+        } catch (std::runtime_error &e) {}
+        
+        tmp = tmp->ifa_next;
+    }
+    freeifaddrs(addrs);
+    return interfaces;
+}
+
+std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) {
+    std::vector<std::string> devices;
+    std::vector<std::string> interfaces;
+    if (interface == "any") {
+        interfaces = get_can_interfaces();
+    } else {
+        interfaces.push_back(interface);
+    }
+
+    int fd = open_socket(interface);
+    struct can_filter rfilter[1];
+    rfilter[0].can_id   = 0x780;
+    rfilter[0].can_mask = 0x780;
+
+    if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
+        throw std::runtime_error("Error setting filter for " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
+    }
+
+
+    for (std::string &interface : interfaces) {
+        int write_fd = open_socket(interface);
+
+        struct canfd_frame frame = {};
+        frame.can_id  = 0xf << 7;
+        frame.len = 0;
+
+        int nbytes = ::write(write_fd, &frame, sizeof(struct canfd_frame));
+        if (nbytes < 0) {
+            throw std::runtime_error("Error writing can " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    }
+
+    pollfd tmp;
+    tmp.fd = fd;
+    tmp.events = POLLIN;
+    Timer t(10 * 1000 * 1000); // 10 ms
+    do {
+        struct timespec timeout = {};
+        timeout.tv_nsec = t.get_time_remaining_ns();
+        int poll_result = ::ppoll(&tmp, 1, &timeout, nullptr /*sigmask*/);
+        if (poll_result > 0) {
+            struct canfd_frame frame;
+            int nbytes = ::read(fd, &frame, sizeof(struct canfd_frame));
+            if (nbytes >= 0) {
+                int devnum = frame.can_id & 0x7F;
+                devices.push_back(interface + ":" + std::to_string(devnum));
+            } else {
+                throw std::runtime_error("Error reading " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
+            }
+        } else if (poll_result < 0) {
+            throw std::runtime_error("Error polling " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    } while (t.get_time_remaining_ns() > 0);
+
+    return devices;
 }
 
 }; // namespace obot

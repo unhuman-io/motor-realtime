@@ -186,9 +186,23 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_can(std::vector<std::string> can_interfaces, bool connect, bool allow_simulated) {
-    std::vector<std::shared_ptr<Motor>> m(can_interfaces.size());
-    for (uint8_t i=0; i<can_interfaces.size(); i++) {
-        m[i] = std::make_shared<MotorCAN>(can_interfaces[i]);
+    std::vector<std::shared_ptr<Motor>> m;
+    std::vector<std::string> new_interfaces;
+    for (std::string &interface : can_interfaces) {
+        int n = interface.find(":");
+        if (n == std::string::npos) {
+            std::vector<std::string> additional_interfaces = MotorCAN::enumerate_can_devices(interface);
+            if (new_interfaces.size() == 0) {
+                std::cerr << "No can devices found for: " << interface << std::endl;;
+            } else {
+                new_interfaces.insert(new_interfaces.end(), additional_interfaces.begin(), additional_interfaces.end());
+            }
+        } else {
+            new_interfaces.emplace_back(interface);
+        }
+    }
+    for (std::string &interface : new_interfaces) {
+        m.emplace_back(std::make_shared<MotorCAN>(interface));
     }
     if (connect) {
         set_motors(m);
