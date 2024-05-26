@@ -77,13 +77,9 @@ class CANFile : public TextFile {
 };
 
 MotorCAN::MotorCAN(std::string address) {
-
-    std::cout << "MotorCAN constructor: " << address << std::endl;
-
     int n = address.find(":");
     if (n == std::string::npos) {
-        dev_path_ = address;
-        devnum_ = 1;
+        throw std::runtime_error("Error parsing address " + address + ": missing ':'");
     } else {
         dev_path_ = address.substr(0, n);
         std::string tmp = address.substr(n+1,-1);
