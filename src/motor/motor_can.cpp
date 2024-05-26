@@ -107,7 +107,15 @@ MotorCAN::MotorCAN(std::string address) {
     }
 
     motor_txt_ = std::move(std::unique_ptr<CANFile>(new CANFile(fd_, devnum_)));
-	messages_version_ = MOTOR_MESSAGES_VERSION;
+	
+    messages_version_ = operator[]("messages_version").get();
+    name_ = operator[]("name").get();
+    version_ = operator[]("version").get();
+    board_name_ = operator[]("board_name").get();
+    board_rev_ = operator[]("board_rev").get();
+    board_num_ = operator[]("board_num").get();
+    config_ = operator[]("config").get();
+    serial_number_ = operator[]("serial").get();
 }
 
 void MotorCAN::open() {
