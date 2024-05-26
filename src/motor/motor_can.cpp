@@ -21,7 +21,17 @@ namespace obot {
 
 class CANFile : public TextFile {
  public:
-    CANFile(int fd, uint32_t devnum) : fd_(fd), devnum_(devnum) {}
+    CANFile(std::string ifname, uint32_t devnum) : devnum_(devnum) {
+        fd_ = MotorCAN::open_socket(ifname);
+        struct can_filter rfilter[1];
+        rfilter[0].can_id   = 5 << 7 | devnum_;
+        rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
+
+        if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
+            throw std::runtime_error("Error setting filter for " + ifname + ":" + std::to_string(devnum) + ": "
+                + std::to_string(errno) + ": " + strerror(errno));
+        }
+    }
 
     virtual ssize_t read(char * data, unsigned int length) {
         struct canfd_frame frame;
@@ -96,14 +106,14 @@ MotorCAN::MotorCAN(std::string address) {
     }
     open();
     struct can_filter rfilter[1];
-    rfilter[0].can_id   = devnum_;
-    rfilter[0].can_mask = 0x7F | CAN_EFF_FLAG | CAN_RTR_FLAG;
+    rfilter[0].can_id   = 3 << 7 | devnum_;
+    rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
     if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
         throw std::runtime_error("Error setting filter for " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
 
-    motor_txt_ = std::move(std::unique_ptr<CANFile>(new CANFile(fd_, devnum_)));
+    motor_txt_ = std::move(std::unique_ptr<CANFile>(new CANFile(dev_path_, devnum_)));
 	
     messages_version_ = operator[]("messages_version").get();
     name_ = operator[]("name").get();
