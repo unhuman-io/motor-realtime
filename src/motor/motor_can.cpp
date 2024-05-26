@@ -31,6 +31,7 @@ class CANFile : public TextFile {
         int count = 0;
         int nbytes = 0;
         bool success = false;
+        int length_recv = 0;
         do {
             int poll_result = ::poll(&tmp, 1, 10 /* ms */);
             if (poll_result > 0) {
@@ -38,14 +39,14 @@ class CANFile : public TextFile {
                 if (nbytes > 0) {
                     if (frame.can_id == (5 << 7 | devnum_)) {
                         success = true;
-                        length = std::min(length, (unsigned int) frame.len);
-                        std::memcpy(data, frame.data, length);
+                        length_recv = std::min(length, (unsigned int) frame.len);
+                        std::memcpy(data, frame.data, length_recv);
                     }
                 }
             }
             count++; //todo change to timeout
         } while (!success && count < 10);
-        return nbytes;
+        return length_recv;
     }
 
     virtual ssize_t write(const char * data, unsigned int length) {
