@@ -192,7 +192,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_can(std::vector<std
         int n = interface.find(":");
         if (n == std::string::npos) {
             std::vector<std::string> additional_interfaces = MotorCAN::enumerate_can_devices(interface);
-            if (new_interfaces.size() == 0) {
+            if (additional_interfaces.size() == 0) {
                 std::cerr << "No can devices found for: " << interface << std::endl;;
             } else {
                 new_interfaces.insert(new_interfaces.end(), additional_interfaces.begin(), additional_interfaces.end());

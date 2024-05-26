@@ -221,7 +221,7 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
     int fd = open_socket(interface);
     struct can_filter rfilter[1];
     rfilter[0].can_id   = 0x780;
-    rfilter[0].can_mask = 0x780;
+    rfilter[0].can_mask = 0x780 | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
     if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
         throw std::runtime_error("Error setting filter for " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
