@@ -251,12 +251,18 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
         int poll_result = ::ppoll(&tmp, 1, &timeout, nullptr /*sigmask*/);
         if (poll_result > 0) {
             struct canfd_frame frame;
-            int nbytes = ::read(fd, &frame, sizeof(struct canfd_frame));
+            struct sockaddr_can addr;
+            socklen_t len = sizeof(addr);
+            int nbytes = recvfrom(fd, &frame, sizeof(struct can_frame),
+                  0, (struct sockaddr*)&addr, &len);
+            struct ifreq ifr = {};
+            ifr.ifr_ifindex = addr.can_ifindex;
+            ioctl(fd, SIOCGIFNAME, &ifr);
             if (nbytes >= 0) {
                 int devnum = frame.can_id & 0x7F;
-                devices.push_back(interface + ":" + std::to_string(devnum));
+                devices.push_back(std::string(ifr.ifr_name) + ":" + std::to_string(devnum));
             } else {
-                throw std::runtime_error("Error reading " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
+                throw std::runtime_error("Error reading " + interface + "(" + std::string(ifr.ifr_name) + ")" ": " + std::to_string(errno) + ": " + strerror(errno));
             }
         } else if (poll_result < 0) {
             throw std::runtime_error("Error polling " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
