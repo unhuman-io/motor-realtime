@@ -87,6 +87,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> devpaths = {};
     std::vector<std::string> serial_numbers = {};
     std::vector<std::string> uart_paths = {};
+    std::vector<std::string> can_devs = {"any"};
     bool uart_raw = false;
     std::vector<std::string> ips = {};
     Command command = {};
@@ -205,6 +206,7 @@ int main(int argc, char** argv) {
     app.add_flag("--api", api_mode, "Enter API mode");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
+    auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S) [BAUD_RATE]")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });
@@ -258,6 +260,25 @@ int main(int argc, char** argv) {
         }
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
+
+    if (*can_option) {
+        uint32_t baud_rate = 0;
+        if (can_devs.size() > 1) {
+            char *p;
+            long i = std::strtol(can_devs.back().c_str(), &p, 10);
+            if (*p == 0) {
+                baud_rate = i;
+                can_devs.pop_back();
+            }
+        }
+        std::vector<std::shared_ptr<Motor>> tmp_motors;
+        if (baud_rate) {
+            tmp_motors = m.get_motors_can(can_devs);
+        } else {
+            tmp_motors = m.get_motors_can(can_devs);
+        }
+        motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+    }
     bool messages_mismatch = false;
     std::string messages_mismatch_error;
     // remove null motors
@@ -282,7 +303,7 @@ int main(int argc, char** argv) {
         }
     }
     
-    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !ips.size()) {
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !ips.size() && !can_devs.size()){
         try {
             motors = m.get_connected_motors();
         } catch (std::runtime_error &e) {
