@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [ubuntu-20.04, ubuntu-22.04]
+        distro: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.distro }}
     
     steps:
