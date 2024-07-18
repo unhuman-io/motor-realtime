@@ -377,14 +377,14 @@ void MotorManager::set_command_stepper_tuning(TuningMode mode, double amplitude,
     }
 }
 
-void MotorManager::set_command_stepper_velocity(double current,  double velocity, double voltage, StepperMode mode) {
+void MotorManager::set_command_stepper_velocity(const std::vector<float> &current,  const std::vector<float> &velocity, double voltage, StepperMode mode) {
     clear_commands();
     set_command_mode(ModeDesired::STEPPER_VELOCITY);
     for (uint8_t i=0; i<commands_.size(); i++) {
-        commands_[i].stepper_velocity.current = current;
+        commands_[i].stepper_velocity.current = current[i];
         commands_[i].stepper_velocity.stepper_mode = mode;
         commands_[i].stepper_velocity.voltage = voltage;
-        commands_[i].stepper_velocity.velocity = velocity;
+        commands_[i].stepper_velocity.velocity = velocity[i];
     }
 }
 
