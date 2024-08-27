@@ -458,8 +458,12 @@ int main(int argc, char** argv) {
             std::cout << api_str << std::endl;
             for (auto motor : m.motors()) {
                 auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_DATA_SIZE);
-                c[nbytes] = 0;
-                std::cout << motor->name() << ": " << c << std::endl;
+                if (nbytes < 0) {
+                    std::cout << motor->name() << ": api error" << std::endl;
+                } else {
+                    c[nbytes] = 0;
+                    std::cout << motor->name() << ": " << c << std::endl;
+                }
             }
         }
     }
@@ -471,8 +475,12 @@ int main(int argc, char** argv) {
             if (k.new_key()) {
                 char c = k.get_char();
                 auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_DATA_SIZE);
-                data[nbytes] = 0;
-                std::cout << data << std::flush;
+                if (nbytes < 0) {
+                    std::cout << "api error" << std::endl;
+                } else {
+                    data[nbytes] = 0;
+                    std::cout << data << std::flush;
+                }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
