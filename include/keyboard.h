@@ -43,6 +43,7 @@ class Keyboard {
     ~Keyboard() {
         pthread_cancel(t_->native_handle());
         t_->join();
+        delete t_;
         /* restore the former settings */
         tcsetattr(STDIN_FILENO,TCSANOW,&old_tio_);
     }

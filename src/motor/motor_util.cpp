@@ -453,26 +453,34 @@ int main(int argc, char** argv) {
     }
 
     if (*set_api && motors.size()) {
-        char c[MAX_API_DATA_SIZE];
+        char c[MAX_API_DATA_SIZE+1];
         for (auto &api_str : set_api_data) {
             std::cout << api_str << std::endl;
             for (auto motor : m.motors()) {
                 auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_DATA_SIZE);
-                c[nbytes] = 0;
-                std::cout << motor->name() << ": " << c << std::endl;
+                if (nbytes < 0) {
+                    std::cout << motor->name() << ": api_error" << std::endl;
+                } else {
+                    c[nbytes] = 0;
+                    std::cout << motor->name() << ": " << c << std::endl;
+                }
             }
         }
     }
 
     if (api_mode) {
         Keyboard k;
-        char data[MAX_API_DATA_SIZE];
+        char data[MAX_API_DATA_SIZE+1];
         while(!signal_exit) {
             if (k.new_key()) {
                 char c = k.get_char();
                 auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_DATA_SIZE);
-                data[nbytes] = 0;
-                std::cout << data << std::flush;
+                if (nbytes < 0) {
+                    std::cout << "api_error" << std::endl;
+                } else {
+                    data[nbytes] = 0;
+                    std::cout << data << std::flush;
+                }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
