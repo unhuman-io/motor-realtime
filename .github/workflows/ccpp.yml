@@ -91,7 +91,7 @@ jobs:
           - arch: aarch64
             distro: ubuntu18.04
           - arch: aarch64
-            distro: ubuntu24.04
+            distro: ubuntu_latest
           - arch: armv6
             distro: buster
           - arch: armv7
@@ -126,8 +126,8 @@ jobs:
             apt-get install -y cmake-data=3.13.4-1 cmake=3.13.4-1
           fi
     - name: rename
-      if: ${{ matrix.distro == 'ubuntu24.04' }}
-      run: for f in packages/*.deb; do mv $f ${f%.deb}_ubuntu-24.04.deb; done
+      if: ${{ matrix.distro == 'ubuntu_latest' }}
+      run: for f in packages/*.deb; do mv $f ${f%.deb}_ubuntu-latest.deb; done
     - name: Archive production artifacts
       uses: actions/upload-artifact@v3
       with:
