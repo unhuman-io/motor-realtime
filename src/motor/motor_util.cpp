@@ -453,7 +453,7 @@ int main(int argc, char** argv) {
     }
 
     if (*set_api && motors.size()) {
-        char c[MAX_API_DATA_SIZE];
+        char c[MAX_API_DATA_SIZE+1];
         for (auto &api_str : set_api_data) {
             std::cout << api_str << std::endl;
             for (auto motor : m.motors()) {
@@ -470,7 +470,7 @@ int main(int argc, char** argv) {
 
     if (api_mode) {
         Keyboard k;
-        char data[MAX_API_DATA_SIZE];
+        char data[MAX_API_DATA_SIZE+1];
         while(!signal_exit) {
             if (k.new_key()) {
                 char c = k.get_char();
