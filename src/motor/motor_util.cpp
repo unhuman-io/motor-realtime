@@ -459,7 +459,7 @@ int main(int argc, char** argv) {
             for (auto motor : m.motors()) {
                 auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_DATA_SIZE);
                 if (nbytes < 0) {
-                    std::cout << motor->name() << ": api error" << std::endl;
+                    std::cout << motor->name() << ": api_error" << std::endl;
                 } else {
                     c[nbytes] = 0;
                     std::cout << motor->name() << ": " << c << std::endl;
@@ -476,7 +476,7 @@ int main(int argc, char** argv) {
                 char c = k.get_char();
                 auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_DATA_SIZE);
                 if (nbytes < 0) {
-                    std::cout << "api error" << std::endl;
+                    std::cout << "api_error" << std::endl;
                 } else {
                     data[nbytes] = 0;
                     std::cout << data << std::flush;
