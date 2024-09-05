@@ -106,6 +106,7 @@ int main(int argc, char** argv) {
     };
     std::vector<std::string> set_api_data;
     bool api_mode = false;
+    bool api_timing = false;
     int run_stats = 100;
     int timeout_ms = 10;
     bool allow_simulated = false;
@@ -204,6 +205,7 @@ int main(int argc, char** argv) {
     app.add_flag("--lock", lock_motors, "Lock write access to motors");
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)")->expected(1,-1);
     app.add_flag("--api", api_mode, "Enter API mode");
+    app.add_flag("--api-timing", api_timing, "Print API response times");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S) [BAUD_RATE]")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
@@ -474,26 +476,44 @@ int main(int argc, char** argv) {
     }
 
     if (*set_api && motors.size()) {
-        char c[MAX_API_DATA_SIZE];
+        char c[MAX_API_DATA_SIZE+1];
         for (auto &api_str : set_api_data) {
             std::cout << api_str << std::endl;
             for (auto motor : m.motors()) {
+                auto tstart = std::chrono::steady_clock::now();
                 auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_DATA_SIZE);
-                c[nbytes] = 0;
-                std::cout << motor->name() << ": " << c << std::endl;
+                auto tend = std::chrono::steady_clock::now();
+                if (api_timing) {
+                    std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
+                }
+                if (nbytes < 0) {
+                    std::cout << motor->name() << ": api_error" << std::endl;
+                } else {
+                    c[nbytes] = 0;
+                    std::cout << motor->name() << ": " << c << std::endl;
+                }
             }
         }
     }
 
     if (api_mode) {
         Keyboard k;
-        char data[MAX_API_DATA_SIZE];
+        char data[MAX_API_DATA_SIZE+1];
         while(!signal_exit) {
             if (k.new_key()) {
                 char c = k.get_char();
+                auto tstart = std::chrono::steady_clock::now();
                 auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_DATA_SIZE);
-                data[nbytes] = 0;
-                std::cout << data << std::flush;
+                auto tend = std::chrono::steady_clock::now();
+                if (api_timing && c == '\n') {
+                    std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
+                }
+                if (nbytes < 0) {
+                    std::cout << "api_error" << std::endl;
+                } else {
+                    data[nbytes] = 0;
+                    std::cout << data << std::flush;
+                }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
@@ -525,8 +545,13 @@ int main(int argc, char** argv) {
             }
             RealtimeThread text_thread(static_cast<uint32_t>(read_opts.frequency_hz), [&](){
                 for (auto &l : log) {
+                    auto tstart = std::chrono::steady_clock::now();
                     auto str = l.get();
+                    auto tend = std::chrono::steady_clock::now();
                     if (str != "log end") {
+                        if (api_timing) {
+                            std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
+                        }
                         std::cout << str;
                         if (*bits_option) {
                             static std::map<TextAPIItem*, Statistics> s;

@@ -158,7 +158,7 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
   }
 
   std::unique_lock<std::mutex> lk(rx_data_cv_m_);
-  std::cv_status status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(50));
+  std::cv_status status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_));
 
   if (status == std::cv_status::timeout) {
     //std::cout << "timed out" << std::endl;
