@@ -208,7 +208,7 @@ int main(int argc, char** argv) {
     app.add_flag("--api-timing", api_timing, "Print API response times");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
-    auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S) [BAUD_RATE]")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
+    auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });
@@ -305,7 +305,7 @@ int main(int argc, char** argv) {
         }
     }
     
-    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !ips.size() && !can_devs.size()){
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !ips.size() && !*can_option) {
         try {
             motors = m.get_connected_motors();
         } catch (std::runtime_error &e) {
