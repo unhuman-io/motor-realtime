@@ -264,23 +264,11 @@ int main(int argc, char** argv) {
     }
 
     if (*can_option) {
-        uint32_t baud_rate = 0;
-        if (can_devs.size() > 1) {
-            char *p;
-            long i = std::strtol(can_devs.back().c_str(), &p, 10);
-            if (*p == 0) {
-                baud_rate = i;
-                can_devs.pop_back();
-            }
-        }
         std::vector<std::shared_ptr<Motor>> tmp_motors;
-        if (baud_rate) {
-            tmp_motors = m.get_motors_can(can_devs);
-        } else {
-            tmp_motors = m.get_motors_can(can_devs);
-        }
+        tmp_motors = m.get_motors_can(can_devs);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
+    
     bool messages_mismatch = false;
     std::string messages_mismatch_error;
     // remove null motors
