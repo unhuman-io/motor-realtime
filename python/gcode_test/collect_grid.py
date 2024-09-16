@@ -5,8 +5,9 @@ import numpy as np
 import motor
 import curses
 import time
+import datetime
 
-def run(file_out, points_file, vars, navg):
+def run(file_out, points_file, vars, navg, minmax=False):
     motor_manager = motor.MotorManager()
     motor_manager.get_connected_motors()
     active_motor = motor_manager.motors()[0]
@@ -39,6 +40,9 @@ def run(file_out, points_file, vars, navg):
                 f.write("x, y, z, ")
                 for i in range(nvars):
                     f.write("{}, ".format(vars[i]))
+                    if minmax:
+                        f.write("{}, ".format(vars[i] + "_min"))
+                        f.write("{}, ".format(vars[i] + "_max"))
                 f.write("\n")
 
                 for line in fp:
@@ -62,10 +66,17 @@ def run(file_out, points_file, vars, navg):
                     xyz_str = "{:0.3f}, {:0.3f}, {:0.3f}, ".format(x, y, z)
                     f.write(xyz_str)
                     for i in range(nvars):
-                        val_avg = 0
+                        t_start = datetime.datetime.now()
+                        vals = []
                         for j in range(navg):
-                            val_avg += float(active_motor[vars[i]].get())/navg
-                        f.write("{}, ".format(val_avg))
+                            vals.append(float(active_motor[vars[i]].get()))
+                        f.write("{}, ".format(np.mean(vals)))
+                        if minmax:
+                            f.write("{}, ".format(np.min(vals)))
+                            f.write("{}, ".format(np.max(vals)))
+                        t_end = datetime.datetime.now()
+                        t_diff = t_end - t_start
+                        stdscr.addstr(6, 0, "sample time: {:0.3f}".format(t_diff.total_seconds()))
                     f.write("\n")
                     f.flush()
 
@@ -88,7 +99,8 @@ if __name__ == "__main__":
     parser.add_argument("--points-file", default="points.txt", help="XYZ points input")
     parser.add_argument("--vars", default=["mai_phases", "mai_scales", "mdiag"], help="variables to be read", nargs='+')
     parser.add_argument("--navg", type=int, default=500, help="number of averages")
+    parser.add_argument("--minmax", action="store_true", help="store min and max values")
 
     args = parser.parse_args()
 
-    run(args.file_out, args.points_file, args.vars, args.navg)
+    run(args.file_out, args.points_file, args.vars, args.navg, args.minmax)
