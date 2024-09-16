@@ -523,13 +523,19 @@ int main(int argc, char** argv) {
         
         if (*text_read) {
             std::vector<TextAPIItem> log;
-            for (auto s : read_opts.text) {
+            for (auto &s : read_opts.text) {
                 if (s == "log") {
                     // only log
                     log = {(*m.motors()[0])[s]};
                     break;
                 }
                 log.push_back((*m.motors()[0])[s]);
+                std::cout << s;
+                if (&s == &read_opts.text.back()) {
+                    std::cout << std::endl;
+                } else {
+                    std::cout << ", ";
+                }
             }
             RealtimeThread text_thread(static_cast<uint32_t>(read_opts.frequency_hz), [&](){
                 for (auto &l : log) {
