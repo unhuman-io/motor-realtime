@@ -92,7 +92,8 @@ int main(int argc, char** argv) {
     bool uart_raw = false;
     std::vector<std::string> ips = {};
     char * home = getenv("HOME");
-    std::string json_ip_file = home + std::string("/.config/motor_util/device_ip_map.json");
+    std::string json_ip_file_default = home + std::string("/.config/motor_util/device_ip_map.json");
+    std::string json_ip_file = json_ip_file_default;
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map;
     for (const std::pair<const ModeDesired, const std::string> &pair : MotorManager::mode_map) {
@@ -258,7 +259,9 @@ int main(int argc, char** argv) {
                 std::cerr << "Error: json file " << json_ip_file << " could not be parsed: " << e.what() << std::endl;
             }
         } else {
-            std::cerr << "Error: json file " << json_ip_file << " not accessible" << std::endl;
+            if (json_ip_file != json_ip_file_default) {
+                std::cerr << "Error: json file " << json_ip_file << " not accessible" << std::endl;
+            }
         }
 
         auto tmp_motors = m.get_motors_by_ip(ips);
