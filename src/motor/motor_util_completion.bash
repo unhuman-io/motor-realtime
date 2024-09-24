@@ -8,6 +8,7 @@ _motor_util_completion()
         -h|--help) return 0;;
     esac
 
+    local json_ip_file=~/.config/motor_util/device_ip_map.json
     local subcommand
     local i=$COMP_CWORD
     while [[ $i -gt 0 ]]
@@ -21,6 +22,8 @@ _motor_util_completion()
             -d|--devpaths) subcommand=devpaths ; break ;;
             -s|--serial_numbers) subcommand=serial_numbers ; break ;;
             -c|--check-messages-version) subcommand=check_messages_version ; break ;;
+            -i|--ips) subcommand=ips ; break ;;
+            -j|--json-ip-file) subcommand=json_file ; break ;;
             position_tuning|current_tuning|stepper_tuning) subcommand=tuning ; break ;;
             stepper_velocity) subcommand=stepper_velocity ; break ;;
             voltage) subcommand=voltage ; break ;;
@@ -34,6 +37,7 @@ _motor_util_completion()
     local words
     local base_words="-l --list -c --check-messages-version --no-list --list-names-only --list-path-only 
       --list-devpath-only --list-serial-number-only --list-devnum-only --no-dfu-list -n --names -i --ips 
+      -j --json-ip-file 
       -a --uart-paths --uart-raw -f --can -p --paths -d --devpaths -s --serial_numbers set read --set-api 
       --api --api-timing --run-stats --set-timeout -v --version -u --user-space --allow-simulated --lock 
       -h --help";
@@ -51,6 +55,26 @@ _motor_util_completion()
         paths) words="$(motor_util --list-path-only) $base_words" ;;
         devpaths) words="$(motor_util --list-devpath-only) $base_words" ;;
         serial_numbers) words="$(motor_util --list-serial-number-only) $base_words" ;;
+        ips) 
+            while [[ $i -gt 0 ]]
+            do
+                case ${COMP_WORDS[$i]} in
+                    -j|--json-ip-file) json_ip_file=${COMP_WORDS[$((i+1))]}; break ;;
+                esac
+                (( i-- ))
+            done
+            if [ -f $json_ip_file ]; then
+                if command -v jq >/dev/null; then
+                    words="$(jq --raw-output 'to_entries[] | .key ' $json_ip_file | tr '\n' ' ') $base_words"
+                fi
+            else
+                words="$base_words"
+            fi ;;
+        json_file)
+            case $last in
+                -j|--json-ip-file) COMPREPLY=($(compgen -o plusdirs -f -X '!*.json' -- $cur)); return 0 ;;
+            esac
+            words=$base_words ;;
         check_messages_version) words="none major minor $base_words" ;;
         set_api) return 0 ;;
         state) words="--position --velocity --torque --torque_dot --kp --kd --kt --ks -h --help" ;
@@ -80,4 +104,4 @@ _motor_util_completion()
     COMPREPLY=($(compgen -W "$words" -- $cur))
 }
 
-complete -F _motor_util_completion motor_util
+complete -o filenames -F _motor_util_completion motor_util

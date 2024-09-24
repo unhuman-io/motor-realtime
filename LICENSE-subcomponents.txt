@@ -1,4 +1,5 @@
 
 motor-realtime: [required, Unlicense, https://github.com/unhuman-io/motor-realtime/raw/main/UNLICENSE.txt]
     pybind11: [optional, BSD-3, https://github.com/pybind/pybind11/raw/v2.6.2/LICENSE]
-    CLI11: [optional, BSD-3, https://github.com/CLIUtils/CLI11/raw/v1.9.1/LICENSE]
+    CLI11: [optional, BSD-3, https://github.com/CLIUtils/CLI11/raw/v2.3.2/LICENSE]
+    nlohmann/json: [optional, MIT, https://github.com/nlohmann/json/raw/v3.11.3/LICENSE.MIT]

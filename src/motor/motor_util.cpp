@@ -14,6 +14,7 @@
 #include "realtime_thread.h"
 #include "keyboard.h"
 #include "motor_util_fun.h"
+#include <json.hpp>
 
 using namespace obot;
 
@@ -90,6 +91,9 @@ int main(int argc, char** argv) {
     std::vector<std::string> can_devs = {"any"};
     bool uart_raw = false;
     std::vector<std::string> ips = {};
+    char * home = getenv("HOME");
+    std::string json_ip_file_default = home + std::string("/.config/motor_util/device_ip_map.json");
+    std::string json_ip_file = json_ip_file_default;
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map;
     for (const std::pair<const ModeDesired, const std::string> &pair : MotorManager::mode_map) {
@@ -200,6 +204,7 @@ int main(int argc, char** argv) {
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
     app.add_option("-i,--ips", ips, "Connect to IP(S)")->type_name("IP")->expected(-1);
+    app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     auto uart_paths_option = app.add_option("-a,--uart-paths", uart_paths, "Connect to UART_PATH(S) [BAUD_RATE]")->type_name("UART_PATH")->expected(-1);
     app.add_flag("--uart-raw", uart_raw, "Use raw protocol for UART")->needs(uart_paths_option);
     app.add_flag("--lock", lock_motors, "Lock write access to motors");
@@ -241,6 +246,24 @@ int main(int argc, char** argv) {
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
     if (ips.size()) {
+        // translate name aliases to ips via json file
+        if (access(json_ip_file.c_str(), F_OK) == 0) {
+            try {
+                auto motor_ips = nlohmann::json::parse(std::ifstream(json_ip_file));
+                for (auto &address : ips) {
+                    if (motor_ips.find(address) != motor_ips.end()) {
+                        address = motor_ips[address].get<std::string>();
+                    }
+                }
+            } catch (nlohmann::json::parse_error &e) {
+                std::cerr << "Error: json file " << json_ip_file << " could not be parsed: " << e.what() << std::endl;
+            }
+        } else {
+            if (json_ip_file != json_ip_file_default) {
+                std::cerr << "Error: json file " << json_ip_file << " not accessible" << std::endl;
+            }
+        }
+
         auto tmp_motors = m.get_motors_by_ip(ips);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
