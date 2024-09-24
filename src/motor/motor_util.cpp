@@ -247,12 +247,18 @@ int main(int argc, char** argv) {
     if (ips.size()) {
         // translate name aliases to ips via json file
         if (access(json_ip_file.c_str(), F_OK) == 0) {
-            auto motor_ips = nlohmann::json::parse(std::ifstream(json_ip_file));
-            for (auto &address : ips) {
-                if (motor_ips.find(address) != motor_ips.end()) {
-                    address = motor_ips[address].get<std::string>();
+            try {
+                auto motor_ips = nlohmann::json::parse(std::ifstream(json_ip_file));
+                for (auto &address : ips) {
+                    if (motor_ips.find(address) != motor_ips.end()) {
+                        address = motor_ips[address].get<std::string>();
+                    }
                 }
+            } catch (nlohmann::json::parse_error &e) {
+                std::cerr << "Error: json file " << json_ip_file << " could not be parsed: " << e.what() << std::endl;
             }
+        } else {
+            std::cerr << "Error: json file " << json_ip_file << " not accessible" << std::endl;
         }
 
         auto tmp_motors = m.get_motors_by_ip(ips);
