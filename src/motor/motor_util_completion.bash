@@ -59,11 +59,17 @@ _motor_util_completion()
             while [[ $i -gt 0 ]]
             do
                 case ${COMP_WORDS[$i]} in
-                    -j|--json-ip-file) json_ip_file=${COMP_WORDS[$((i+1))]}; break ;;
+                    -j|--json-ip-file) json_ip_file=realpath ${COMP_WORDS[$((i+1))]}; break ;;
                 esac
                 (( i-- ))
             done
-            words="$(if [ -f $json_ip_file ]; then jq --raw-output 'to_entries[] | .key ' $json_ip_file | tr '\n' ' '; fi) $base_words" ;;
+            if [ -f $json_ip_file ]; then
+                if command -v jq >/dev/null; then
+                    words="$(jq --raw-output 'to_entries[] | .key ' $json_ip_file | tr '\n' ' ') $base_words"
+                else
+                    words="$base_words"
+                fi
+            fi ;;
         json_file) COMPREPLY=($(compgen -o plusdirs -f -X '!*.json' -- $cur)); return 0 ;;
         check_messages_version) words="none major minor $base_words" ;;
         set_api) return 0 ;;
