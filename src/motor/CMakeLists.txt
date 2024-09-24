@@ -28,7 +28,7 @@ install(FILES ${PROJECT_SOURCE_DIR}/include/motor_messages/motor_messages.h
 
 if(BUILD_MOTOR_UTIL)
     add_executable(motor_util motor_util.cpp motor_util_fun.cpp)
-    target_link_libraries(motor_util motor_manager)
+    target_link_libraries(motor_util motor_manager json)
     target_include_directories(motor_util PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../../)
     install(TARGETS motor_util DESTINATION bin)
 
