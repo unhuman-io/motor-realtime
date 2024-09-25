@@ -203,7 +203,7 @@ int main(int argc, char** argv) {
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
-    app.add_option("-i,--ips", ips, "Connect to IP(S)")->type_name("IP")->expected(-1);
+    auto ip_option = app.add_option("-i,--ips", ips, "Connect to IP(S). If left empty, connect to all ips specified in --json-ip-file")->type_name("IP")->expected(0,-1)->default_str("{}");
     app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     auto uart_paths_option = app.add_option("-a,--uart-paths", uart_paths, "Connect to UART_PATH(S) [BAUD_RATE]")->type_name("UART_PATH")->expected(-1);
     app.add_flag("--uart-raw", uart_raw, "Use raw protocol for UART")->needs(uart_paths_option);
@@ -245,16 +245,23 @@ int main(int argc, char** argv) {
         auto tmp_motors = m.get_motors_by_serial_number(serial_numbers);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
-    if (ips.size()) {
+    if (*ip_option) {
         // translate name aliases to ips via json file
         if (access(json_ip_file.c_str(), F_OK) == 0) {
             try {
                 auto motor_ips = nlohmann::json::parse(std::ifstream(json_ip_file));
+                if (ips.size() == 0) {
+                    // connect to all ips
+                    for(auto &ip : motor_ips.items()) {
+                        ips.push_back(ip.key());
+                    }
+                }
                 for (auto &address : ips) {
                     if (motor_ips.find(address) != motor_ips.end()) {
                         address = motor_ips[address].get<std::string>();
                     }
                 }
+                
             } catch (nlohmann::json::parse_error &e) {
                 std::cerr << "Error: json file " << json_ip_file << " could not be parsed: " << e.what() << std::endl;
             }
@@ -316,7 +323,7 @@ int main(int argc, char** argv) {
         }
     }
     
-    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !ips.size() && !*can_option) {
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !*ip_option && !*can_option) {
         try {
             motors = m.get_connected_motors();
         } catch (std::runtime_error &e) {
