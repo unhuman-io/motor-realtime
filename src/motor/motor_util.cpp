@@ -79,7 +79,9 @@ struct ReadOptions {
 
 bool signal_exit = false;
 int main(int argc, char** argv) {
-    CLI::App app{"Utility for communicating with motor drivers"};
+    CLI::App app{"Utility for communicating with motor drivers\n"
+                 "\n"
+                 "Use the environment variable MOTOR_UTIL_CONFIG_DIR to set the configuration directory\n"};
     bool verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false, list_devnum=false;
     bool no_dfu_list = false;
     bool user_space_driver = false;
@@ -91,8 +93,18 @@ int main(int argc, char** argv) {
     std::vector<std::string> can_devs = {"any"};
     bool uart_raw = false;
     std::vector<std::string> ips = {};
-    char * home = getenv("HOME");
-    std::string json_ip_file_default = home + std::string("/.config/motor_util/device_ip_map.json");
+    
+    std::string config_dir;
+    char * config_dir_env = getenv("MOTOR_UTIL_CONFIG_DIR");
+    if (config_dir_env == NULL) {
+        config_dir = std::string(getenv("HOME")) + "/.config/motor_util/";
+    } else {
+        config_dir = std::string(config_dir_env);
+        if (config_dir.back() != '/') {
+            config_dir += "/";
+        }
+    }
+    std::string json_ip_file_default = config_dir + "device_ip_map.json";
     std::string json_ip_file = json_ip_file_default;
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map;
