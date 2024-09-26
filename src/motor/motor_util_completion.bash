@@ -8,7 +8,8 @@ _motor_util_completion()
         -h|--help) return 0;;
     esac
 
-    local json_ip_file=~/.config/motor_util/device_ip_map.json
+    local config_dir=${MOTOR_UTIL_CONFIG_DIR:=~/.config/motor_util}
+    local json_ip_file=$config_dir/device_ip_map.json
     local subcommand
     local i=$COMP_CWORD
     while [[ $i -gt 0 ]]
