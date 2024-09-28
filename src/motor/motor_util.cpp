@@ -104,9 +104,9 @@ int main(int argc, char** argv) {
         // right now the only thing in the config directory is the device_ip_map.json
         // will have to figure out the search path implementation later if other files are added
         config_dir = std::string(getenv("HOME")) + "/.config/motor_util/";
-        if (std::filesystem::exists(config_dir + "device_ip_map.json")) {
+        if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
             config_dir = "/etc/motor_util/";
-            if (!std::filesystem::exists(config_dir + "device_ip_map.json")) {
+            if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
                 config_dir = "/usr/share/motor-realtime/";
             }
         }

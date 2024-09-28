@@ -9,6 +9,12 @@ _motor_util_completion()
     esac
 
     local config_dir=${MOTOR_UTIL_CONFIG_DIR:=~/.config/motor_util}
+    if [ ! -f $config_dir/device_ip_map.json ]; then
+        config_dir=/etc/motor_util
+        if [ ! -f $config_dir/device_ip_map.json ]; then
+            config_dir=/usr/share/motor-realtime
+        fi
+    fi
     local json_ip_file=$config_dir/device_ip_map.json
     local subcommand
     local i=$COMP_CWORD
