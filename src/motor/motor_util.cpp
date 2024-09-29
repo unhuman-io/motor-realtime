@@ -81,7 +81,11 @@ bool signal_exit = false;
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers\n"
                  "\n"
-                 "Use the environment variable MOTOR_UTIL_CONFIG_DIR to set the configuration directory\n"};
+                 "Use the environment variable MOTOR_UTIL_CONFIG_DIR to set the configuration directory\n"
+                 "Or else the configuration path is checked in order:\n"
+                 "    ~/.config/motor_util/\n"
+                 "    /etc/motor_util/\n"
+                 "    /usr/share/motor-realtime/\n"};
     bool verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false, list_devnum=false;
     bool no_dfu_list = false;
     bool user_space_driver = false;
@@ -97,7 +101,15 @@ int main(int argc, char** argv) {
     std::string config_dir;
     char * config_dir_env = getenv("MOTOR_UTIL_CONFIG_DIR");
     if (config_dir_env == NULL) {
+        // right now the only thing in the config directory is the device_ip_map.json
+        // will have to figure out the search path implementation later if other files are added
         config_dir = std::string(getenv("HOME")) + "/.config/motor_util/";
+        if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
+            config_dir = "/etc/motor_util/";
+            if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
+                config_dir = "/usr/share/motor-realtime/";
+            }
+        }
     } else {
         config_dir = std::string(config_dir_env);
         if (config_dir.back() != '/') {
