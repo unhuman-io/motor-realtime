@@ -170,11 +170,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated) {
     std::vector<std::shared_ptr<Motor>> m(ips.size());
-    std::vector<std::promise<std::shared_ptr<MotorIP>>> promises(ips.size());
     std::vector<std::future<std::shared_ptr<MotorIP>>> futures(ips.size());
-    std::vector<std::thread> threads(ips.size());
-
-    int j = 0;
     for (uint8_t i=0; i<ips.size(); i++) {
         std::string& ip = ips[i];
         futures[i] = std::async(std::launch::async, [&ip]
@@ -183,9 +179,9 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
             return motor;
         });
     }
+    int j = 0;
     for (uint8_t i=0; i<ips.size(); i++) {
         std::shared_ptr<MotorIP> motor = futures[i].get();
-        threads[i].join();
         if (motor->connected()) {
             m[j++] = motor;
         } else {
