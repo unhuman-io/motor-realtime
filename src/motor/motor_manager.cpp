@@ -176,15 +176,12 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
 
     int j = 0;
     for (uint8_t i=0; i<ips.size(); i++) {
-        futures[i] = promises[i].get_future();
-        std::string &ip = ips[i];
-        std::promise<std::shared_ptr<MotorIP>> &promise = promises[i];
-        auto lambda = [&promise](std::string ip) {
+        std::string& ip = ips[i];
+        futures[i] = std::async(std::launch::async, [&ip]
+        {
             std::shared_ptr<MotorIP> motor = std::make_shared<MotorIP>(ip);
-            promise.set_value(motor);
-        };
-        std::thread thread(lambda, ip);
-        threads[i] = std::move(thread);
+            return motor;
+        });
     }
     for (uint8_t i=0; i<ips.size(); i++) {
         std::shared_ptr<MotorIP> motor = futures[i].get();
