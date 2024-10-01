@@ -11,6 +11,7 @@
 #include <poll.h>
 #include "motor_util_fun.h"
 #include <sstream>
+#include <future>
 
 namespace obot {
 
@@ -167,15 +168,33 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std
     return m;
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool allow_simulated) {
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated) {
     std::vector<std::shared_ptr<Motor>> m(ips.size());
+    std::vector<std::promise<std::shared_ptr<MotorIP>>> promises(ips.size());
+    std::vector<std::future<std::shared_ptr<MotorIP>>> futures(ips.size());
+    std::vector<std::thread> threads(ips.size());
+
     int j = 0;
     for (uint8_t i=0; i<ips.size(); i++) {
-        std::shared_ptr<MotorIP> motor = std::make_shared<MotorIP>(ips[i]);
+        futures[i] = promises[i].get_future();
+        std::string &ip = ips[i];
+        std::promise<std::shared_ptr<MotorIP>> &promise = promises[i];
+        auto lambda = [&promise](std::string ip) {
+            std::shared_ptr<MotorIP> motor = std::make_shared<MotorIP>(ip);
+            promise.set_value(motor);
+        };
+        std::thread thread(lambda, ip);
+        threads[i] = std::move(thread);
+    }
+    for (uint8_t i=0; i<ips.size(); i++) {
+        std::shared_ptr<MotorIP> motor = futures[i].get();
+        threads[i].join();
         if (motor->connected()) {
             m[j++] = motor;
         } else {
-            std::cerr << "Motor IP: " << motor->addrstr_ << "(" << motor->hostname_ << ") not connected" << std::endl;
+            if (print_unconnected) {
+                std::cerr << "Motor IP: " << motor->addrstr_ << "(" << motor->hostname_ << ") not connected" << std::endl;
+            }
         }
     }
     m.resize(j);

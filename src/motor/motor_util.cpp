@@ -118,6 +118,7 @@ int main(int argc, char** argv) {
     }
     std::string json_ip_file_default = config_dir + "device_ip_map.json";
     std::string json_ip_file = json_ip_file_default;
+    bool no_print_unconnected = false;
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map;
     for (const std::pair<const ModeDesired, const std::string> &pair : MotorManager::mode_map) {
@@ -229,6 +230,7 @@ int main(int argc, char** argv) {
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
     auto ip_option = app.add_option("-i,--ips", ips, "Connect to IP(S). If left empty, connect to all ips specified in --json-ip-file")->type_name("IP")->expected(0,-1)->default_str("{}");
     app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
+    app.add_flag("--no-print-unconnected", no_print_unconnected, "Don't print unconnected motors, currently only used with --ips");
     auto uart_paths_option = app.add_option("-a,--uart-paths", uart_paths, "Connect to UART_PATH(S) [BAUD_RATE]")->type_name("UART_PATH")->expected(-1);
     app.add_flag("--uart-raw", uart_raw, "Use raw protocol for UART")->needs(uart_paths_option);
     app.add_flag("--lock", lock_motors, "Lock write access to motors");
@@ -250,6 +252,7 @@ int main(int argc, char** argv) {
         read_opts.timestamp_in_seconds = true;
         read_opts.host_time = true;
         no_list = true;
+        no_print_unconnected = true;
     }
 
     MotorManager m(user_space_driver, check_messages_version);
@@ -295,7 +298,7 @@ int main(int argc, char** argv) {
             }
         }
 
-        auto tmp_motors = m.get_motors_by_ip(ips);
+        auto tmp_motors = m.get_motors_by_ip(ips, true, !no_print_unconnected);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
     if (uart_paths.size()) {
