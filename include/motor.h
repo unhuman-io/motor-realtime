@@ -131,12 +131,13 @@ class USBFile : public TextFile {
         lockf(fd_, F_ULOCK, 0);
         return retval;
     }
+    uint32_t timeout_ms_ = 100;
  private:
     ssize_t read(char *data, unsigned int length) override { 
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_IN,
             .len = length,
-            .timeout = 1000,
+            .timeout = timeout_ms_,
             .data = data
         };
 
@@ -148,6 +149,33 @@ class USBFile : public TextFile {
                 throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
             }
         }
+        // retval is count received
+        // same parsing used in usb_rt_driver
+        if (retval > 1) {
+            if (data[0] == 0) {
+                // a control packet
+                if (data[1] == 1) {
+                    // timeout request
+                    if (retval == 8) {
+                        // timeout request
+                        // retriggers the read with the new timeout
+                        __u32 timeout_us = 0;
+                        timeout_us = data[4] | (data[5] << 8) | (data[6] << 16) | (data[7] << 24);
+                        transfer.timeout = std::max(timeout_ms_, timeout_us / 1000);
+                        transfer.len = length;
+                        retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+                        if (retval < 0) {
+                            if (errno == ETIMEDOUT) {
+                                return 0;
+                            } else {
+                                throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+                            }
+                        }
+                    }
+                }
+            }
+        } // else always fall back to just returning the data
+
         return retval;
     }
     virtual ssize_t write(const char *data, unsigned int length) override { 
@@ -156,7 +184,7 @@ class USBFile : public TextFile {
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_OUT,
             .len = length,
-            .timeout = 100,
+            .timeout = timeout_ms_,
             .data = buf
         };
 
@@ -476,7 +504,7 @@ class UserSpaceMotor : public Motor {
             struct usbdevfs_bulktransfer transfer = {
                 .ep = static_cast<uint8_t>(ep_num_ | USB_DIR_IN),
                 .len = sizeof(status_),
-                .timeout = 100,
+                .timeout = timeout_ms_,
                 .data = &status_
             };
 
@@ -521,6 +549,11 @@ class UserSpaceMotor : public Motor {
         aread_in_progress_ = true;
         return retval;
     }
+    virtual void set_timeout_ms(int timeout_ms) override {
+        timeout_ms_ = timeout_ms;
+        static_cast<USBFile *>(motor_txt_.get())->timeout_ms_ = timeout_ms;
+    }
+    virtual int get_timeout_ms() const override { return timeout_ms_; }
  private:
     int open() {
         int retval = Motor::open();
@@ -545,6 +578,7 @@ class UserSpaceMotor : public Motor {
         // fd_ closed by base
         return 0;
     }
+    uint32_t timeout_ms_ = 100;
     uint8_t ep_num_;
     bool aread_in_progress_ = false;
     usbdevfs_urb aread_transfer_{
