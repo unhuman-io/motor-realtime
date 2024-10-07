@@ -35,8 +35,8 @@ class TextFile {
     virtual ssize_t write(const char * /* data */, unsigned int /* length */) { return 0; }
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) { return 0; }
     std::string writeread(const std::string str) {
-        char str_in[MAX_API_DATA_SIZE+1];
-        ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_DATA_SIZE);
+        char str_in[MAX_API_LONG_DATA_SIZE+1]; // 3x for some long packets
+        ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_LONG_DATA_SIZE);
         if (s < 0) {
             throw std::runtime_error("text writeread failure " + std::to_string(errno) + ": " + strerror(errno));
         }
@@ -174,18 +174,20 @@ class USBFile : public TextFile {
                     }
                 } else if (data[1] == 2) {
                     // long packet
-                    uint16_t total_length = data[4] | (data[5] << 8);
-                    uint16_t packet_number = data[6] | (data[7] << 8);
+                    uint16_t total_length = (uint8_t) data[4] | (data[5] << 8);
+                    uint16_t packet_number = (uint8_t) data[6] | (data[7] << 8);
                     const uint8_t header_size = 8;
                     uint16_t total_count_received = retval - header_size;
+                    std::cout << "long packet: " << total_length << " " << packet_number << " " << total_count_received << " " << length << std::endl;
                     if (total_length > length) {
                         // too long
                         return -EINVAL;
                     }
-                    // dev_info(&intf->dev, "long packet: %d %d %d\n", total_length, packet_number, total_count_received);
                     memcpy(data, data + header_size, total_count_received);
                     while (total_length > total_count_received) {
                         // assemble multiple packets
+                        char * data_ptr = data + total_count_received;
+                        transfer.data = data_ptr;
                         retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
                         if (retval < 0) {
                             if (errno == ETIMEDOUT) {
@@ -195,7 +197,7 @@ class USBFile : public TextFile {
                             }
                         }
                         total_count_received += retval - header_size;
-                        memcpy(data+total_count_received, data+total_count_received+header_size, retval-header_size);
+                        memcpy(data_ptr, data_ptr+header_size, retval-header_size);
                         // ignoring packet_number
                     }
                     retval = total_count_received;
@@ -244,8 +246,8 @@ class TextAPIItem {
         return c;
     }
     std::string get() const {     
-        char c[MAX_API_DATA_SIZE+1] = {};
-        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_DATA_SIZE);
+        char c[MAX_API_LONG_DATA_SIZE+1] = {};
+        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_LONG_DATA_SIZE);
         if (nbytes < 0) {
             if (!no_throw_) {
                 throw std::runtime_error("text api get error " + std::to_string(errno) + ": " + strerror(errno));
