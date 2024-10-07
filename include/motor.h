@@ -172,6 +172,33 @@ class USBFile : public TextFile {
                             }
                         }
                     }
+                } else if (data[1] == 2) {
+                    // long packet
+                    uint16_t total_length = data[4] | (data[5] << 8);
+                    uint16_t packet_number = data[6] | (data[7] << 8);
+                    const uint8_t header_size = 8;
+                    uint16_t total_count_received = retval - header_size;
+                    if (total_length > length) {
+                        // too long
+                        return -EINVAL;
+                    }
+                    // dev_info(&intf->dev, "long packet: %d %d %d\n", total_length, packet_number, total_count_received);
+                    memcpy(data, data + header_size, total_count_received);
+                    while (total_length > total_count_received) {
+                        // assemble multiple packets
+                        retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+                        if (retval < 0) {
+                            if (errno == ETIMEDOUT) {
+                                return 0;
+                            } else {
+                                throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+                            }
+                        }
+                        total_count_received += retval - header_size;
+                        memcpy(data+total_count_received, data+total_count_received+header_size, retval-header_size);
+                        // ignoring packet_number
+                    }
+                    retval = total_count_received;
                 }
             }
         } // else always fall back to just returning the data
