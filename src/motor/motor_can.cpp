@@ -33,7 +33,7 @@ class CANFile : public TextFile {
         }
     }
 
-    virtual ssize_t read(char * data, unsigned int length) {
+    ssize_t _read(char * data, unsigned int length) {
         struct canfd_frame frame;
         pollfd tmp;
         tmp.fd = fd_;
@@ -51,9 +51,6 @@ class CANFile : public TextFile {
                         success = true;
                         length_recv = std::min(length, (unsigned int) frame.len);
                         std::memcpy(data, frame.data, length_recv);
-                        if (is_control_packet(data, length_recv)) {
-                            
-                        }
                     }
                 }
             }
@@ -62,59 +59,49 @@ class CANFile : public TextFile {
         return length_recv;
     }
 
-        if (retval > 1) {
-            if (data[0] == 0) {
-                // a control packet
-                if (data[1] == 1) {
+    virtual ssize_t read(char * data, unsigned int length) {
+        ssize_t retval = _read(data, length);
+        
+        if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
+            // a control packet
+            APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data);
+            if (packet->type == TIMEOUT_REQUEST) {
+                // timeout request
+                if (retval == sizeof(APIControlPacket)) {
                     // timeout request
-                    if (retval == 8) {
-                        // timeout request
-                        // retriggers the read with the new timeout
-                        __u32 timeout_us = 0;
-                        timeout_us = data[4] | (data[5] << 8) | (data[6] << 16) | (data[7] << 24);
-                        transfer.timeout = timeout_ms_ + timeout_us / 1000;
-                        transfer.len = length;
-                        retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
-                        if (retval < 0) {
-                            if (errno == ETIMEDOUT) {
-                                return 0;
-                            } else {
-                                throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
-                            }
-                        }
-                    }
-                } else if (data[1] == 2) {
-                    // long packet
-                    uint16_t total_length = (uint8_t) data[4] | (data[5] << 8);
-                    uint16_t packet_number = (uint8_t) data[6] | (data[7] << 8);
-                    const uint8_t header_size = 8;
-                    uint16_t total_count_received = retval - header_size;
-                    std::cout << "long packet: " << total_length << " " << packet_number << " " << total_count_received << " " << length << std::endl;
-                    if (total_length > length) {
-                        // too long
-                        return -EINVAL;
-                    }
-                    memcpy(data, data + header_size, total_count_received);
-                    while (total_length > total_count_received) {
-                        // assemble multiple packets
-                        char * data_ptr = data + total_count_received;
-                        transfer.data = data_ptr;
-                        retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
-                        if (retval < 0) {
-                            if (errno == ETIMEDOUT) {
-                                return 0;
-                            } else {
-                                throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
-                            }
-                        }
-                        total_count_received += retval - header_size;
-                        memcpy(data_ptr, data_ptr+header_size, retval-header_size);
-                        // ignoring packet_number
-                    }
-                    retval = total_count_received;
+                    // retriggers the read with the new timeout
+                    uint32_t old_timeout_ms = timeout_ms_;
+                    timeout_ms_ += packet->timeout_request.timeout_us/1000;
+                    ssize_t retval = _read(data, length);
+                    timeout_ms_ = old_timeout_ms;
+                    return retval;
                 }
+            } else if (packet->type == LONG_PACKET) {
+                // long packet
+                uint16_t total_length = packet->long_packet.total_length;
+                uint16_t packet_number = packet->long_packet.packet_number;
+                const uint8_t header_size = sizeof(APIControlPacket);
+                uint16_t total_count_received = retval - header_size;
+                if (total_length > length) {
+                    // too long
+                    return -EINVAL;
+                }
+                std::memcpy(data, data + header_size, total_count_received);
+                while (total_length > total_count_received) {
+                    // assemble multiple packets
+                    char * data_ptr = data + total_count_received;
+                    retval = _read(data_ptr, length);
+                    if (retval < 0) {
+                        return retval;
+                    }
+                    total_count_received += retval - header_size;
+                    // ignoring packet_number
+                }
+                return total_count_received;
             }
-        } // else always fall back to just returning the data
+        }
+        return retval;
+    }
 
 
     virtual ssize_t write(const char * data, unsigned int length) {
