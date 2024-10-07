@@ -161,7 +161,7 @@ class USBFile : public TextFile {
                         // retriggers the read with the new timeout
                         __u32 timeout_us = 0;
                         timeout_us = data[4] | (data[5] << 8) | (data[6] << 16) | (data[7] << 24);
-                        transfer.timeout = std::max(timeout_ms_, timeout_us / 1000);
+                        transfer.timeout = timeout_ms_ + timeout_us / 1000;
                         transfer.len = length;
                         retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
                         if (retval < 0) {
