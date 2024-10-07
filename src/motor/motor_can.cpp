@@ -43,7 +43,7 @@ class CANFile : public TextFile {
         bool success = false;
         int length_recv = 0;
         do {
-            int poll_result = ::poll(&tmp, 1, 10 /* ms */);
+            int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
             if (poll_result > 0) {
                 nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
                 if (nbytes > 0) {
@@ -51,13 +51,71 @@ class CANFile : public TextFile {
                         success = true;
                         length_recv = std::min(length, (unsigned int) frame.len);
                         std::memcpy(data, frame.data, length_recv);
+                        if (is_control_packet(data, length_recv)) {
+                            
+                        }
                     }
                 }
             }
-            count++; //todo change to timeout
-        } while (!success && count < 10);
+            count++;
+        } while (!success && count < 1);
         return length_recv;
     }
+
+        if (retval > 1) {
+            if (data[0] == 0) {
+                // a control packet
+                if (data[1] == 1) {
+                    // timeout request
+                    if (retval == 8) {
+                        // timeout request
+                        // retriggers the read with the new timeout
+                        __u32 timeout_us = 0;
+                        timeout_us = data[4] | (data[5] << 8) | (data[6] << 16) | (data[7] << 24);
+                        transfer.timeout = timeout_ms_ + timeout_us / 1000;
+                        transfer.len = length;
+                        retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+                        if (retval < 0) {
+                            if (errno == ETIMEDOUT) {
+                                return 0;
+                            } else {
+                                throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+                            }
+                        }
+                    }
+                } else if (data[1] == 2) {
+                    // long packet
+                    uint16_t total_length = (uint8_t) data[4] | (data[5] << 8);
+                    uint16_t packet_number = (uint8_t) data[6] | (data[7] << 8);
+                    const uint8_t header_size = 8;
+                    uint16_t total_count_received = retval - header_size;
+                    std::cout << "long packet: " << total_length << " " << packet_number << " " << total_count_received << " " << length << std::endl;
+                    if (total_length > length) {
+                        // too long
+                        return -EINVAL;
+                    }
+                    memcpy(data, data + header_size, total_count_received);
+                    while (total_length > total_count_received) {
+                        // assemble multiple packets
+                        char * data_ptr = data + total_count_received;
+                        transfer.data = data_ptr;
+                        retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+                        if (retval < 0) {
+                            if (errno == ETIMEDOUT) {
+                                return 0;
+                            } else {
+                                throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+                            }
+                        }
+                        total_count_received += retval - header_size;
+                        memcpy(data_ptr, data_ptr+header_size, retval-header_size);
+                        // ignoring packet_number
+                    }
+                    retval = total_count_received;
+                }
+            }
+        } // else always fall back to just returning the data
+
 
     virtual ssize_t write(const char * data, unsigned int length) {
         struct canfd_frame frame = {};
@@ -85,6 +143,7 @@ class CANFile : public TextFile {
 
     int fd_;
     uint32_t devnum_;
+    int timeout_ms_ = 10;
 };
 
 MotorCAN::MotorCAN(std::string address) {
@@ -123,6 +182,12 @@ MotorCAN::MotorCAN(std::string address) {
     board_num_ = operator[]("board_num").get();
     config_ = operator[]("config").get();
     serial_number_ = operator[]("serial").get();
+}
+
+uint32_t MotorCAN::timeout_ms_ = 10;
+void MotorCAN::set_timeout_ms(int timeout_ms) {
+    timeout_ms_ = timeout_ms;
+    static_cast<CANFile*>(motor_txt_.get())->timeout_ms_ = timeout_ms;
 }
 
 void MotorCAN::open() {
@@ -259,7 +324,7 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
     pollfd tmp;
     tmp.fd = fd;
     tmp.events = POLLIN;
-    Timer t(10 * 1000 * 1000); // 10 ms
+    Timer t(timeout_ms_ * 1000 * 1000); // 10 ms
     do {
         struct timespec timeout = {};
         timeout.tv_nsec = t.get_time_remaining_ns();
