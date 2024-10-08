@@ -223,7 +223,7 @@ ssize_t MotorCAN::read() {
     pollfd tmp;
     tmp.fd = fd_;
     tmp.events = POLLIN;
-    int poll_result = ::poll(&tmp, 1, 10 /* ms */);
+    int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
     int nbytes = 0;
     if (poll_result > 0) {
         nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
@@ -316,6 +316,9 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
     do {
         struct timespec timeout = {};
         timeout.tv_nsec = t.get_time_remaining_ns();
+        if (timeout.tv_nsec == 0) {
+            break;
+        }
         int poll_result = ::ppoll(&tmp, 1, &timeout, nullptr /*sigmask*/);
         if (poll_result > 0) {
             struct canfd_frame frame;
