@@ -208,6 +208,7 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
               if (retval < 0) {
                   return retval;
               }
+              std::memcpy(data_ptr, data_ptr + header_size, retval - header_size);
               total_count_received += retval - header_size;
               // ignoring packet_number
           }
