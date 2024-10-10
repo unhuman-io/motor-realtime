@@ -39,7 +39,7 @@ class UDPFile : public TextFile {
     uint8_t recv_frame_id_ = 2; // status
     uint8_t send_recv_frame_id_ = 3; // command_status
     int fd_;
-    int timeout_ms_ = 10;
+    int timeout_ms_ = 50;
 
     void register_parser_callbacks() {
         parser_.registerCallback(recv_frame_id_, [this](const uint8_t* buf, uint16_t len){ 
@@ -54,6 +54,7 @@ class UDPFile : public TextFile {
     std::condition_variable rx_data_cv_;
     std::mutex rx_data_cv_m_;
     uint8_t rx_buf_[1024];
+    size_t rx_len_ = 0;
 };
 
 class MotorIP : public Motor {

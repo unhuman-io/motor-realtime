@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [ubuntu-20.04, ubuntu-22.04]
+        distro: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.distro }}
     
     steps:
@@ -90,6 +90,10 @@ jobs:
         include:
           - arch: aarch64
             distro: ubuntu18.04
+          - arch: aarch64
+            distro: ubuntu20.04
+          - arch: aarch64
+            distro: ubuntu_latest
           - arch: armv6
             distro: buster
           - arch: armv7
@@ -123,6 +127,12 @@ jobs:
             apt-get remove -y cmake-data
             apt-get install -y cmake-data=3.13.4-1 cmake=3.13.4-1
           fi
+    - name: rename latest
+      if: ${{ matrix.distro == 'ubuntu_latest' }}
+      run: for f in packages/*.deb; do mv $f ${f%.deb}_ubuntu-24.04.deb; done
+    - name: rename 20.04
+      if: ${{ matrix.distro == 'ubuntu20.04' }}
+      run: for f in packages/*.deb; do mv $f ${f%.deb}_ubuntu-20.04.deb; done
     - name: Archive production artifacts
       uses: actions/upload-artifact@v3
       with:

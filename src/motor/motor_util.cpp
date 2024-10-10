@@ -14,6 +14,7 @@
 #include "realtime_thread.h"
 #include "keyboard.h"
 #include "motor_util_fun.h"
+#include <json.hpp>
 
 using namespace obot;
 
@@ -78,7 +79,13 @@ struct ReadOptions {
 
 bool signal_exit = false;
 int main(int argc, char** argv) {
-    CLI::App app{"Utility for communicating with motor drivers"};
+    CLI::App app{"Utility for communicating with motor drivers\n"
+                 "\n"
+                 "Use the environment variable MOTOR_UTIL_CONFIG_DIR to set the configuration directory\n"
+                 "Or else the configuration path is checked in order:\n"
+                 "    ~/.config/motor_util/\n"
+                 "    /etc/motor_util/\n"
+                 "    /usr/share/motor-realtime/\n"};
     bool verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false, list_devnum=false;
     bool no_dfu_list = false;
     bool user_space_driver = false;
@@ -87,8 +94,31 @@ int main(int argc, char** argv) {
     std::vector<std::string> devpaths = {};
     std::vector<std::string> serial_numbers = {};
     std::vector<std::string> uart_paths = {};
+    std::vector<std::string> can_devs = {"any"};
     bool uart_raw = false;
     std::vector<std::string> ips = {};
+    
+    std::string config_dir;
+    char * config_dir_env = getenv("MOTOR_UTIL_CONFIG_DIR");
+    if (config_dir_env == NULL) {
+        // right now the only thing in the config directory is the device_ip_map.json
+        // will have to figure out the search path implementation later if other files are added
+        config_dir = std::string(getenv("HOME")) + "/.config/motor_util/";
+        if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
+            config_dir = "/etc/motor_util/";
+            if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
+                config_dir = "/usr/share/motor-realtime/";
+            }
+        }
+    } else {
+        config_dir = std::string(config_dir_env);
+        if (config_dir.back() != '/') {
+            config_dir += "/";
+        }
+    }
+    std::string json_ip_file_default = config_dir + "device_ip_map.json";
+    std::string json_ip_file = json_ip_file_default;
+    bool no_print_unconnected = false;
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map;
     for (const std::pair<const ModeDesired, const std::string> &pair : MotorManager::mode_map) {
@@ -105,6 +135,7 @@ int main(int argc, char** argv) {
     };
     std::vector<std::string> set_api_data;
     bool api_mode = false;
+    bool api_timing = false;
     int run_stats = 100;
     int timeout_ms = 10;
     bool allow_simulated = false;
@@ -197,14 +228,18 @@ int main(int argc, char** argv) {
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
-    app.add_option("-i,--ips", ips, "Connect to IP(S)")->type_name("IP")->expected(-1);
+    auto ip_option = app.add_option("-i,--ips", ips, "Connect to IP(S). If left empty, connect to all ips specified in --json-ip-file")->type_name("IP")->expected(0,-1)->default_str("{}");
+    app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
+    app.add_flag("--no-print-unconnected", no_print_unconnected, "Don't print unconnected motors, currently only used with --ips");
     auto uart_paths_option = app.add_option("-a,--uart-paths", uart_paths, "Connect to UART_PATH(S) [BAUD_RATE]")->type_name("UART_PATH")->expected(-1);
     app.add_flag("--uart-raw", uart_raw, "Use raw protocol for UART")->needs(uart_paths_option);
     app.add_flag("--lock", lock_motors, "Lock write access to motors");
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)")->expected(1,-1);
     app.add_flag("--api", api_mode, "Enter API mode");
+    app.add_flag("--api-timing", api_timing, "Print API response times");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
+    auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });
@@ -217,6 +252,7 @@ int main(int argc, char** argv) {
         read_opts.timestamp_in_seconds = true;
         read_opts.host_time = true;
         no_list = true;
+        no_print_unconnected = true;
     }
 
     MotorManager m(user_space_driver, check_messages_version);
@@ -236,8 +272,33 @@ int main(int argc, char** argv) {
         auto tmp_motors = m.get_motors_by_serial_number(serial_numbers);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
-    if (ips.size()) {
-        auto tmp_motors = m.get_motors_by_ip(ips);
+    if (*ip_option) {
+        // translate name aliases to ips via json file
+        if (access(json_ip_file.c_str(), F_OK) == 0) {
+            try {
+                auto motor_ips = nlohmann::json::parse(std::ifstream(json_ip_file));
+                if (ips.size() == 0) {
+                    // connect to all ips
+                    for(auto &ip : motor_ips.items()) {
+                        ips.push_back(ip.key());
+                    }
+                }
+                for (auto &address : ips) {
+                    if (motor_ips.find(address) != motor_ips.end()) {
+                        address = motor_ips[address].get<std::string>();
+                    }
+                }
+                
+            } catch (nlohmann::json::parse_error &e) {
+                std::cerr << "Error: json file " << json_ip_file << " could not be parsed: " << e.what() << std::endl;
+            }
+        } else {
+            if (json_ip_file != json_ip_file_default) {
+                std::cerr << "Error: json file " << json_ip_file << " not accessible" << std::endl;
+            }
+        }
+
+        auto tmp_motors = m.get_motors_by_ip(ips, true, !no_print_unconnected);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
     if (uart_paths.size()) {
@@ -258,6 +319,13 @@ int main(int argc, char** argv) {
         }
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
+
+    if (*can_option) {
+        std::vector<std::shared_ptr<Motor>> tmp_motors;
+        tmp_motors = m.get_motors_can(can_devs);
+        motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+    }
+    
     bool messages_mismatch = false;
     std::string messages_mismatch_error;
     // remove null motors
@@ -282,7 +350,7 @@ int main(int argc, char** argv) {
         }
     }
     
-    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !ips.size()) {
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !*ip_option && !*can_option) {
         try {
             motors = m.get_connected_motors();
         } catch (std::runtime_error &e) {
@@ -453,26 +521,44 @@ int main(int argc, char** argv) {
     }
 
     if (*set_api && motors.size()) {
-        char c[MAX_API_DATA_SIZE];
+        char c[MAX_API_DATA_SIZE+1];
         for (auto &api_str : set_api_data) {
             std::cout << api_str << std::endl;
             for (auto motor : m.motors()) {
+                auto tstart = std::chrono::steady_clock::now();
                 auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_DATA_SIZE);
-                c[nbytes] = 0;
-                std::cout << motor->name() << ": " << c << std::endl;
+                auto tend = std::chrono::steady_clock::now();
+                if (api_timing) {
+                    std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
+                }
+                if (nbytes < 0) {
+                    std::cout << motor->name() << ": api_error" << std::endl;
+                } else {
+                    c[nbytes] = 0;
+                    std::cout << motor->name() << ": " << c << std::endl;
+                }
             }
         }
     }
 
     if (api_mode) {
         Keyboard k;
-        char data[MAX_API_DATA_SIZE];
+        char data[MAX_API_DATA_SIZE+1];
         while(!signal_exit) {
             if (k.new_key()) {
                 char c = k.get_char();
+                auto tstart = std::chrono::steady_clock::now();
                 auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_DATA_SIZE);
-                data[nbytes] = 0;
-                std::cout << data << std::flush;
+                auto tend = std::chrono::steady_clock::now();
+                if (api_timing && c == '\n') {
+                    std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
+                }
+                if (nbytes < 0) {
+                    std::cout << "api_error" << std::endl;
+                } else {
+                    data[nbytes] = 0;
+                    std::cout << data << std::flush;
+                }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
@@ -494,18 +580,29 @@ int main(int argc, char** argv) {
         
         if (*text_read) {
             std::vector<TextAPIItem> log;
-            for (auto s : read_opts.text) {
+            for (auto &s : read_opts.text) {
                 if (s == "log") {
                     // only log
                     log = {(*m.motors()[0])[s]};
                     break;
                 }
                 log.push_back((*m.motors()[0])[s]);
+                std::cout << s;
+                if (&s == &read_opts.text.back()) {
+                    std::cout << std::endl;
+                } else {
+                    std::cout << ", ";
+                }
             }
             RealtimeThread text_thread(static_cast<uint32_t>(read_opts.frequency_hz), [&](){
                 for (auto &l : log) {
+                    auto tstart = std::chrono::steady_clock::now();
                     auto str = l.get();
+                    auto tend = std::chrono::steady_clock::now();
                     if (str != "log end") {
+                        if (api_timing) {
+                            std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
+                        }
                         std::cout << str;
                         if (*bits_option) {
                             static std::map<TextAPIItem*, Statistics> s;

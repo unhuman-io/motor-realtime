@@ -150,54 +150,71 @@ PYBIND11_MODULE(motor, m)
         .value("StepperVoltage", StepperMode::STEPPER_VOLTAGE)
         .export_values();
 
-    
+    py::class_<StepperVelocityCommand>(m, "StepperVelocityCommand")
+        .def_readwrite("voltage", &StepperVelocityCommand::voltage)
+        .def_readwrite("velocity", &StepperVelocityCommand::velocity)
+        .def_readwrite("current", &StepperVelocityCommand::current)
+        .def_readwrite("stepper_mode", &StepperVelocityCommand::stepper_mode);
+        
+    py::class_<TextAPIItem>(m, "TextAPIItem")
+        .def("__repr__", &TextAPIItem::get)
+        .def("get", &TextAPIItem::get)
+        .def("set", &TextAPIItem::set)
+        //.def("assign", static_cast<void (TextAPIItem::*)(const std::string &)>(&TextAPIItem::operator=));
+        .def("assign", &TextAPIItem::set);
 
-    py::class_<MotorManager>(m, "MotorManager")
-        // todo decide if it should connect by default in c++ also
-        .def(py::init([](bool u)
-                      { auto m = new MotorManager(u); m->get_connected_motors(); return m; }), py::arg("user_space_driver") = false)
-        .def("__repr__", [](const MotorManager &m)
-             { 
-            std::string s;
-            for (auto motor : m.motors()) {
-                s += motor->name() + " ";
-            }
-            return "<MotorManager connected to: " + s + ">"; })
-        .def("get_connected_motors", &MotorManager::get_connected_motors, py::arg("connect") = true)
-        .def("get_motors_by_name", &MotorManager::get_motors_by_name, py::arg("names"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number, py::arg("serial_numbers"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("get_motors_by_path", &MotorManager::get_motors_by_path, py::arg("paths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("get_motors_by_devpath", &MotorManager::get_motors_by_devpath, py::arg("devpaths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("get_motors_by_ip", &MotorManager::get_motors_by_ip, py::arg("ips"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("get_motors_uart_by_devpath", &MotorManager::get_motors_uart_by_devpath, py::arg("devpaths"), py::arg("raw") = false, py::arg("baud_rate") = 4000000, py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("motors", &MotorManager::motors)
-        .def("free_motors", &MotorManager::free_motors)
-        .def("set_motors", &MotorManager::set_motors)
-        .def("read", &MotorManager::read)
-        .def("read_average", &MotorManager::read_average)
-        .def("start_nonblocking_read", &MotorManager::start_nonblocking_read)
-        .def("write", &MotorManager::write)
-        .def("write_saved_commands", &MotorManager::write_saved_commands)
-        .def("lock", &MotorManager::lock)
-        .def("aread", &MotorManager::aread)
-        .def("poll", &MotorManager::poll)
-        .def("commands", &MotorManager::commands)
-        .def("set_commands", &MotorManager::set_commands)
-        .def("set_auto_count", &MotorManager::set_auto_count, py::arg("on") = true)
-        .def("clear_commands", &MotorManager::clear_commands)
-        .def("set_command_count", &MotorManager::set_command_count)
-        .def("set_command_mode", static_cast<void (MotorManager::*)(const std::vector<uint8_t> &)>(&MotorManager::set_command_mode))
-        .def("set_command_mode", static_cast<void (MotorManager::*)(uint8_t)>(&MotorManager::set_command_mode))
-        .def("set_command_current", &MotorManager::set_command_current)
-        .def("set_command_position", &MotorManager::set_command_position)
-        .def("set_command_velocity", &MotorManager::set_command_velocity)
-        .def("set_command_torque", &MotorManager::set_command_torque)
-        .def("set_command_reserved", &MotorManager::set_command_reserved)
-        .def("set_command_stepper_tuning", &MotorManager::set_command_stepper_tuning)
-        .def("set_command_stepper_velocity", &MotorManager::set_command_stepper_velocity, py::arg("current"), py::arg("velocity"), py::arg("voltage") = 0, py::arg("stepper_mode") = StepperMode::STEPPER_CURRENT)
-        .def("set_command_position_tuning", &MotorManager::set_command_position_tuning)
-        .def("set_command_current_tuning", &MotorManager::set_command_current_tuning);
+    py::class_<MotorError>(m, "MotorError")
+        .def_readonly("all", &MotorError::all)
+        .def_property_readonly("bits", [](const MotorError &e)
+                               { return motor_error_dict(e); })
+        .def("__repr__", [](const MotorError &e)
+             { return "<MotorError: " + hex(e.all) + ">"; });
 
+    py::class_<MotorFlags>(m, "MotorFlags")
+        .def_property_readonly("mode", [](MotorFlags &f)
+                               { return static_cast<MotorMode>(f.mode); })
+        .def_readonly("error", &MotorFlags::error)
+        .def("__repr__", [](const MotorFlags &f)
+             { return "<MotorFlags: " + std::to_string(f.mode) + ">"; });
+
+    py::class_<Status>(m, "Status")
+        .def_readonly("mcu_timestamp", &Status::mcu_timestamp)
+        .def_readonly("host_timestamp_received", &Status::host_timestamp_received)
+        .def_readonly("motor_position", &Status::motor_position)
+        .def_readonly("joint_position", &Status::joint_position)
+        .def_readonly("iq", &Status::iq)
+        .def_readonly("torque", &Status::torque)
+        .def_readonly("motor_encoder", &Status::motor_encoder)
+        .def_readonly("motor_velocity", &Status::motor_velocity)
+        .def_readonly("joint_velocity", &Status::joint_velocity)
+        .def_readonly("iq_desired", &Status::iq_desired)
+        .def_readonly("reserved", &Status::reserved)
+        .def_readonly("flags", &Status::flags)
+        .def("__repr__", [](const Status &s)
+             { return "<Status at: " + std::to_string(s.mcu_timestamp) + ">"; });
+
+    py::class_<Command>(m, "Command")
+        .def(py::init<uint32_t, ModeDesired, float, float, float, float>(),
+             py::arg("host_timestamp") = 0,
+             py::arg("mode") = ModeDesired::OPEN,
+             py::arg("current") = 0,
+             py::arg("position") = 0,
+             py::arg("torque") = 0,
+             py::arg("reserved") = 0)
+        .def_readwrite("host_timestamp", &Command::host_timestamp)
+        .def_readwrite("mode_desired", &Command::mode_desired)
+        .def_readwrite("current_desired", &Command::current_desired)
+        .def_readwrite("position_desired", &Command::position_desired)
+        .def_readwrite("velocity_desired", &Command::velocity_desired)
+        .def_readwrite("torque_desired", &Command::torque_desired)
+        .def_readwrite("reserved", &Command::reserved)
+        .def_readwrite("current_tuning", &Command::current_tuning)
+        .def_readwrite("position_tuning", &Command::position_tuning)
+        .def_readwrite("stepper_velocity", &Command::stepper_velocity)
+        .def_readwrite("tuning_command", &Command::tuning_command)
+        .def("__repr__", [](const Command &c)
+             { return "<Command: " + std::to_string(c.host_timestamp) + ">"; });
+             
     py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
         .def(py::init<const std::string &>())
         .def("name", &Motor::name)
@@ -237,64 +254,52 @@ PYBIND11_MODULE(motor, m)
         .def("get_timeout_ms", &Motor::get_timeout_ms)
         .def("set_timeout_ms", &Motor::set_timeout_ms);
 
-    py::class_<TextAPIItem>(m, "TextAPIItem")
-        .def("__repr__", &TextAPIItem::get)
-        .def("get", &TextAPIItem::get)
-        .def("set", &TextAPIItem::set)
-        //.def("assign", static_cast<void (TextAPIItem::*)(const std::string &)>(&TextAPIItem::operator=));
-        .def("assign", &TextAPIItem::set);
+    py::class_<MotorManager>(m, "MotorManager")
+        // todo decide if it should connect by default in c++ also
+        .def(py::init([](bool u)
+                      { auto m = new MotorManager(u); m->get_connected_motors(); return m; }), py::arg("user_space_driver") = false)
+        .def("__repr__", [](const MotorManager &m)
+             { 
+            std::string s;
+            for (auto motor : m.motors()) {
+                s += motor->name() + " ";
+            }
+            return "<MotorManager connected to: " + s + ">"; })
+        .def("get_connected_motors", &MotorManager::get_connected_motors, py::arg("connect") = true)
+        .def("get_motors_by_name", &MotorManager::get_motors_by_name, py::arg("names"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number, py::arg("serial_numbers"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_path", &MotorManager::get_motors_by_path, py::arg("paths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_devpath", &MotorManager::get_motors_by_devpath, py::arg("devpaths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("get_motors_by_ip", &MotorManager::get_motors_by_ip, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false)
+        .def("get_motors_uart_by_devpath", &MotorManager::get_motors_uart_by_devpath, py::arg("devpaths"), py::arg("raw") = false, py::arg("baud_rate") = 4000000, py::arg("connect") = true, py::arg("allow_simulated") = false)
+        .def("motors", &MotorManager::motors)
+        .def("free_motors", &MotorManager::free_motors)
+        .def("set_motors", &MotorManager::set_motors)
+        .def("read", &MotorManager::read)
+        .def("read_average", &MotorManager::read_average)
+        .def("start_nonblocking_read", &MotorManager::start_nonblocking_read)
+        .def("write", &MotorManager::write)
+        .def("write_saved_commands", &MotorManager::write_saved_commands)
+        .def("lock", &MotorManager::lock)
+        .def("aread", &MotorManager::aread)
+        .def("poll", &MotorManager::poll)
+        .def("commands", &MotorManager::commands)
+        .def("set_commands", &MotorManager::set_commands)
+        .def("set_auto_count", &MotorManager::set_auto_count, py::arg("on") = true)
+        .def("clear_commands", &MotorManager::clear_commands)
+        .def("set_command_count", &MotorManager::set_command_count)
+        .def("set_command_mode", static_cast<void (MotorManager::*)(const std::vector<uint8_t> &)>(&MotorManager::set_command_mode))
+        .def("set_command_mode", static_cast<void (MotorManager::*)(uint8_t)>(&MotorManager::set_command_mode))
+        .def("set_command_current", &MotorManager::set_command_current)
+        .def("set_command_position", &MotorManager::set_command_position)
+        .def("set_command_velocity", &MotorManager::set_command_velocity)
+        .def("set_command_torque", &MotorManager::set_command_torque)
+        .def("set_command_reserved", &MotorManager::set_command_reserved)
+        .def("set_command_stepper_tuning", &MotorManager::set_command_stepper_tuning)
+        .def("set_command_stepper_velocity", &MotorManager::set_command_stepper_velocity, py::arg("current"), py::arg("velocity"), py::arg("voltage") = 0, py::arg("stepper_mode") = StepperMode::STEPPER_CURRENT)
+        .def("set_command_position_tuning", &MotorManager::set_command_position_tuning)
+        .def("set_command_current_tuning", &MotorManager::set_command_current_tuning);
 
-    py::class_<Command>(m, "Command")
-        .def(py::init<uint32_t, uint8_t, float, float, float, float>(),
-             py::arg("host_timestamp") = 0,
-             py::arg("mode") = ModeDesired::OPEN,
-             py::arg("current") = 0,
-             py::arg("position") = 0,
-             py::arg("torque") = 0,
-             py::arg("reserved") = 0)
-        .def_readwrite("host_timestamp", &Command::host_timestamp)
-        .def_readwrite("mode_desired", &Command::mode_desired)
-        .def_readwrite("current_desired", &Command::current_desired)
-        .def_readwrite("position_desired", &Command::position_desired)
-        .def_readwrite("velocity_desired", &Command::velocity_desired)
-        .def_readwrite("torque_desired", &Command::torque_desired)
-        .def_readwrite("reserved", &Command::reserved)
-        .def_readwrite("current_tuning", &Command::current_tuning)
-        .def_readwrite("position_tuning", &Command::position_tuning)
-        .def_readwrite("stepper_velocity", &Command::stepper_velocity)
-        .def_readwrite("tuning_command", &Command::tuning_command)
-        .def("__repr__", [](const Command &c)
-             { return "<Command: " + std::to_string(c.host_timestamp) + ">"; });
-
-    py::class_<MotorError>(m, "MotorError")
-        .def_readonly("all", &MotorError::all)
-        .def_property_readonly("bits", [](const MotorError &e)
-                               { return motor_error_dict(e); })
-        .def("__repr__", [](const MotorError &e)
-             { return "<MotorError: " + hex(e.all) + ">"; });
-
-    py::class_<MotorFlags>(m, "MotorFlags")
-        .def_property_readonly("mode", [](MotorFlags &f)
-                               { return static_cast<MotorMode>(f.mode); })
-        .def_readonly("error", &MotorFlags::error)
-        .def("__repr__", [](const MotorFlags &f)
-             { return "<MotorFlags: " + std::to_string(f.mode) + ">"; });
-
-    py::class_<Status>(m, "Status")
-        .def_readonly("mcu_timestamp", &Status::mcu_timestamp)
-        .def_readonly("host_timestamp_received", &Status::host_timestamp_received)
-        .def_readonly("motor_position", &Status::motor_position)
-        .def_readonly("joint_position", &Status::joint_position)
-        .def_readonly("iq", &Status::iq)
-        .def_readonly("torque", &Status::torque)
-        .def_readonly("motor_encoder", &Status::motor_encoder)
-        .def_readonly("motor_velocity", &Status::motor_velocity)
-        .def_readonly("joint_velocity", &Status::joint_velocity)
-        .def_readonly("iq_desired", &Status::iq_desired)
-        .def_readonly("reserved", &Status::reserved)
-        .def_readonly("flags", &Status::flags)
-        .def("__repr__", [](const Status &s)
-             { return "<Status at: " + std::to_string(s.mcu_timestamp) + ">"; });
 
     m.def("diff_mcu_time", [](uint32_t t1, uint32_t t2)
           { return t1 - t2; });
