@@ -276,7 +276,7 @@ int main(int argc, char** argv) {
         // translate name aliases to ips via json file
         if (access(json_ip_file.c_str(), F_OK) == 0) {
             try {
-                auto motor_ips = nlohmann::json::parse(std::ifstream(json_ip_file));
+                auto motor_ips = nlohmann::ordered_json::parse(std::ifstream(json_ip_file));
                 if (ips.size() == 0) {
                     // connect to all ips
                     for(auto &ip : motor_ips.items()) {
