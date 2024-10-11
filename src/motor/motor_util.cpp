@@ -273,6 +273,7 @@ int main(int argc, char** argv) {
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
     if (*ip_option) {
+        std::vector<std::string> ip_aliases;
         // translate name aliases to ips via json file
         if (access(json_ip_file.c_str(), F_OK) == 0) {
             try {
@@ -285,7 +286,11 @@ int main(int argc, char** argv) {
                 }
                 for (auto &address : ips) {
                     if (motor_ips.find(address) != motor_ips.end()) {
+                        ip_aliases.push_back(address);
                         address = motor_ips[address].get<std::string>();
+                        
+                    } else {
+                        ip_aliases.push_back("");
                     }
                 }
                 
@@ -298,7 +303,7 @@ int main(int argc, char** argv) {
             }
         }
 
-        auto tmp_motors = m.get_motors_by_ip(ips, true, !no_print_unconnected);
+        auto tmp_motors = m.get_motors_by_ip(ips, true, !no_print_unconnected, false, ip_aliases);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
     if (uart_paths.size()) {
