@@ -142,7 +142,7 @@ int UDPFile::poll() {
     return poll_result;
 }
 
-ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
+ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
   if (!write_read) {
     ObotPacket send_packet;
     send_packet.frame_id = recv_frame_id_;
@@ -171,6 +171,51 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
     std::memcpy(data, rx_buf_, len);
     return len;
   }
+}
+
+ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
+  ssize_t retval = _read(data, length, write_read);
+  
+  if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
+      // a control packet
+      APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data);
+      if (packet->type == TIMEOUT_REQUEST) {
+          // timeout request
+          if (retval == sizeof(APIControlPacket)) {
+              // timeout request
+              // retriggers the read with the new timeout
+              uint32_t old_timeout_ms = timeout_ms_;
+              timeout_ms_ += packet->timeout_request.timeout_us/1000;
+              ssize_t retval = _read(data, length, write_read);
+              timeout_ms_ = old_timeout_ms;
+              return retval;
+          }
+      } else if (packet->type == LONG_PACKET) {
+          // long packet
+          uint16_t total_length = packet->long_packet.total_length;
+          uint16_t packet_number = packet->long_packet.packet_number;
+          const uint8_t header_size = sizeof(APIControlPacket);
+          uint16_t total_count_received = retval - header_size;
+          if (total_length > length) {
+              // too long
+              return -EINVAL;
+          }
+          std::memcpy(data, data + header_size, total_count_received);
+          while (total_length > total_count_received) {
+              // assemble multiple packets
+              char * data_ptr = data + total_count_received;
+              retval = _read(data_ptr, length, write_read);
+              if (retval < 0) {
+                  return retval;
+              }
+              std::memcpy(data_ptr, data_ptr + header_size, retval - header_size);
+              total_count_received += retval - header_size;
+              // ignoring packet_number
+          }
+          return total_count_received;
+      }
+  }
+  return retval;
 }
 
 ssize_t UDPFile::write(const char * data, unsigned int length, bool write_read) {

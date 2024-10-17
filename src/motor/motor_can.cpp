@@ -33,7 +33,7 @@ class CANFile : public TextFile {
         }
     }
 
-    virtual ssize_t read(char * data, unsigned int length) {
+    ssize_t _read(char * data, unsigned int length) {
         struct canfd_frame frame;
         pollfd tmp;
         tmp.fd = fd_;
@@ -43,7 +43,7 @@ class CANFile : public TextFile {
         bool success = false;
         int length_recv = 0;
         do {
-            int poll_result = ::poll(&tmp, 1, 10 /* ms */);
+            int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
             if (poll_result > 0) {
                 nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
                 if (nbytes > 0) {
@@ -54,10 +54,56 @@ class CANFile : public TextFile {
                     }
                 }
             }
-            count++; //todo change to timeout
-        } while (!success && count < 10);
+            count++;
+        } while (!success && count < 1);
         return length_recv;
     }
+
+    virtual ssize_t read(char * data, unsigned int length) {
+        ssize_t retval = _read(data, length);
+        
+        if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
+            // a control packet
+            APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data);
+            if (packet->type == TIMEOUT_REQUEST) {
+                // timeout request
+                if (retval == sizeof(APIControlPacket)) {
+                    // timeout request
+                    // retriggers the read with the new timeout
+                    uint32_t old_timeout_ms = timeout_ms_;
+                    timeout_ms_ += packet->timeout_request.timeout_us/1000;
+                    ssize_t retval = _read(data, length);
+                    timeout_ms_ = old_timeout_ms;
+                    return retval;
+                }
+            } else if (packet->type == LONG_PACKET) {
+                // long packet
+                uint16_t total_length = packet->long_packet.total_length;
+                uint16_t packet_number = packet->long_packet.packet_number;
+                const uint8_t header_size = sizeof(APIControlPacket);
+                uint16_t total_count_received = retval - header_size;
+                if (total_length > length) {
+                    // too long
+                    return -EINVAL;
+                }
+                std::memcpy(data, data + header_size, total_count_received);
+                while (total_length > total_count_received) {
+                    // assemble multiple packets
+                    char * data_ptr = data + total_count_received;
+                    retval = _read(data_ptr, length);
+                    if (retval < 0) {
+                        return retval;
+                    }
+                    std::memcpy(data_ptr, data_ptr + header_size, retval - header_size);
+                    total_count_received += retval - header_size;
+                    // ignoring packet_number
+                }
+                return total_count_received;
+            }
+        }
+        return retval;
+    }
+
 
     virtual ssize_t write(const char * data, unsigned int length) {
         struct canfd_frame frame = {};
@@ -85,6 +131,7 @@ class CANFile : public TextFile {
 
     int fd_;
     uint32_t devnum_;
+    int timeout_ms_ = 10;
 };
 
 MotorCAN::MotorCAN(std::string address) {
@@ -123,6 +170,12 @@ MotorCAN::MotorCAN(std::string address) {
     board_num_ = operator[]("board_num").get();
     config_ = operator[]("config").get();
     serial_number_ = operator[]("serial").get();
+}
+
+uint32_t MotorCAN::timeout_ms_ = 10;
+void MotorCAN::set_timeout_ms(int timeout_ms) {
+    timeout_ms_ = timeout_ms;
+    static_cast<CANFile*>(motor_txt_.get())->timeout_ms_ = timeout_ms;
 }
 
 void MotorCAN::open() {
@@ -170,7 +223,7 @@ ssize_t MotorCAN::read() {
     pollfd tmp;
     tmp.fd = fd_;
     tmp.events = POLLIN;
-    int poll_result = ::poll(&tmp, 1, 10 /* ms */);
+    int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
     int nbytes = 0;
     if (poll_result > 0) {
         nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
@@ -259,10 +312,13 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
     pollfd tmp;
     tmp.fd = fd;
     tmp.events = POLLIN;
-    Timer t(10 * 1000 * 1000); // 10 ms
+    Timer t(timeout_ms_ * 1000 * 1000); // 10 ms
     do {
         struct timespec timeout = {};
         timeout.tv_nsec = t.get_time_remaining_ns();
+        if (timeout.tv_nsec == 0) {
+            break;
+        }
         int poll_result = ::ppoll(&tmp, 1, &timeout, nullptr /*sigmask*/);
         if (poll_result > 0) {
             struct canfd_frame frame;

@@ -43,6 +43,7 @@ MotorUARTRaw::MotorUARTRaw(std::string dev_path, uint32_t baud_rate) {
 }
 
 void MotorUARTRaw::set_timeout_ms(int timeout_ms) {
+  timeout_ms_ = timeout_ms;
 }
 
 void MotorUARTRaw::set_baud_rate(uint32_t baud_rate) {

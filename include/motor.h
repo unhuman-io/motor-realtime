@@ -35,8 +35,8 @@ class TextFile {
     virtual ssize_t write(const char * /* data */, unsigned int /* length */) { return 0; }
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) { return 0; }
     std::string writeread(const std::string str) {
-        char str_in[MAX_API_DATA_SIZE+1];
-        ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_DATA_SIZE);
+        char str_in[MAX_API_LONG_DATA_SIZE+1]; // 3x for some long packets
+        ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_LONG_DATA_SIZE);
         if (s < 0) {
             throw std::runtime_error("text writeread failure " + std::to_string(errno) + ": " + strerror(errno));
         }
@@ -131,12 +131,13 @@ class USBFile : public TextFile {
         lockf(fd_, F_ULOCK, 0);
         return retval;
     }
+    uint32_t timeout_ms_ = 100;
  private:
     ssize_t read(char *data, unsigned int length) override { 
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_IN,
             .len = length,
-            .timeout = 1000,
+            .timeout = timeout_ms_,
             .data = data
         };
 
@@ -148,6 +149,62 @@ class USBFile : public TextFile {
                 throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
             }
         }
+        // retval is count received
+        // same parsing used in usb_rt_driver
+        if (retval > 1) {
+            if (data[0] == 0) {
+                // a control packet
+                if (data[1] == 1) {
+                    // timeout request
+                    if (retval == 8) {
+                        // timeout request
+                        // retriggers the read with the new timeout
+                        __u32 timeout_us = 0;
+                        timeout_us = data[4] | (data[5] << 8) | (data[6] << 16) | (data[7] << 24);
+                        transfer.timeout = timeout_ms_ + timeout_us / 1000;
+                        transfer.len = length;
+                        retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+                        if (retval < 0) {
+                            if (errno == ETIMEDOUT) {
+                                return 0;
+                            } else {
+                                throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+                            }
+                        }
+                    }
+                } else if (data[1] == 2) {
+                    // long packet
+                    uint16_t total_length = (uint8_t) data[4] | (data[5] << 8);
+                    uint16_t packet_number = (uint8_t) data[6] | (data[7] << 8);
+                    const uint8_t header_size = 8;
+                    uint16_t total_count_received = retval - header_size;
+                    std::cout << "long packet: " << total_length << " " << packet_number << " " << total_count_received << " " << length << std::endl;
+                    if (total_length > length) {
+                        // too long
+                        return -EINVAL;
+                    }
+                    memcpy(data, data + header_size, total_count_received);
+                    while (total_length > total_count_received) {
+                        // assemble multiple packets
+                        char * data_ptr = data + total_count_received;
+                        transfer.data = data_ptr;
+                        retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+                        if (retval < 0) {
+                            if (errno == ETIMEDOUT) {
+                                return 0;
+                            } else {
+                                throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+                            }
+                        }
+                        total_count_received += retval - header_size;
+                        memcpy(data_ptr, data_ptr+header_size, retval-header_size);
+                        // ignoring packet_number
+                    }
+                    retval = total_count_received;
+                }
+            }
+        } // else always fall back to just returning the data
+
         return retval;
     }
     virtual ssize_t write(const char *data, unsigned int length) override { 
@@ -156,7 +213,7 @@ class USBFile : public TextFile {
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_OUT,
             .len = length,
-            .timeout = 100,
+            .timeout = timeout_ms_,
             .data = buf
         };
 
@@ -189,8 +246,8 @@ class TextAPIItem {
         return c;
     }
     std::string get() const {     
-        char c[MAX_API_DATA_SIZE+1] = {};
-        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_DATA_SIZE);
+        char c[MAX_API_LONG_DATA_SIZE+1] = {};
+        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_LONG_DATA_SIZE);
         if (nbytes < 0) {
             if (!no_throw_) {
                 throw std::runtime_error("text api get error " + std::to_string(errno) + ": " + strerror(errno));
@@ -476,7 +533,7 @@ class UserSpaceMotor : public Motor {
             struct usbdevfs_bulktransfer transfer = {
                 .ep = static_cast<uint8_t>(ep_num_ | USB_DIR_IN),
                 .len = sizeof(status_),
-                .timeout = 100,
+                .timeout = timeout_ms_,
                 .data = &status_
             };
 
@@ -521,6 +578,11 @@ class UserSpaceMotor : public Motor {
         aread_in_progress_ = true;
         return retval;
     }
+    virtual void set_timeout_ms(int timeout_ms) override {
+        timeout_ms_ = timeout_ms;
+        static_cast<USBFile *>(motor_txt_.get())->timeout_ms_ = timeout_ms;
+    }
+    virtual int get_timeout_ms() const override { return timeout_ms_; }
  private:
     int open() {
         int retval = Motor::open();
@@ -545,6 +607,7 @@ class UserSpaceMotor : public Motor {
         // fd_ closed by base
         return 0;
     }
+    uint32_t timeout_ms_ = 100;
     uint8_t ep_num_;
     bool aread_in_progress_ = false;
     usbdevfs_urb aread_transfer_{
