@@ -231,6 +231,7 @@ inline std::ostream& operator<<(std::ostream& os, const MotorError &error)
       PRINT_FLAG(encoder_disagreement);
       PRINT_FLAG(torque_sensor_disagreement);
       PRINT_FLAG(init_failure);
+      PRINT_FLAG(invalid_command);
       PRINT_FLAG(motor_encoder_warning);
       PRINT_FLAG(output_encoder_warning);
       PRINT_FLAG(torque_sensor_warning);
