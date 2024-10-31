@@ -587,6 +587,9 @@ int main(int argc, char** argv) {
             std::vector<TextAPIItem> log;
             for (auto &s : read_opts.text) {
                 if (s == "log") {
+                    // issue a log reset command
+                    (*m.motors()[0])["log_reset"].get();
+
                     // only log
                     log = {(*m.motors()[0])[s]};
                     break;
