@@ -40,6 +40,7 @@ static py::dict motor_error_dict(const MotorError &e)
     d["torque_sensor_disagreement"] = e.torque_sensor_disagreement;
     d["init_failure"] = e.init_failure;
     d["invalid_command"] = e.invalid_command;
+    d["imminent_derate_warning"] = e.imminent_derate_warning;
     d["motor_encoder_warning"] = e.output_encoder_warning;
     d["output_encoder_warning"] = e.output_encoder_warning;
     d["torque_sensor_warning"] = e.torque_sensor_warning;
@@ -74,6 +75,7 @@ static MotorError dict_to_motor_error(py::dict d) {
     e.torque_sensor_disagreement = d["torque_sensor_disagreement"].cast<bool>();
     e.init_failure = d["init_failure"].cast<bool>();
     e.invalid_command = d["invalid_command"].cast<bool>();
+    e.imminent_derate_warning = d["imminent_derate_warning"].cast<bool>();
     e.motor_encoder_warning = d["motor_encoder_warning"].cast<bool>();
     e.output_encoder_warning = d["output_encoder_warning"].cast<bool>();
     e.torque_sensor_warning = d["torque_sensor_warning"].cast<bool>();
