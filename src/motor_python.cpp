@@ -40,7 +40,7 @@ static py::dict motor_error_dict(const MotorError &e)
     d["torque_sensor_disagreement"] = e.torque_sensor_disagreement;
     d["init_failure"] = e.init_failure;
     d["invalid_command"] = e.invalid_command;
-    d["motor_encoder_warning"] = e.output_encoder_warning;
+    d["motor_encoder_warning"] = e.motor_encoder_warning;
     d["output_encoder_warning"] = e.output_encoder_warning;
     d["torque_sensor_warning"] = e.torque_sensor_warning;
     d["motor_current_limit"] = e.motor_current_limit;
