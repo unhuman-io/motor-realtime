@@ -7,7 +7,7 @@ Type=can
 
 [CAN]
 BitRate=2000000
-DataBitRate=5000000
+DataBitRate=10000000
 FDMode=True
 OneShot=True
 RestartSec=0.1
