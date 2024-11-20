@@ -1,0 +1,13 @@
+# sudo cp 50_can_obot.network /etc/systemd/network/
+# sudo systemctl restart systemd-networkd
+# sudo systemctl enable systemd-networkd
+
+[Match]
+Type=can
+
+[CAN]
+BitRate=2000000
+DataBitRate=5000000
+FDMode=True
+OneShot=True
+RestartSec=0.1
