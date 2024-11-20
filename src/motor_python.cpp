@@ -39,7 +39,9 @@ static py::dict motor_error_dict(const MotorError &e)
     d["encoder_disagreement"] = e.encoder_disagreement;
     d["torque_sensor_disagreement"] = e.torque_sensor_disagreement;
     d["init_failure"] = e.init_failure;
-    d["motor_encoder_warning"] = e.output_encoder_warning;
+    d["invalid_command"] = e.invalid_command;
+    d["imminent_derate_warning"] = e.imminent_derate_warning;
+    d["motor_encoder_warning"] = e.motor_encoder_warning;
     d["output_encoder_warning"] = e.output_encoder_warning;
     d["torque_sensor_warning"] = e.torque_sensor_warning;
     d["motor_current_limit"] = e.motor_current_limit;
@@ -72,6 +74,8 @@ static MotorError dict_to_motor_error(py::dict d) {
     e.encoder_disagreement = d["encoder_disagreement"].cast<bool>();
     e.torque_sensor_disagreement = d["torque_sensor_disagreement"].cast<bool>();
     e.init_failure = d["init_failure"].cast<bool>();
+    e.invalid_command = d["invalid_command"].cast<bool>();
+    e.imminent_derate_warning = d["imminent_derate_warning"].cast<bool>();
     e.motor_encoder_warning = d["motor_encoder_warning"].cast<bool>();
     e.output_encoder_warning = d["output_encoder_warning"].cast<bool>();
     e.torque_sensor_warning = d["torque_sensor_warning"].cast<bool>();
@@ -270,7 +274,7 @@ PYBIND11_MODULE(motor, m)
         .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number, py::arg("serial_numbers"), py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("get_motors_by_path", &MotorManager::get_motors_by_path, py::arg("paths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("get_motors_by_devpath", &MotorManager::get_motors_by_devpath, py::arg("devpaths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("get_motors_by_ip", &MotorManager::get_motors_by_ip, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false)
+        .def("get_motors_by_ip", &MotorManager::get_motors_by_ip, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false, py::arg("ip_aliases") = std::vector<std::string>())
         .def("get_motors_uart_by_devpath", &MotorManager::get_motors_uart_by_devpath, py::arg("devpaths"), py::arg("raw") = false, py::arg("baud_rate") = 4000000, py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("motors", &MotorManager::motors)
         .def("free_motors", &MotorManager::free_motors)

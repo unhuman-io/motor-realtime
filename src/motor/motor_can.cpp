@@ -109,7 +109,7 @@ class CANFile : public TextFile {
         struct canfd_frame frame = {};
         length = std::min(length, (unsigned int) CANFD_MAX_DLEN-1);
         frame.can_id  = 4 << 7 | devnum_;
-        frame.len = ++length;
+        frame.len = length + 1;
         frame.flags = CANFD_BRS;
         std::memcpy(frame.data, data, length);
         frame.data[length] = 0;

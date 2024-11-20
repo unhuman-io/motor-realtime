@@ -60,7 +60,7 @@ class UDPFile : public TextFile {
 
 class MotorIP : public Motor {
  public:
-    MotorIP(std::string address) : realtime_communication_(parser_) {
+    MotorIP(std::string address, std::string ip_alias = "") : realtime_communication_(parser_) {
 
         int n = address.find(":");
         if (n == std::string::npos) {
@@ -73,6 +73,8 @@ class MotorIP : public Motor {
                 port_ = "7770";
             }
         }
+
+        ip_alias_ = ip_alias;
 
         motor_txt_ = std::move(std::unique_ptr<UDPFile>(new UDPFile(parser_)));
         UDPFile * motor_txt = static_cast<UDPFile *>(motor_txt_.get());
@@ -106,6 +108,7 @@ class MotorIP : public Motor {
 
     std::string port_;
     std::string ip_;
+    std::string ip_alias_;
     std::string addrstr_;
     sockaddr_in addr_ = {};
     char hostname_[64];
