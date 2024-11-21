@@ -120,7 +120,8 @@ PYBIND11_MODULE(motor, m)
         .value("Reset", ModeDesired::BOARD_RESET)
         .export_values();
 
-    m.def("mode_color", &mode_color);
+    m.def("mode_color", &mode_color)
+     .def("max_api_packet_size", []{ return MAX_API_LONG_DATA_SIZE; });
 
     py::enum_<TuningMode>(m, "TuningMode")
         .value("Sine", TuningMode::SINE)
