@@ -32,6 +32,7 @@ class MotorUARTRaw : public Motor {
 
  private:
     Mailbox realtime_mailbox_;
+    uint32_t timeout_ms_ = 10;
 };
 
 }; // namespace obot

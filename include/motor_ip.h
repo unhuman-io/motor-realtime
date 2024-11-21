@@ -50,6 +50,7 @@ class UDPFile : public TextFile {
     void rx_callback(const uint8_t*, uint16_t);
     sockaddr_in addr_ = {};
  private:
+    ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false);
     figure::ProtocolParser &parser_;
     std::condition_variable rx_data_cv_;
     std::mutex rx_data_cv_m_;

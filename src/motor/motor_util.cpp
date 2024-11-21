@@ -526,12 +526,12 @@ int main(int argc, char** argv) {
     }
 
     if (*set_api && motors.size()) {
-        char c[MAX_API_DATA_SIZE+1];
+        char c[MAX_API_LONG_DATA_SIZE+1];
         for (auto &api_str : set_api_data) {
             std::cout << api_str << std::endl;
             for (auto motor : m.motors()) {
                 auto tstart = std::chrono::steady_clock::now();
-                auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_DATA_SIZE);
+                auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_LONG_DATA_SIZE);
                 auto tend = std::chrono::steady_clock::now();
                 if (api_timing) {
                     std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
@@ -548,18 +548,18 @@ int main(int argc, char** argv) {
 
     if (api_mode) {
         Keyboard k;
-        char data[MAX_API_DATA_SIZE+1];
+        char data[MAX_API_LONG_DATA_SIZE+1];
         while(!signal_exit) {
             if (k.new_key()) {
                 char c = k.get_char();
                 auto tstart = std::chrono::steady_clock::now();
-                auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_DATA_SIZE);
+                auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_LONG_DATA_SIZE);
                 auto tend = std::chrono::steady_clock::now();
                 if (api_timing && c == '\n') {
                     std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
                 }
                 if (nbytes < 0) {
-                    std::cout << "api_error" << std::endl;
+                    std::cout << "api_error : " << nbytes << std::endl;
                 } else {
                     data[nbytes] = 0;
                     std::cout << data << std::flush;
