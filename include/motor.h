@@ -183,7 +183,7 @@ class USBFile : public TextFile {
                         // too long
                         return -EINVAL;
                     }
-                    memcpy(data, data + header_size, total_count_received);
+                    memmove(data, data + header_size, total_count_received);
                     while (total_length > total_count_received) {
                         // assemble multiple packets
                         char * data_ptr = data + total_count_received;
@@ -197,7 +197,7 @@ class USBFile : public TextFile {
                             }
                         }
                         total_count_received += retval - header_size;
-                        memcpy(data_ptr, data_ptr+header_size, retval-header_size);
+                        memmove(data_ptr, data_ptr+header_size, retval-header_size);
                         // ignoring packet_number
                     }
                     retval = total_count_received;
