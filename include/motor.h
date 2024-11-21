@@ -178,7 +178,7 @@ class USBFile : public TextFile {
                     uint16_t packet_number = (uint8_t) data[6] | (data[7] << 8);
                     const uint8_t header_size = 8;
                     uint16_t total_count_received = retval - header_size;
-                    std::cout << "long packet: " << total_length << " " << packet_number << " " << total_count_received << " " << length << std::endl;
+                    // std::cout << "long packet: " << total_length << " " << packet_number << " " << total_count_received << " " << length << std::endl;
                     if (total_length > length) {
                         // too long
                         return -EINVAL;
