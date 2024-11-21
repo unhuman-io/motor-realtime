@@ -86,7 +86,7 @@ class CANFile : public TextFile {
                     // too long
                     return -EINVAL;
                 }
-                std::memcpy(data, data + header_size, total_count_received);
+                std::memmove(data, data + header_size, total_count_received);
                 while (total_length > total_count_received) {
                     // assemble multiple packets
                     char * data_ptr = data + total_count_received;
@@ -94,11 +94,11 @@ class CANFile : public TextFile {
                     if (retval < 0) {
                         return retval;
                     }
-                    std::memcpy(data_ptr, data_ptr + header_size, retval - header_size);
                     total_count_received += retval - header_size;
+                    std::memmove(data_ptr, data_ptr + header_size, retval - header_size);
                     // ignoring packet_number
                 }
-                return total_count_received;
+                retval = total_count_received;
             }
         }
         return retval;
