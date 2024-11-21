@@ -220,7 +220,7 @@ jobs:
 
   test:
     timeout-minutes: 10
-    needs: [build]
+    needs: [build, merge_artifacts]
     runs-on: [self-hosted, motor_enc]
 
     strategy:
