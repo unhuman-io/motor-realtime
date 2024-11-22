@@ -22,15 +22,84 @@ namespace obot {
 class CANFile : public TextFile {
  public:
     CANFile(std::string ifname, uint32_t devnum) : devnum_(devnum) {
-        fd_ = MotorCAN::open_socket(ifname);
+        ifname_ = ifname;
+
+        // lock file to prevent multiple instances at the same time
+        lock_file_ = "/tmp/obot." + ifname + ":" + std::to_string(devnum) + ".lock";
+        fd_lock_ = ::open(lock_file_.c_str(), O_CREAT | O_RDWR, 0666);
+        if (fd_lock_ < 0) {
+            throw std::runtime_error("Error opening lock file " + lock_file_ + ":" + std::to_string(errno) + ": " + strerror(errno));
+        }
+        int err = ::lseek(fd_lock_, 0, SEEK_SET);
+        if (err < 0) {
+            throw std::runtime_error("Error lseek lock file " + lock_file_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        open();
+    }
+
+    void open() {
+        fd_ = MotorCAN::open_socket(ifname_);
         struct can_filter rfilter[1];
         rfilter[0].can_id   = 5 << 7 | devnum_;
         rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
         if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
-            throw std::runtime_error("Error setting filter for " + ifname + ":" + std::to_string(devnum) + ": "
+            throw std::runtime_error("Error setting filter for " + ifname_ + ":" + std::to_string(devnum_) + ": "
                 + std::to_string(errno) + ": " + strerror(errno));
         }
+    }
+
+    void close() {
+        ::close(fd_);
+    }
+
+    void flush() {
+        struct canfd_frame frame;
+        pollfd tmp;
+        tmp.fd = fd_;
+        tmp.events = POLLIN;
+        int poll_result;
+        do {
+            poll_result = ::poll(&tmp, 1,0);
+            if (poll_result > 0) {
+                int nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+            }
+        } while(poll_result > 0);
+    }
+
+    // use a lock file to provide exclusive access to the CAN device during a 
+    // write followed by read interface to the text api
+    int lock() {
+        int err = lockf(fd_lock_, F_LOCK, 1);
+        if (err) {
+            std::cerr << "error locking " + lock_file_;
+            pid_t pid;
+            int err2 = get_lock_pid(fd_lock_, &pid);
+            if (err2 == 0) {
+                std::cerr << ", already locked by process: " << pid;
+            }
+            std::cerr << std::endl;
+        }
+        // option 1: open and close the socket - throughput at 600 packets/second
+        // option 2: flush the socket - throughput at 620 packets/second
+        // open();
+        flush();
+        return err;
+    }
+
+    int unlock() {
+        // close();
+        int err = lockf(fd_lock_, F_ULOCK, 0);
+        if (err) {
+            std::cerr << "error unlocking " + lock_file_;
+            pid_t pid;
+            int err2 = get_lock_pid(fd_lock_, &pid);
+            if (err2 == 0) {
+                std::cerr << ", locked by process: " << pid;
+            }
+            std::cerr << std::endl;
+        }
+        return err;
     }
 
     ssize_t _read(char * data, unsigned int length) {
@@ -94,18 +163,29 @@ class CANFile : public TextFile {
                     if (retval < 0) {
                         return retval;
                     }
+                    APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data_ptr);
+                    if (packet->type != LONG_PACKET) {
+                        std::cerr << "Error: expected long packet, got " << packet->type << std::endl;
+                        return -EINVAL;
+                    }
+                    if (packet->long_packet.packet_number != ++packet_number) {
+                        std::cerr << "Error: expected packet number " << packet_number << ", got " << packet->long_packet.packet_number << std::endl;
+                        return -EINVAL;
+                    }
+                    //std::cout << packet->long_packet.packet_number << retval << std::endl;
                     total_count_received += retval - header_size;
                     std::memmove(data_ptr, data_ptr + header_size, retval - header_size);
-                    // ignoring packet_number
                 }
                 retval = total_count_received;
             }
         }
+        unlock();
         return retval;
     }
 
 
     virtual ssize_t write(const char * data, unsigned int length) {
+        lock();
         struct canfd_frame frame = {};
         length = std::min(length, (unsigned int) CANFD_MAX_DLEN-1);
         frame.can_id  = 4 << 7 | devnum_;
@@ -122,16 +202,28 @@ class CANFile : public TextFile {
     }
 
     virtual ssize_t writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
+        //int err = lock();
+        // if (err) {
+        //     return err;
+        // }
         ssize_t nbytes = write(data_out, length_out);
         if (nbytes < 0) {
             return nbytes;
         }
-        return read(data_in, length_in);
+        int retval = read(data_in, length_in);
+        //err = unlock();
+        // if (err) {
+        //     return err;
+        // }
+        return retval;
     }
 
     int fd_;
     uint32_t devnum_;
     int timeout_ms_ = 10;
+    int fd_lock_;
+    std::string ifname_;
+    std::string lock_file_;
 };
 
 MotorCAN::MotorCAN(std::string address) {
