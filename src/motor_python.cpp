@@ -128,6 +128,7 @@ PYBIND11_MODULE(motor, m)
         .value("Square", TuningMode::SQUARE)
         .value("Triangle", TuningMode::TRIANGLE)
         .value("Chirp", TuningMode::CHIRP)
+        .value("Random", TuningMode::RANDOM)
         .export_values();
 
     py::class_<CurrentTuningCommand>(m, "CurrentTuningCommand")

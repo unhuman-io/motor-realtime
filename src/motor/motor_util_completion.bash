@@ -97,12 +97,12 @@ _motor_util_completion()
         tuning) words="--amplitude --frequency --mode --bias --kv read -h --help";
             case $last in
                 --amplitude|--frequency|--bias) return 0 ;;
-                --mode) words="sine square triangle chirp" ;;
+                --mode) words="sine square triangle chirp random" ;;
             esac ;;
         tuning_mode) words="--amplitude --frequency --mode --bias --tuning_mode read -h --help";
             case $last in
                 --amplitude|--frequency|--bias) return 0 ;;
-                --tuning_mode) words="sine square triangle chirp" ;;
+                --tuning_mode) words="sine square triangle chirp random" ;;
                 --mode) words="position velocity torque" ;;
             esac ;;
         *) words=$base_words ;;
