@@ -12,6 +12,7 @@
 #include <algorithm>
 
 #include "motor_manager.h"
+#include "keyboard.h"
 #include <fstream>
 #include <cmath>
 
@@ -87,6 +88,8 @@ int MotorApp::run() {
 
 	signal(SIGINT, [] (int /* signum */) {running = 0;});
 
+	Keyboard keyboard;
+
 	for(int i=0;; i++) {
 		if (!running) {
 			break;
@@ -116,6 +119,11 @@ int MotorApp::run() {
 			std::vector<MotorCommand> commands(data.commands, data.commands + motor_manager.motors().size());
 			file << data.time_start.time_since_epoch().count() << ", " << commands << statuses << std::endl;
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+		 if (keyboard.new_key()) {
+			if (keyboard.get_char() == ' ') {
+				break;
+			}
 		}
 	}
 	motor_thread_->done();
