@@ -22,6 +22,7 @@ class MotorThread : public RealtimeThread {
     }
     const CStack<Data> &cstack() const { return cstack_; }
     void init();
+    void set_no_poll() { use_poll_ = false; }
     void set_poll_timeout(uint32_t ns) { poll_timeout_ns_ = ns; }
     MotorManager& motor_manager() { return motor_manager_; }
  protected:
@@ -36,6 +37,7 @@ class MotorThread : public RealtimeThread {
     CStack<Data> cstack_;
     uint32_t poll_timeout_ns_ = 500*1000;
     bool user_space_driver_;
+    bool use_poll_ = true;
 };
 
 }  // namespace obot

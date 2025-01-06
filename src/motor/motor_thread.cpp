@@ -18,18 +18,22 @@ void MotorThread::update() {
     data_.last_time_start = data_.time_start;
     data_.time_start = std::chrono::steady_clock::now();
     // start a read on all motors
-    motor_manager_.multipoll(1);
+    if (use_poll_) {
+        motor_manager_.multipoll(1);
+    }
     data_.aread_time = std::chrono::steady_clock::now();
 
     // there is some time before data will return on USB, can do pre update work
     pre_update();
 
     // poll with timeout
-    int retval = motor_manager_.multipoll(poll_timeout_ns_);
-    if (retval != motor_manager_.motors().size()) {
-        if (!user_space_driver_) {
-            // user space driver currently doesn't deal with poll
-            throw std::runtime_error("MotorThread poll error " + std::to_string(retval) + " " + strerror(-retval));
+    if (use_poll_) {
+        int retval = motor_manager_.multipoll(poll_timeout_ns_);
+        if (retval != motor_manager_.motors().size()) {
+            if (!user_space_driver_) {
+                // user space driver currently doesn't deal with poll
+                throw std::runtime_error("MotorThread poll error " + std::to_string(retval) + " " + strerror(-retval));
+            }
         }
     }
 

@@ -46,13 +46,17 @@ int MotorApp::parse_args(int argc, char **argv) {
 	uint32_t frequency = motor_thread_->get_frequency();
 	auto frequency_option = app.add_option("--frequency", frequency, "App frequency (Hz)")->capture_default_str();
 	uint32_t poll_timeout_ns = 500*1000;
-	auto poll_timeout_option = app.add_option("--poll-timeout", poll_timeout_ns, "Poll timeout (ns)")->capture_default_str();
+	auto poll_timeout_option = app.add_option("--poll-timeout", poll_timeout_ns, "Poll timeout (ns), 0 to not use poll")->capture_default_str();
 	CLI11_PARSE(app, argc, argv);
 	if (*frequency_option) {
 		motor_thread_->set_frequency(frequency);
 	}
 	if (*poll_timeout_option) {
-		motor_thread_->set_poll_timeout(poll_timeout_ns);
+		if (poll_timeout_ns == 0) {
+			motor_thread_->set_no_poll();
+		} else {
+			motor_thread_->set_poll_timeout(poll_timeout_ns);
+		}
 	}
 	return 0;
 }
