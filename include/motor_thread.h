@@ -10,6 +10,7 @@ namespace obot {
 struct Data {
     Status statuses[MAX_MOTORS];
     Command commands[MAX_MOTORS];
+    double controller_dt_s[MAX_MOTORS];
     std::chrono::steady_clock::time_point time_start, last_time_start, last_time_end, aread_time, read_time, control_time, write_time;
     int size() const { return MAX_MOTORS; }
 };
@@ -38,6 +39,7 @@ class MotorThread : public RealtimeThread {
     uint32_t poll_timeout_ns_ = 500*1000;
     bool user_space_driver_;
     bool use_poll_ = true;
+    double cpu_frequency_hz_[MAX_MOTORS];
 };
 
 }  // namespace obot

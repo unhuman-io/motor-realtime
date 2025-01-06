@@ -115,8 +115,8 @@ int MotorApp::run() {
 			
 		for (int j=0; j<500; j++) {
 			data = cstack.top();
-			std::vector<MotorStatus> statuses(data.statuses, data.statuses + motor_manager.motors().size());
-			std::vector<MotorCommand> commands(data.commands, data.commands + motor_manager.motors().size());
+			std::vector<MotorStatus> statuses(data.statuses, data.statuses + motor_manager.size());
+			std::vector<MotorCommand> commands(data.commands, data.commands + motor_manager.size());
 			file << data.time_start.time_since_epoch().count() << ", " << commands << statuses << std::endl;
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}

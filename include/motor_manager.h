@@ -50,6 +50,7 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> get_motors_by_ip(std::vector<std::string> ips, bool connect = true, bool print_unconnected = true, bool allow_simulated = false, std::vector<std::string> ip_aliases = {});
     std::vector<std::shared_ptr<Motor>> get_motors_can(std::vector<std::string> can_interfaces, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
+    int size() const { return motors_.size(); }
     void free_motors() {
       for(auto &m : motors_) {
          m.reset();
