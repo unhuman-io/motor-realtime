@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
     };    
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
-        {"chirp", TuningMode::CHIRP}};
+        {"chirp", TuningMode::CHIRP}, {"random", TuningMode::RANDOM}};
     std::vector<std::pair<std::string, StepperMode>> stepper_mode_map{
         {"current", StepperMode::STEPPER_CURRENT}, {"voltage", StepperMode::STEPPER_VOLTAGE}
     };
@@ -169,18 +169,18 @@ int main(int argc, char** argv) {
     impedance_mode->add_option("--damping", command.impedance.damping, "Damping (Nm/(rad/s))");
     auto stepper_tuning_mode = set->add_subcommand("stepper_tuning", "Stepper tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_TUNING;});
     stepper_tuning_mode->add_option("--amplitude", command.stepper_tuning.amplitude, "Phase position tuning amplitude");
-    stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp");
+    stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     stepper_tuning_mode->add_option("--mode", command.stepper_tuning.mode, "Phase tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     stepper_tuning_mode->add_option("--kv", command.stepper_tuning.kv, "Motor kv (rad/s)");
     stepper_tuning_mode->add_option("--stepper_mode", command.stepper_tuning.stepper_mode, "Current/voltage mode")->transform(CLI::CheckedTransformer(stepper_mode_map, CLI::ignore_case));
     auto position_tuning_mode = set->add_subcommand("position_tuning", "Position tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::POSITION_TUNING;});
     position_tuning_mode->add_option("--amplitude", command.position_tuning.amplitude, "Position tuning amplitude");
-    position_tuning_mode->add_option("--frequency", command.position_tuning.frequency, "Position tuning frequency hz, or hz/s for chirp");
+    position_tuning_mode->add_option("--frequency", command.position_tuning.frequency, "Position tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     position_tuning_mode->add_option("--mode", command.position_tuning.mode, "Position tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     position_tuning_mode->add_option("--bias", command.position_tuning.bias, "Position trajectory offset");
     auto current_tuning_mode = set->add_subcommand("current_tuning", "Current tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::CURRENT_TUNING;});
     current_tuning_mode->add_option("--amplitude", command.current_tuning.amplitude, "Current tuning amplitude");
-    current_tuning_mode->add_option("--frequency", command.current_tuning.frequency, "Current tuning frequency hz, or hz/s for chirp");
+    current_tuning_mode->add_option("--frequency", command.current_tuning.frequency, "Current tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     current_tuning_mode->add_option("--mode", command.current_tuning.mode, "Current tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     current_tuning_mode->add_option("--bias", command.current_tuning.bias, "Current trajectory offset");
     auto stepper_velocity_mode = set->add_subcommand("stepper_velocity", "Stepper velocity mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_VELOCITY;});
@@ -190,7 +190,7 @@ int main(int argc, char** argv) {
     stepper_velocity_mode->add_option("--stepper_mode", command.stepper_velocity.stepper_mode, "Current/voltage mode")->transform(CLI::CheckedTransformer(stepper_mode_map, CLI::ignore_case));
     auto tuning_mode = set->add_subcommand("tuning", "Tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::TUNING;});
     tuning_mode->add_option("--amplitude", command.tuning_command.amplitude, "Tuning amplitude");
-    tuning_mode->add_option("--frequency", command.tuning_command.frequency, "Tuning frequency hz, or hz/s for chirp");
+    tuning_mode->add_option("--frequency", command.tuning_command.frequency, "Tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     tuning_mode->add_option("--tuning_mode", command.tuning_command.tuning_mode, "Tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     tuning_mode->add_option("--mode", command.tuning_command.mode, "Main Mode")->transform(CLI::CheckedTransformer(tuning_mode_options_map, CLI::ignore_case));
     tuning_mode->add_option("--bias", command.tuning_command.bias, "Trajectory offset");
