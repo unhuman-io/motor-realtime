@@ -26,6 +26,7 @@ class MotorThread : public RealtimeThread {
     void set_no_poll() { use_poll_ = false; }
     void set_poll_timeout(uint32_t ns) { poll_timeout_ns_ = ns; }
     MotorManager& motor_manager() { return motor_manager_; }
+    virtual void keyboard_press(char c) {}
  protected:
     virtual void post_init() {}
     virtual void pre_update() {}

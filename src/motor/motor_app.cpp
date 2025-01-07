@@ -121,8 +121,11 @@ int MotorApp::run() {
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 		 if (keyboard.new_key()) {
-			if (keyboard.get_char() == ' ') {
+			char c = keyboard.get_char();
+			if (c == ' ') {
 				break;
+			} else {
+				motor_thread_->keyboard_press(c);
 			}
 		}
 	}
