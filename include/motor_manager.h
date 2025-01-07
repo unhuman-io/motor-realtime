@@ -306,7 +306,11 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> &sta
    }
    os << std::dec;
    for (auto s : status) {
-      os << MotorManager::mode_map.at(static_cast<ModeDesired>(s.flags.mode)) << " ";
+      try {
+         os << MotorManager::mode_map.at(static_cast<ModeDesired>(s.flags.mode)) << " ";
+      } catch (std::out_of_range &e) {
+         os << "unknown mode " << (int) s.flags.mode << " ";
+      }
       os << s.flags.error << ", ";
    }
    return os;
