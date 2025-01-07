@@ -35,6 +35,7 @@ _motor_util_completion()
             stepper_velocity) subcommand=stepper_velocity ; break ;;
             voltage) subcommand=voltage ; break ;;
             state) subcommand=state ; break ;;
+            impedance) subcommand=impedance ; break ;;
             tuning) subcommand=tuning_mode ; break ;;
         esac
         (( i-- ))
@@ -84,9 +85,13 @@ _motor_util_completion()
             words=$base_words ;;
         check_messages_version) words="none major minor $base_words" ;;
         set_api) return 0 ;;
-        state) words="--position --velocity --torque --torque_dot --kp --kd --kt --ks -h --help" ;
+        state) words="--position --velocity --torque --torque_dot --current --kp --kd --kt --ks -h --help" ;
             case $last in
-                --position|--velocity|--torque|--torque_dot|--kp|--kd|--kt|--ks) return 0 ;;
+                --position|--velocity|--torque|--torque_dot|--current|--kp|--kd|--kt|--ks) return 0 ;;
+            esac ;;
+        impedance) words="--position --velocity --torque --torque_dot --current --stiffness --damping -h --help" ;
+            case $last in
+                --position|--velocity|--torque|--torque_dot|--current|--stiffness|--damping) return 0 ;;
             esac ;;
         voltage) words="--voltage --velocity read -h --help" ;;
         stepper_velocity) words="--voltage --velocity --current --stepper_mode read -h --help" ;

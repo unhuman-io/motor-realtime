@@ -164,6 +164,9 @@ int main(int argc, char** argv) {
     state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
     state_mode->add_option("--kt", command.state.kt, "Torque error gain");
     state_mode->add_option("--ks", command.state.ks, "Torque dot error gain");
+    auto impedance_mode = set->add_subcommand("impedance", "Impedance control mode")->final_callback([&](){command.mode_desired = ModeDesired::IMPEDANCE;})->fallthrough();
+    impedance_mode->add_option("--stiffness", command.impedance.stiffness, "Stiffness (Nm/rad)");
+    impedance_mode->add_option("--damping", command.impedance.damping, "Damping (Nm/(rad/s))");
     auto stepper_tuning_mode = set->add_subcommand("stepper_tuning", "Stepper tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_TUNING;});
     stepper_tuning_mode->add_option("--amplitude", command.stepper_tuning.amplitude, "Phase position tuning amplitude");
     stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
