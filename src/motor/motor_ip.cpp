@@ -196,9 +196,10 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
 ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
   ssize_t retval = _read(data, length, write_read);
   
-  if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
-      // a control packet
-      APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data);
+  if (api_mode_) {
+    if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
+        // a control packet
+        APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data);
       if (packet->type == TIMEOUT_REQUEST) {
           // timeout request
           if (retval == sizeof(APIControlPacket)) {
@@ -232,8 +233,9 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
               std::memmove(data_ptr, data_ptr + header_size, retval - header_size);
               // ignoring packet_number
           }
-          retval = total_count_received;
-      }
+            retval = total_count_received;
+        }
+    }
   }
   return retval;
 }
