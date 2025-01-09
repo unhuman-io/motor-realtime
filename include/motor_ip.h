@@ -36,6 +36,7 @@ class UDPFile : public TextFile {
     virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false);
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */);
 
+    void set_api_mode() { api_mode_ = true; }
     int lock_communication();
     int unlock_communication();
     uint8_t send_frame_id_ = 1; // command
@@ -60,6 +61,7 @@ class UDPFile : public TextFile {
     std::mutex rx_data_cv_m_;
     uint8_t rx_buf_[1024];
     size_t rx_len_ = 0;
+    bool api_mode_ = false;
 };
 
 class MotorIP : public Motor {
@@ -91,6 +93,7 @@ class MotorIP : public Motor {
         motor_txt->fd_ = fd_;
         motor_txt->fd_communication_lock_ = fd_communication_lock_;
         motor_txt->addr_ = addr_;
+        motor_txt->set_api_mode();
         realtime_communication_.fd_ = fd_;
         realtime_communication_.addr_ = addr_;
         realtime_communication_.fd_communication_lock_ = fd_communication_lock_;
