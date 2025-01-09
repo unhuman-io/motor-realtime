@@ -327,7 +327,7 @@ ssize_t MotorIP::read() {
   //std::cout << "read " << std::endl;
   int ret = realtime_communication_.read((char *) &status_, sizeof(status_));
   if (ret < 0) {
-    return 0;
+    std::cout << "read error " << ret << std::endl;
   }
   return ret;
 }
