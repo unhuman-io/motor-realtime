@@ -93,34 +93,28 @@ int MotorApp::run() {
 	for(int i=0;; i++) {
 		if (!running) {
 			break;
-		}
+		}	
 		Data data = cstack.top();
-		int32_t count = 0;
-		int32_t count_received = 0;
-		if(data.size()) {
-			count = data.commands[0].host_timestamp;
+		std::vector<MotorStatus> statuses(data.statuses, data.statuses + motor_manager.size());
+		std::vector<MotorCommand> commands(data.commands, data.commands + motor_manager.size());
+		file << data.time_start.time_since_epoch().count() << ", " << commands << statuses << std::endl;
+
+		int32_t count = data.commands[0].host_timestamp;
+		int32_t count_received = data.statuses[0].host_timestamp_received;
+
+		if (i % 500 == 0) {
+			auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(data.last_time_end - data.last_time_start).count();
+			auto last_period =  std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - data.last_time_start).count();
+			std::cout << "last_period: " << last_period << " last_exec: " << last_exec 
+					<< " count_received: " << count_received << " current_count: " << count 
+					<< " aread_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.aread_time - data.time_start).count()
+					<< " read_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.read_time - data.time_start).count()
+					<< " control_exec: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.control_time - data.read_time).count()
+					<< " write_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.write_time - data.time_start).count()
+					<< std::endl;
 		}
-		if(data.size()) {
-			count_received = data.statuses[0].host_timestamp_received;
-		}
-		auto last_exec = std::chrono::duration_cast<std::chrono::nanoseconds>(data.last_time_end - data.last_time_start).count();
-		auto last_period =  std::chrono::duration_cast<std::chrono::nanoseconds>(data.time_start - data.last_time_start).count();
-		std::cout << "last_period: " << last_period << " last_exec: " << last_exec 
-				<< " count_received: " << count_received << " current_count: " << count 
-				<< " aread_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.aread_time - data.time_start).count()
-				<< " read_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.read_time - data.time_start).count()
-				<< " control_exec: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.control_time - data.read_time).count()
-				<< " write_time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(data.write_time - data.time_start).count()
-				<< std::endl;
-			
-		for (int j=0; j<500; j++) {
-			data = cstack.top();
-			std::vector<MotorStatus> statuses(data.statuses, data.statuses + motor_manager.size());
-			std::vector<MotorCommand> commands(data.commands, data.commands + motor_manager.size());
-			file << data.time_start.time_since_epoch().count() << ", " << commands << statuses << std::endl;
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-		}
-		 if (keyboard.new_key()) {
+
+		if (keyboard.new_key()) {
 			char c = keyboard.get_char();
 			if (c == ' ') {
 				break;
@@ -128,6 +122,7 @@ int MotorApp::run() {
 				motor_thread_->keyboard_press(c);
 			}
 		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 	motor_thread_->done();
 
