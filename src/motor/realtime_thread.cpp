@@ -76,8 +76,8 @@ void RealtimeThread::run() {
 }
 
 void RealtimeThread::done() {
-	done_ = true; 
-	if (exit_.get_future().wait_for(std::chrono::nanoseconds(period_ns_)*2) == std::future_status::timeout) {
+	done_.store(true); 
+	if (exit_.get_future().wait_for(std::chrono::nanoseconds(period_ns_)*20) == std::future_status::timeout) {
 		std::cerr << "Difficulty stopping realtime thread" << std::endl;
 	} else {
 		thread_->join();
@@ -132,7 +132,7 @@ void RealtimeThread::run_deadline()
 	auto next_time = std::chrono::steady_clock::now();
 	start_time_ = next_time;
 	auto last_loop_start_time = start_time_ - std::chrono::nanoseconds(period_ns_);
-	while (!done_) {
+	while (!done_.load()) {
 		auto loop_start_time = std::chrono::steady_clock::now();
 		auto period = loop_start_time - last_loop_start_time;
 		int32_t time_jitter = std::chrono::duration_cast<std::chrono::nanoseconds>(period).count() - period_ns_;
