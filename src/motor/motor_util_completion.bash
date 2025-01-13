@@ -50,7 +50,7 @@ _motor_util_completion()
       --api --api-timing --run-stats --set-timeout -v --version -u --user-space --allow-simulated --lock 
       -h --help";
     case $subcommand in
-        set) words="--host_time --mode --current --position --velocity --torque --torque_dot --reserved --gpio state position_tuning current_tuning stepper_tuning voltage stepper_velocity tuning read -h --help";
+        set) words="--host_time --mode --current --position --velocity --torque --torque_dot --reserved --gpio impedance state position_tuning current_tuning stepper_tuning voltage stepper_velocity tuning read -h --help";
             case $last in
                 --host_time|--current|--position|--velocity|--reserved|--gpio) return 0 ;;
                 --mode) words="open damped current position velocity torque impedance state current_tuning position_tuning voltage phase_lock stepper_tuning hardware_brake joint_position admittance find_limits driver_enable driver_disable clear_faults fault sleep crash reset" ;;
