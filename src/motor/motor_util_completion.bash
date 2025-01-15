@@ -108,7 +108,7 @@ _motor_util_completion()
             case $last in
                 --amplitude|--frequency|--bias) return 0 ;;
                 --tuning_mode) words="sine square triangle chirp random" ;;
-                --mode) words="position velocity torque" ;;
+                --mode) words="position velocity torque current voltage" ;;
             esac ;;
         *) words=$base_words ;;
     esac

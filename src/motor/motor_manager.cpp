@@ -634,7 +634,7 @@ const std::map<const ModeDesired, const std::string> MotorManager::mode_map{
         {ModeDesired::PHASE_LOCK, "phase_lock"}, {ModeDesired::STEPPER_TUNING, "stepper_tuning"},
         {ModeDesired::STEPPER_VELOCITY, "stepper_velocity"}, {ModeDesired::HARDWARE_BRAKE, "hardware_brake"},
         {ModeDesired::JOINT_POSITION, "joint_position"}, {ModeDesired::ADMITTANCE, "admittance"}, 
-        {ModeDesired::FIND_LIMITS, "find_limits"},
+        {ModeDesired::FIND_LIMITS, "find_limits"}, {ModeDesired::TUNING, "tuning"},
         {ModeDesired::DRIVER_ENABLE, "driver_enable"}, {ModeDesired::DRIVER_DISABLE, "driver_disable"},
         {ModeDesired::CLEAR_FAULTS, "clear_faults"},
         {ModeDesired::FAULT, "fault"}, {ModeDesired::SLEEP, "sleep"},
