@@ -1,4 +1,5 @@
-add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cpp motor_can.cpp realtime_thread.cpp motor_thread.cpp motor_app.cpp)
+add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cpp motor_can.cpp realtime_thread.cpp
+            motor_thread.cpp motor_app.cpp motor_util_fun.cpp)
 target_link_libraries(motor_manager PUBLIC udev pthread cli11 obot-protocol)
 target_include_directories(motor_manager PUBLIC ${PROJECT_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
@@ -27,7 +28,7 @@ install(FILES ${PROJECT_SOURCE_DIR}/include/motor_messages/motor_messages.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/motor_messages)
 
 if(BUILD_MOTOR_UTIL)
-    add_executable(motor_util motor_util.cpp motor_util_fun.cpp)
+    add_executable(motor_util motor_util.cpp )
     target_link_libraries(motor_util motor_manager json)
     target_include_directories(motor_util PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../../)
     install(TARGETS motor_util DESTINATION bin)
