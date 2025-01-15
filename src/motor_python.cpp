@@ -307,7 +307,7 @@ PYBIND11_MODULE(motor, m)
         .def("set_command_position_tuning", &MotorManager::set_command_position_tuning)
         .def("set_command_current_tuning", &MotorManager::set_command_current_tuning);
 
-
+    m.def("get_config_dir", &get_config_dir);
     m.def("diff_mcu_time", [](uint32_t t1, uint32_t t2)
           { return t1 - t2; });
     m.def("diff_encoder", [](int32_t p1, int32_t p2)
