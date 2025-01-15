@@ -276,7 +276,7 @@ PYBIND11_MODULE(motor, m)
         .def("get_motors_by_serial_number", &MotorManager::get_motors_by_serial_number, py::arg("serial_numbers"), py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("get_motors_by_path", &MotorManager::get_motors_by_path, py::arg("paths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("get_motors_by_devpath", &MotorManager::get_motors_by_devpath, py::arg("devpaths"), py::arg("connect") = true, py::arg("allow_simulated") = false)
-        .def("get_motors_by_ip", &MotorManager::get_motors_by_ip, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false, py::arg("ip_aliases") = std::vector<std::string>())
+        //.def("get_motors_by_ip", &MotorManager::get_motors_by_ip, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false, py::arg("ip_aliases") = std::vector<std::string>())
         .def("get_motors_uart_by_devpath", &MotorManager::get_motors_uart_by_devpath, py::arg("devpaths"), py::arg("raw") = false, py::arg("baud_rate") = 4000000, py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("get_motors_can", &MotorManager::get_motors_can, py::arg("can_interfaces"), py::arg("connect") = true, py::arg("allow_simulated") = false)
         .def("motors", &MotorManager::motors)
@@ -305,7 +305,36 @@ PYBIND11_MODULE(motor, m)
         .def("set_command_stepper_tuning", &MotorManager::set_command_stepper_tuning)
         .def("set_command_stepper_velocity", &MotorManager::set_command_stepper_velocity, py::arg("current"), py::arg("velocity"), py::arg("voltage") = 0, py::arg("stepper_mode") = StepperMode::STEPPER_CURRENT)
         .def("set_command_position_tuning", &MotorManager::set_command_position_tuning)
-        .def("set_command_current_tuning", &MotorManager::set_command_current_tuning);
+        .def("set_command_current_tuning", &MotorManager::set_command_current_tuning)
+        .def("get_motors_by_ip", [](MotorManager &m, std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated) {
+            std::string config_dir = get_config_dir();
+            auto json = py::module::import("json");
+            std::string json_ip_file = config_dir + "device_ip_map.json";
+
+            if (access(json_ip_file.c_str(), F_OK) == 0) {
+                auto file = py::module::import("io").attr("open")(json_ip_file, "r");
+                auto motor_ips = json.attr("load")(file);
+                if (ips.size() == 0) {
+                    py::print("connect to all ips");
+                    for (auto &ip : motor_ips) {
+                        ips.push_back(ip.cast<std::string>());
+                    }
+                }
+                std::vector<std::string> ip_aliases;
+                for (auto &address : ips) {
+                    if (motor_ips.contains(address)) {
+                        ip_aliases.push_back(address);
+                        address = motor_ips[py::str(address)].cast<std::string>();
+                    } else {
+                        ip_aliases.push_back("");
+                    }
+                }
+                return m.get_motors_by_ip(ips, connect, print_unconnected, allow_simulated, ip_aliases);
+            } else {
+                py::print("Error: json file " + json_ip_file + " not accessible");
+            }
+            return m.get_motors_by_ip(ips, connect, print_unconnected, allow_simulated);
+        }, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false);
 
     m.def("get_config_dir", &get_config_dir);
     m.def("diff_mcu_time", [](uint32_t t1, uint32_t t2)
