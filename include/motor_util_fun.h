@@ -72,5 +72,6 @@ class DFUDevice : public MotorDescription {
 };
 
 std::string short_status(std::vector<Status> statuses);
+std::string get_config_dir();
 
 }  // namespace obot
