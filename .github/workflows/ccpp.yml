@@ -79,6 +79,11 @@ jobs:
         files: |
           ./artifacts_${{ matrix.distro }}.tgz
         tag: main
+    - name: make python_pub_sub example
+      run: |
+        cd example/python/pub_sub
+        cmake .
+        make
 
   build_arm:
     runs-on: ubuntu-latest
