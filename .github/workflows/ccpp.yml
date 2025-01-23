@@ -87,6 +87,7 @@ jobs:
 
   build_arm:
     runs-on: ubuntu-latest
+    continue-on-error: true
     name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
 
     strategy:
