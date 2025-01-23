@@ -42,10 +42,10 @@ class MotorSubscriber {
         if (header.seq_num > last_seq_num_) {
             last_seq_num_ = header.seq_num;
             last_timestamp_ = header.timestamp;
-        }
-        dt_ = (header.timestamp - last_timestamp_)/(header.seq_num - last_seq_num_);
-        last_timestamp_ = header.timestamp;
-        last_seq_num_ = header.seq_num;
+            dt_ = (header.timestamp - last_timestamp_)/(header.seq_num - last_seq_num_);
+            last_timestamp_ = header.timestamp;
+            last_seq_num_ = header.seq_num;
+        }  
     }
     void open() {
         fd_ = shm_open(shm_name_.c_str(), O_RDONLY, 0666);
