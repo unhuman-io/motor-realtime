@@ -39,5 +39,6 @@ PYBIND11_MODULE(motor_pub_sub, m)
 
     py::class_<MotorSubscriber<Data>>(m, "MotorSubscriber")
         .def(py::init<std::string>())
-        .def("read", &MotorSubscriber<Data>::read);
+        .def("read", &MotorSubscriber<Data>::read)
+        .def("get_dt", &MotorSubscriber<Data>::get_dt);
 }

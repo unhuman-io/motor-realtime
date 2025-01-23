@@ -7,12 +7,21 @@
 #include <fcntl.h>
 #include <cstring>
 #include "cstack.h"
+#include <chrono>
 
 namespace obot {
 
 template <class T>
 class MotorPublisher {
  public:
+    struct Header {
+        uint64_t timestamp;
+        uint64_t seq_num;
+    };
+    struct Data {
+        Header header;
+        T data;
+    };
     MotorPublisher(std::string shm_name = "motor_data") : shm_name_(shm_name) {
         fd_ = shm_open(shm_name_.c_str(), O_RDWR  | O_CREAT, 0666);
         ftruncate(fd_, sizeof(*data_));
@@ -22,23 +31,30 @@ class MotorPublisher {
                         MAP_SHARED, /* mapping visible to other processes */
                         fd_,         /* file descriptor */
                         0);
-        std::memset(memptr_, 0, 1000);
-        data_ = reinterpret_cast<CStack<T> *>(memptr_);
+        std::memset(memptr_, 0, sizeof(*data_));
+        data_ = reinterpret_cast<CStack<Data> *>(memptr_);
     }
     ~MotorPublisher() {
+        data_->close();
         munmap(memptr_, sizeof(*data_));
         close(fd_);
         shm_unlink(shm_name_.c_str());
     }
     void publish(T data) {
-        data_->push(data);
-        //std::strcpy((char *) memptr_, str.c_str());
+        auto now = std::chrono::steady_clock::now();
+        auto since_epoch = now.time_since_epoch();
+        auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(since_epoch);
+        data_struct_.header.timestamp = nanoseconds.count();
+        data_struct_.header.seq_num++;
+        data_struct_.data = data;
+        data_->push(data_struct_);
     }
  private:
     int fd_;
+    Data data_struct_ = {};
     std::string shm_name_;
     void * memptr_;
-    CStack<T> *data_;
+    CStack<Data> *data_;
 };
 
 }  // namespace obot
