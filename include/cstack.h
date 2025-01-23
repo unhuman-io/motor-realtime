@@ -31,8 +31,16 @@ class CStack {
 	void close() {
 		pos_.store(-1, std::memory_order_release);
 	}
+
+	// todo: look at adding a non-copy push option
+	// e.g. void write(auto&& data_generator){
+		// Data& data = s.next();
+		// data_generator(data);
+		// s.finish();
+		//}
  private:
-	T data_[size] = {};
+	T data_[size] = {}; // todo: look at separating these by cache lines
+						// e.g. struct alignas(64) { T data_[size] = {}; };
 	std::atomic<int> pos_ = {0};
 };
 
