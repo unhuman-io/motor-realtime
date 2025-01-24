@@ -82,7 +82,7 @@ int MotorApp::run() {
 	
 	motor_thread_->run();
 	std::ofstream file;
-	file.open("data.csv");
+	file.open("data_" + app_name_ + ".csv");
 	file << "timestamp, " << motor_manager.command_headers() << motor_manager.status_headers() << std::endl;
 
 
