@@ -16,8 +16,11 @@
 #include "motor_util_fun.h"
 #include <json.hpp>
 #include "protocol_parser.h"
+#include <atomic>
 
 using namespace obot;
+
+std::atomic<bool> signal_exit{false};
 
 struct cstr{char s[100];};
 class Statistics {
@@ -57,6 +60,91 @@ class Statistics {
     std::deque<double> queue_;
 };
 
+void raw_packet_printer(bool set_api, bool set, bool ip_option, std::vector<std::string> &set_api_data, Command &command) {
+    uint8_t packet_id;
+    uint8_t *packet_data;
+    uint8_t length;
+    if (set_api) {
+        // ascii packet
+        packet_id = 4;
+        packet_data = (uint8_t*)set_api_data[0].c_str();
+        length = set_api_data[0].size();
+    } else if (set) {
+        // command packet
+        packet_id = 1;
+        packet_data = (uint8_t*)&command;
+        length = sizeof(command);
+    } else {
+        std::cerr << "Error: --print-raw-packet requires set or --set-api" << std::endl;
+        exit(1);
+    }
+    if (ip_option) {
+        uint8_t length_out;
+        uint8_t buffer[128];
+        figure::ProtocolParser parser(buffer, sizeof(buffer));
+        packet_data = parser.generatePacket(packet_data, length, packet_id, &length_out);
+        length = length_out;
+    }
+    write(1, packet_data, length);
+    exit(0);
+}
+
+void raw_packet_parser() {
+    uint8_t buffer[128];
+    figure::ProtocolParser parser(buffer, sizeof(buffer));
+    parser.registerCallback(1, [](const uint8_t* packet, uint16_t length){
+        std::vector<Command> commands;
+        commands.push_back(*reinterpret_cast<const Command*>(packet));
+        std::cout << "command: " << commands << std::endl;
+    });
+    parser.registerCallback(2, [](const uint8_t* packet, uint16_t length){
+        std::vector<Status> statuses;
+        statuses.push_back(*reinterpret_cast<const Status*>(packet));
+        std::cout << "status: " << statuses << std::endl;
+    });
+    parser.registerCallback(3, [](const uint8_t* packet, uint16_t length){
+        std::vector<Command> commands;
+        commands.push_back(*reinterpret_cast<const Command*>(packet));
+        std::cout << "command_status: " << commands << std::endl;
+    });
+    parser.registerCallback(4, [](const uint8_t* packet, uint16_t length){
+        std::string s(reinterpret_cast<const char*>(packet), length);
+        std::cout << "api command: " << s << std::endl;
+    });
+    parser.registerCallback(5, [](const uint8_t* packet, uint16_t length){
+        std::string s(reinterpret_cast<const char*>(packet), length);
+        std::cout << "api response: " << s << std::endl;
+    });
+    int current_idx = 0;
+    while(signal_exit == false) {
+        // fill and parse a circular buffer
+        if (current_idx == sizeof(buffer)) {
+            current_idx = 0;
+        }
+        struct pollfd fds[1];
+        fds[0].fd = 0;
+        ssize_t retval = poll(fds, 1, 10);
+        if (retval < 0) {
+            std::cerr << "Error: poll failed" << std::endl;
+            exit(1);
+        } else if (retval == 0) {
+            continue;
+        }
+        retval = read(0, buffer, sizeof(buffer) - current_idx);
+        if (retval < 0) {
+            std::cerr << "Error: read failed" << std::endl;
+            exit(1);
+        } else if (retval == 0) {
+            // closed pipe
+            break;
+        } else {
+            current_idx += retval;
+            parser.process(current_idx);
+        }
+    }
+    exit(0);
+}
+
 struct ReadOptions {
     bool poll;
     bool ppoll;
@@ -78,7 +166,6 @@ struct ReadOptions {
     bool fastlog;
 };
 
-bool signal_exit = false;
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers\n"
                  "\n"
@@ -249,32 +336,8 @@ int main(int argc, char** argv) {
 
     if (print_raw_packet) {
         // todo move ip specific stuff to motor_ip.cpp
-        uint8_t packet_id;
-        uint8_t *packet_data;
-        uint8_t length;
-        if (*set_api) {
-            // ascii packet
-            packet_id = 4;
-            packet_data = (uint8_t*)set_api_data[0].c_str();
-            length = set_api_data[0].size();
-        } else if (*set) {
-            // command packet
-            packet_id = 1;
-            packet_data = (uint8_t*)&command;
-            length = sizeof(command);
-        } else {
-            std::cerr << "Error: --print-raw-packet requires set or --set-api" << std::endl;
-            exit(1);
-        }
-        if (*ip_option) {
-            uint8_t length_out;
-            uint8_t buffer[128];
-            figure::ProtocolParser parser(buffer, sizeof(buffer));
-            packet_data = parser.generatePacket(packet_data, length, packet_id, &length_out);
-            length = length_out;
-        }
-        write(1, packet_data, length);
-        exit(0);
+        raw_packet_printer(static_cast<bool>(*set_api), static_cast<bool>(*set), static_cast<bool>(*ip_option),
+            set_api_data, command);
     }
 
     if (parse_raw_packet) {
@@ -283,59 +346,8 @@ int main(int argc, char** argv) {
             std::cerr << "Error: --parse-raw-packet requires --ips" << std::endl;
             exit(1);
         }
-        uint8_t buffer[128];
-        figure::ProtocolParser parser(buffer, sizeof(buffer));
-        parser.registerCallback(1, [](const uint8_t* packet, uint16_t length){
-            std::vector<Command> commands;
-            commands.push_back(*reinterpret_cast<const Command*>(packet));
-            std::cout << "command: " << commands << std::endl;
-        });
-        parser.registerCallback(2, [](const uint8_t* packet, uint16_t length){
-            std::vector<Status> statuses;
-            statuses.push_back(*reinterpret_cast<const Status*>(packet));
-            std::cout << "status: " << statuses << std::endl;
-        });
-        parser.registerCallback(3, [](const uint8_t* packet, uint16_t length){
-            std::vector<Command> commands;
-            commands.push_back(*reinterpret_cast<const Command*>(packet));
-            std::cout << "command_status: " << commands << std::endl;
-        });
-        parser.registerCallback(4, [](const uint8_t* packet, uint16_t length){
-            std::string s(reinterpret_cast<const char*>(packet), length);
-            std::cout << "api command: " << s << std::endl;
-        });
-        parser.registerCallback(5, [](const uint8_t* packet, uint16_t length){
-            std::string s(reinterpret_cast<const char*>(packet), length);
-            std::cout << "api response: " << s << std::endl;
-        });
-        int current_idx = 0;
-        while(signal_exit == false) {
-            // fill and parse a circular buffer
-            if (current_idx == sizeof(buffer)) {
-                current_idx = 0;
-            }
-            struct pollfd fds[1];
-            fds[0].fd = 0;
-            ssize_t retval = poll(fds, 1, 10);
-            if (retval < 0) {
-                std::cerr << "Error: poll failed" << std::endl;
-                exit(1);
-            } else if (retval == 0) {
-                continue;
-            }
-            retval = read(0, buffer, sizeof(buffer) - current_idx);
-            if (retval < 0) {
-                std::cerr << "Error: read failed" << std::endl;
-                exit(1);
-            } else if (retval == 0) {
-                // closed pipe
-                break;
-            } else {
-                current_idx += retval;
-                parser.process(current_idx);
-            }
-        }
-        exit(0);
+        raw_packet_parser(); // doesn't exit without signal
+        exit(1);
     }
 
     MotorManager m(user_space_driver, check_messages_version);
