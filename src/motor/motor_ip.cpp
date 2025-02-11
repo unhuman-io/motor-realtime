@@ -113,7 +113,7 @@ int MotorIP::create_communication_lock() {
 }
 
 int UDPFile::lock_communication() {
-    int err = lockf(fd_communication_lock_, F_LOCK, timeout_ms_); 
+    int err = lockf(fd_communication_lock_, F_LOCK, 0); 
     if (err) {
         std::cerr << "error locking " + std::to_string(errno) + ": " + strerror(errno);
         pid_t pid;
