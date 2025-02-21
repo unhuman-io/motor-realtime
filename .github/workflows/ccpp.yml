@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
+        distro: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.distro }}
     
     steps:
@@ -28,7 +28,7 @@ jobs:
       run: make VERBOSE=1 -j2
     - name: make package
       run: make package
-    - name: rename
+    - name: rename 22.04
       if: ${{ !(matrix.distro == 'ubuntu-22.04') }}
       run: for f in packages/*.deb; do mv $f ${f%.deb}_${{ matrix.distro }}.deb; done
     - name: Archive production artifacts
@@ -86,7 +86,7 @@ jobs:
         make
 
   build_arm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     continue-on-error: true
     name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
 
@@ -232,7 +232,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [ubuntu-20.04, ubuntu-22.04]
+        distro: [ubuntu-22.04]
 
     steps:
     - uses: actions/download-artifact@v4
