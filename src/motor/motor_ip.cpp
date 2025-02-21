@@ -177,15 +177,13 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
   }
 
   std::unique_lock<std::mutex> lk(rx_data_cv_m_);
-  std::cv_status status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_));
+  bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_len_ != 0; });
   unlock_communication();
 
-  if (status == std::cv_status::timeout) {
-    //std::cout << "timed out" << std::endl;
+  if (status == false) {
     errno = ETIMEDOUT;
     return -1;
   } else {
-    //std::cout << "cv result " << (int) status << std::endl;
     size_t len = std::min((size_t) length, rx_len_);
     std::memset(data, 0, length);
     std::memcpy(data, rx_buf_, len);
