@@ -86,7 +86,7 @@ jobs:
         make
 
   build_arm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     continue-on-error: true
     name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
 
