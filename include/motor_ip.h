@@ -58,7 +58,7 @@ class UDPFile : public TextFile {
     ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false);
     figure::ProtocolParser &parser_;
     std::condition_variable rx_data_cv_;
-    std::mutex rx_data_cv_m_;
+    std::mutex rx_data_cv_m_; // protects rx_data_cv_, rx_buf_ and rx_len_
     uint8_t rx_buf_[1024];
     size_t rx_len_ = 0;
     bool api_mode_ = false;
