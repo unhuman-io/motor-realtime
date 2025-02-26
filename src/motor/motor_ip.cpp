@@ -187,6 +187,7 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
     size_t len = std::min((size_t) length, rx_len_);
     std::memset(data, 0, length);
     std::memcpy(data, rx_buf_, len);
+    rx_len_ = 0;
     return len;
   }
 }
