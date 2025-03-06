@@ -223,7 +223,7 @@ int main(int argc, char** argv) {
     ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .nonblock = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .csv = false, .reconnect = false, .read_write_statistics = false,
-        .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5, .print_reserved=false};
+        .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));

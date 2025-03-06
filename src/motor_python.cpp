@@ -184,7 +184,8 @@ PYBIND11_MODULE(motor, m)
              { return "<MotorFlags: " + std::to_string(f.mode) + ">"; });
 
     py::class_<MotorStatusLarge>(m, "MotorStatusLarge")
-        .def_readonly("reserved", &MotorStatusLarge::reserved)
+        .def_property_readonly("reserved", [](const MotorStatusLarge &s)
+                     { return std::vector<float>(s.reserved, s.reserved + sizeof(s.reserved)/sizeof(s.reserved[0])); })
         .def("__repr__", [](const MotorStatusLarge &s)
              { return "<MotorStatusLarge at: " + std::to_string(s.mcu_timestamp) + ">"; });
 
