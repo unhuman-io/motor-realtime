@@ -321,7 +321,8 @@ ssize_t MotorCAN::read() {
         nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
         if (nbytes > 0) {
             if (frame.can_id == 3 << 7 | devnum_) {
-                std::memcpy(&status_, frame.data, sizeof(status_));
+                int length = std::min(nbytes, (int)sizeof(status_));
+                std::memcpy(&status_, frame.data, length);
             }
         }
     }

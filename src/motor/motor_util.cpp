@@ -164,6 +164,7 @@ struct ReadOptions {
     int precision;
     bool mini;
     bool fastlog;
+    bool print_reserved;
 };
 
 int main(int argc, char** argv) {
@@ -222,7 +223,7 @@ int main(int argc, char** argv) {
     ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .nonblock = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .csv = false, .reconnect = false, .read_write_statistics = false,
-        .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
+        .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5, .print_reserved=false};
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -285,8 +286,9 @@ int main(int argc, char** argv) {
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
     read_option->add_flag("-v,--compute-velocity", read_opts.compute_velocity, "Compute velocity from motor and joint position");
     read_option->add_option("-p,--precision", read_opts.precision, "floating point precision output")->expected(1);
-    read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
+    auto read_mini = read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
     read_option->add_flag("--fast_log", read_opts.fastlog, "Print the fast log");
+    read_option->add_flag("--print-reserved", read_opts.print_reserved, "Print reserved fields")->excludes(read_mini);
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]")->type_name("NUM_SAMPLES RANGE")->expected(0,2)->capture_default_str();
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
@@ -728,6 +730,9 @@ int main(int argc, char** argv) {
             }
             text_thread.done();
         } else {
+            if (read_opts.print_reserved) {
+                std::cout << reserved_print_on;
+            }
             std::vector<double> cpu_frequency_hz(motors.size());
             if (read_opts.statistics || read_opts.read_write_statistics) {
                 std::cout << "host_time_ns period_avg_ns period_std_dev_ns period_min_ns period_max_ns read_time_avg_ns read_time_std_dev_ns read_time_min_ns read_time_max_ns";
@@ -756,7 +761,7 @@ int main(int argc, char** argv) {
                         std::cout << "t_seconds" << i << ", ";
                     }
                 }
-                std::cout << m.status_headers(read_opts.mini);
+                std::cout << m.status_headers(read_opts.mini, read_opts.print_reserved);
                 if (read_opts.compute_velocity) {
                     for (int i=0;i<motors.size();i++) {
                         std::cout << "motor_velocity_computed" << i << ", ";
