@@ -562,7 +562,7 @@ std::string MotorManager::command_headers() const {
     return ss.str();
 }
 
-std::string MotorManager::status_headers(bool mini) const {
+std::string MotorManager::status_headers(bool mini, bool print_reserved) const {
     std::stringstream ss;
     int length = motors_.size();
     if (!mini) {
@@ -618,6 +618,13 @@ std::string MotorManager::status_headers(bool mini) const {
         }
         for (int i=0;i<length;i++) {
             ss << "mode_error_text" << i << ", ";
+        }
+    }
+    for (int i=0;i<length;i++) {
+        if (print_reserved) {
+            for (int j=0;j<sizeof(MotorStatus::large.reserved)/sizeof(MotorStatus::large.reserved[0]);j++) {
+                ss << "reserved" << j << i << ", ";
+            }
         }
     }
     return ss.str();

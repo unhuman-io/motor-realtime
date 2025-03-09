@@ -183,6 +183,12 @@ PYBIND11_MODULE(motor, m)
         .def("__repr__", [](const MotorFlags &f)
              { return "<MotorFlags: " + std::to_string(f.mode) + ">"; });
 
+    py::class_<MotorStatusLarge>(m, "MotorStatusLarge")
+        .def_property_readonly("reserved", [](const MotorStatusLarge &s)
+                     { return std::vector<float>(s.reserved, s.reserved + sizeof(s.reserved)/sizeof(s.reserved[0])); })
+        .def("__repr__", [](const MotorStatusLarge &s)
+             { return "<MotorStatusLarge at: " + std::to_string(s.mcu_timestamp) + ">"; });
+
     py::class_<Status>(m, "Status")
         .def_readonly("mcu_timestamp", &Status::mcu_timestamp)
         .def_readonly("host_timestamp_received", &Status::host_timestamp_received)
@@ -196,6 +202,7 @@ PYBIND11_MODULE(motor, m)
         .def_readonly("iq_desired", &Status::iq_desired)
         .def_readonly("reserved", &Status::reserved)
         .def_readonly("flags", &Status::flags)
+        .def_readonly("large", &Status::large)
         .def("__repr__", [](const Status &s)
              { return "<Status at: " + std::to_string(s.mcu_timestamp) + ">"; });
 

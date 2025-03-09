@@ -92,7 +92,7 @@ class MotorManager {
     void set_command_stepper_velocity(double current,  double velocity, double voltage = 0, StepperMode mode = StepperMode::STEPPER_CURRENT);
 
     std::string command_headers() const;
-    std::string status_headers(bool mini = false) const;
+    std::string status_headers(bool mini = false, bool print_reserved = false) const;
     int serialize_command_size() const;
     int serialize_saved_commands(char *data) const;
     bool deserialize_saved_commands(char *data);
@@ -244,6 +244,21 @@ inline std::ostream& operator<<(std::ostream& os, const MotorError &error)
    return os;
 }
 
+inline int reserved_print_index() {
+   static int index = std::ios_base::xalloc();
+   return index;
+}
+
+inline std::ostream& reserved_print_on(std::ostream& os) {
+   os.iword(reserved_print_index()) = 1;
+   return os;
+}
+
+inline std::ostream& reserved_print_off(std::ostream& os) {
+   os.iword(reserved_print_index()) = 0;
+   return os;
+}
+
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> &status)
 {
 
@@ -308,6 +323,13 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> &sta
    for (auto s : status) {
       os << MotorManager::mode_map.at(static_cast<ModeDesired>(s.flags.mode)) << " ";
       os << s.flags.error << ", ";
+   }
+   if (os.iword(reserved_print_index())) {
+      for (auto s : status) {
+         for (int i=0; i < sizeof(s.large.reserved)/sizeof(s.large.reserved[0]); i++) {
+            os << s.large.reserved[i] << ", ";
+         }
+      }
    }
    return os;
 }
