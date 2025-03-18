@@ -2,6 +2,7 @@
 #include <errno.h>
 #include "poll.h"
 #include <asm/termbits.h>
+#include <condition_variable>
 
 #include <thread>
 #include <chrono>
@@ -11,17 +12,23 @@ namespace obot {
 class UartObotTextFile : public TextFile {
   public:
       UartObotTextFile(figure::ProtocolParser &parser) :
-          parser_(parser) {
-      }
+          parser_(parser) {}
+      void register_callbacks();
       virtual ssize_t read(char * data, unsigned int length) override;
       virtual ssize_t write(const char * data, unsigned int length) override;
       virtual ssize_t writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) override;
+      void set_timeout_ms(int timeout_ms) { timeout_ms_ = timeout_ms; }
       uint8_t send_frame_id_ = 4; // text command
-      uint8_t recv_frame_id_ = 5; // text status
+      uint8_t recv_frame_id_ = 5; // text response
       uint8_t send_recv_frame_id_ = 4; // both
       int fd_;
   private:
-      figure::ProtocolParser parser_;
+      figure::ProtocolParser &parser_;
+      std::condition_variable rx_data_cv_;
+      std::mutex rx_data_cv_m_; // protects rx_data_cv_, rx_buf_ and rx_len_
+      uint8_t rx_buf_[1024];
+      size_t rx_len_ = 0;
+      uint32_t timeout_ms_ = 100;
   };
 
 MotorUARTObot::MotorUARTObot(std::string dev_path, uint32_t baud_rate) {
@@ -30,10 +37,10 @@ MotorUARTObot::MotorUARTObot(std::string dev_path, uint32_t baud_rate) {
   if (result < 0) {
     throw std::runtime_error("Error opening " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
-  realtime_mailbox_.fd_ = fd_;
   motor_txt_ = std::move(std::unique_ptr<UartObotTextFile>(new UartObotTextFile(parser_)));
   UartObotTextFile * text_mailbox = static_cast<UartObotTextFile *>(motor_txt_.get());
   text_mailbox->fd_ = fd_;
+  text_mailbox->register_callbacks();
 
   // only one item can access uart devices due to protocol
   result = lock();
@@ -41,9 +48,8 @@ MotorUARTObot::MotorUARTObot(std::string dev_path, uint32_t baud_rate) {
     throw std::runtime_error("Error locking: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
   set_baud_rate(baud_rate);
-  // if (sync() < 0) {
-  //   throw std::runtime_error("Error syncing: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
-  // }
+
+  rx_thread_ = std::thread([this]{ this->rx_data(); });
   
   version_ = operator[]("version").get();
   messages_version_ = operator[]("messages_version").get();
@@ -58,6 +64,8 @@ MotorUARTObot::MotorUARTObot(std::string dev_path, uint32_t baud_rate) {
 
 void MotorUARTObot::set_timeout_ms(int timeout_ms) {
   timeout_ms_ = timeout_ms;
+  UartObotTextFile * text_mailbox = static_cast<UartObotTextFile *>(motor_txt_.get());
+  text_mailbox->set_timeout_ms(timeout_ms);
 }
 
 void MotorUARTObot::set_baud_rate(uint32_t baud_rate) {
@@ -105,17 +113,63 @@ ssize_t MotorUARTObot::write() {
   return retval;
 }
 
+void MotorUARTObot::rx_data() {
+  while(1) {
+    // assume blocking i/o
+    pollfd tmp;
+    tmp.fd = fd_;
+    tmp.events = POLLIN;
+    int poll_result = ::poll(&tmp, 1, 5 /* ms */);
+    if (poll_result > 0) {
+      int result = ::read(fd_, rx_lin_buffer_, RX_BUFFER_SIZE);
+      // std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
+      if (result < 0) {
+        throw std::runtime_error("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+      }
+      for (int i=0; i<result; i++) {
+        rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
+        current_read_idx_ = (current_read_idx_ + 1) % RX_BUFFER_SIZE;
+      }
+      parser_.process((current_read_idx_ - 1) % RX_BUFFER_SIZE);
+    }
+    if (terminate_) {
+      return;
+    }
+  }
+}
+
+MotorUARTObot::~MotorUARTObot() {
+  terminate_ = true;
+  rx_thread_.join(); // todo add timeout
+}
+
+void UartObotTextFile::register_callbacks() {
+  parser_.registerCallback(recv_frame_id_, [this](const uint8_t* buf, uint16_t len)
+  {
+    {
+      std::lock_guard<std::mutex> lk(rx_data_cv_m_);
+      std::memcpy(rx_buf_, buf, len);
+      rx_len_ = len;
+    }
+    rx_data_cv_.notify_one();
+  });
+}
+
 ssize_t UartObotTextFile::read(char * data, unsigned int length) {
   int retval;
-  retval = ::read(fd_, data, length);
-  // std::cout << "read " << retval << std::endl;
-  if (retval < 0) {
-    //read_error_++;
-    std::cerr << "read error " << retval << std::endl;
+
+  std::unique_lock<std::mutex> lk(rx_data_cv_m_);
+  bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_len_ != 0; });
+  if (status == false) {
+    errno = ETIMEDOUT;
+    return -1;
   } else {
-    std::cout << "read " << retval << std::endl;
+    size_t len = std::min((size_t) length, rx_len_);
+    std::memset(data, 0, length);
+    std::memcpy(data, rx_buf_, len);
+    rx_len_ = 0;
+    return len;
   }
-  return retval;
 }
 
 
@@ -124,7 +178,7 @@ ssize_t UartObotTextFile::write(const char * data, unsigned int length) {
   uint8_t * packet_out = parser_.generatePacket((uint8_t *) data, length, send_recv_frame_id_, &packet_size);
   int retval = ::write(fd_, packet_out, packet_size);
   if (retval != packet_size) {
-    std::cerr << "write error " << (char *) (retval + 4) << std::endl;
+    std::cerr << "write error " << retval << std::endl;
   }
   return length;
 }
