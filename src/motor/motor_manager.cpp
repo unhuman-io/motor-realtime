@@ -2,6 +2,7 @@
 #include "motor.h"
 #include "motor_ip.h"
 #include "motor_uart.h"
+#include "motor_uart_obot.h"
 #include "motor_can.h"
 
 #include <libudev.h>
@@ -159,7 +160,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std
         if (raw) {
             m[i] = std::make_shared<MotorUARTRaw>(devpaths[i], baud_rate);
         } else {
-            throw std::runtime_error("motor uart not raw");
+            m[i] = std::make_shared<MotorUARTObot>(devpaths[i], baud_rate);
         }
     }
     if (connect) {
