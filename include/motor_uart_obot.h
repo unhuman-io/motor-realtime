@@ -2,10 +2,11 @@
 
 #include "motor.h"
 #include "motor_uart.h"
-#include <protocol_parser.h>
+#include "protocol_parser.h"
 #include <poll.h>
 #include <atomic>
 #include <thread>
+#include <condition_variable>
 
 namespace obot {
 
@@ -30,6 +31,10 @@ class MotorUARTObot : public Motor {
     std::atomic<uint32_t> current_read_idx_{0};
     std::thread rx_thread_;
     std::atomic<bool> terminate_{false};
+    std::condition_variable rx_data_cv_;
+    std::mutex rx_data_cv_m_; // protects rx_data_cv_, rx_buf_ and rx_len_
+    uint8_t rx_buf_[1024];
+    size_t rx_len_ = 0;
 };
 
 }; // namespace obot

@@ -42,6 +42,16 @@ MotorUARTObot::MotorUARTObot(std::string dev_path, uint32_t baud_rate) {
   text_mailbox->fd_ = fd_;
   text_mailbox->register_callbacks();
 
+  parser_.registerCallback(2, [this](const uint8_t* buf, uint16_t len) // status
+  {
+    {
+      std::lock_guard<std::mutex> lk(rx_data_cv_m_);
+      std::memcpy(rx_buf_, buf, len);
+      rx_len_ = len;
+    }
+    rx_data_cv_.notify_one();
+  });
+
   // only one item can access uart devices due to protocol
   result = lock();
   if (result < 0) {
@@ -89,18 +99,26 @@ void MotorUARTObot::set_baud_rate(uint32_t baud_rate) {
 }
 
 ssize_t MotorUARTObot::read() {
-  //static int count = 0;
-  ssize_t result = ::read(fd_, &status_, sizeof(status_));
-  if (status_.host_timestamp_received != command_.host_timestamp) {
-    // count++;
-    // if (count > 1){
-    // std::cout << "host timestamp received: " << status_.host_timestamp_received << ", sent" << command_.host_timestamp << std::endl;
-    // std::this_thread::sleep_for(std::chrono::microseconds(8000));
-    // std::cout << "result " << result << std::endl;
-    // }
-    
+  uint8_t packet_size;
+  uint8_t * packet_out = parser_.generatePacket(nullptr, 0, 2, &packet_size); // get status
+  int retval = ::write(fd_, packet_out, packet_size);
+  if (retval != packet_size) {
+    std::cerr << "write error " << retval << std::endl;
+    return retval;
   }
-  return result;
+
+  std::unique_lock<std::mutex> lk(rx_data_cv_m_);
+  bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_len_ != 0; });
+  if (status == false) {
+    errno = ETIMEDOUT;
+    return -1;
+  } else {
+    size_t len = std::min(sizeof(status_), rx_len_);
+    std::memset(&status_, 0, sizeof(status_));
+    std::memcpy(&status_, rx_buf_, len);
+    rx_len_ = 0;
+    return len;
+  }
 }
 
 ssize_t MotorUARTObot::write() {
@@ -156,8 +174,6 @@ void UartObotTextFile::register_callbacks() {
 }
 
 ssize_t UartObotTextFile::read(char * data, unsigned int length) {
-  int retval;
-
   std::unique_lock<std::mutex> lk(rx_data_cv_m_);
   bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_len_ != 0; });
   if (status == false) {
