@@ -15,8 +15,12 @@
 #include "keyboard.h"
 #include "motor_util_fun.h"
 #include <json.hpp>
+#include "protocol_parser.h"
+#include <atomic>
 
 using namespace obot;
+
+std::atomic<bool> signal_exit{false};
 
 struct cstr{char s[100];};
 class Statistics {
@@ -56,6 +60,91 @@ class Statistics {
     std::deque<double> queue_;
 };
 
+void raw_packet_printer(bool set_api, bool set, bool ip_option, std::vector<std::string> &set_api_data, Command &command) {
+    uint8_t packet_id;
+    uint8_t *packet_data;
+    uint8_t length;
+    if (set_api) {
+        // ascii packet
+        packet_id = 4;
+        packet_data = (uint8_t*)set_api_data[0].c_str();
+        length = set_api_data[0].size();
+    } else if (set) {
+        // command packet
+        packet_id = 1;
+        packet_data = (uint8_t*)&command;
+        length = sizeof(command);
+    } else {
+        std::cerr << "Error: --print-raw-packet requires set or --set-api" << std::endl;
+        exit(1);
+    }
+    if (ip_option) {
+        uint8_t length_out;
+        uint8_t buffer[128];
+        figure::ProtocolParser parser(buffer, sizeof(buffer));
+        packet_data = parser.generatePacket(packet_data, length, packet_id, &length_out);
+        length = length_out;
+    }
+    write(1, packet_data, length);
+    exit(0);
+}
+
+void raw_packet_parser() {
+    uint8_t buffer[128];
+    figure::ProtocolParser parser(buffer, sizeof(buffer));
+    parser.registerCallback(1, [](const uint8_t* packet, uint16_t length){
+        std::vector<Command> commands;
+        commands.push_back(*reinterpret_cast<const Command*>(packet));
+        std::cout << "command: " << commands << std::endl;
+    });
+    parser.registerCallback(2, [](const uint8_t* packet, uint16_t length){
+        std::vector<Status> statuses;
+        statuses.push_back(*reinterpret_cast<const Status*>(packet));
+        std::cout << "status: " << statuses << std::endl;
+    });
+    parser.registerCallback(3, [](const uint8_t* packet, uint16_t length){
+        std::vector<Command> commands;
+        commands.push_back(*reinterpret_cast<const Command*>(packet));
+        std::cout << "command_status: " << commands << std::endl;
+    });
+    parser.registerCallback(4, [](const uint8_t* packet, uint16_t length){
+        std::string s(reinterpret_cast<const char*>(packet), length);
+        std::cout << "api command: " << s << std::endl;
+    });
+    parser.registerCallback(5, [](const uint8_t* packet, uint16_t length){
+        std::string s(reinterpret_cast<const char*>(packet), length);
+        std::cout << "api response: " << s << std::endl;
+    });
+    int current_idx = 0;
+    while(signal_exit == false) {
+        // fill and parse a circular buffer
+        if (current_idx == sizeof(buffer)) {
+            current_idx = 0;
+        }
+        struct pollfd fds[1];
+        fds[0].fd = 0;
+        ssize_t retval = poll(fds, 1, 10);
+        if (retval < 0) {
+            std::cerr << "Error: poll failed" << std::endl;
+            exit(1);
+        } else if (retval == 0) {
+            continue;
+        }
+        retval = read(0, buffer, sizeof(buffer) - current_idx);
+        if (retval < 0) {
+            std::cerr << "Error: read failed" << std::endl;
+            exit(1);
+        } else if (retval == 0) {
+            // closed pipe
+            break;
+        } else {
+            current_idx += retval;
+            parser.process(current_idx);
+        }
+    }
+    exit(0);
+}
+
 struct ReadOptions {
     bool poll;
     bool ppoll;
@@ -75,9 +164,9 @@ struct ReadOptions {
     int precision;
     bool mini;
     bool fastlog;
+    bool print_reserved;
 };
 
-bool signal_exit = false;
 int main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers\n"
                  "\n"
@@ -96,26 +185,11 @@ int main(int argc, char** argv) {
     std::vector<std::string> uart_paths = {};
     std::vector<std::string> can_devs = {"any"};
     bool uart_raw = false;
+    bool print_raw_packet = false;
+    bool parse_raw_packet = false;
     std::vector<std::string> ips = {};
     
-    std::string config_dir;
-    char * config_dir_env = getenv("MOTOR_UTIL_CONFIG_DIR");
-    if (config_dir_env == NULL) {
-        // right now the only thing in the config directory is the device_ip_map.json
-        // will have to figure out the search path implementation later if other files are added
-        config_dir = std::string(getenv("HOME")) + "/.config/motor_util/";
-        if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
-            config_dir = "/etc/motor_util/";
-            if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
-                config_dir = "/usr/share/motor-realtime/";
-            }
-        }
-    } else {
-        config_dir = std::string(config_dir_env);
-        if (config_dir.back() != '/') {
-            config_dir += "/";
-        }
-    }
+    std::string config_dir = get_config_dir();
     std::string json_ip_file_default = config_dir + "device_ip_map.json";
     std::string json_ip_file = json_ip_file_default;
     bool no_print_unconnected = false;
@@ -125,11 +199,12 @@ int main(int argc, char** argv) {
         mode_map.push_back({pair.second, pair.first});
     }
     std::vector<std::pair<std::string, ModeDesired>> tuning_mode_options_map{
-        {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"torque", ModeDesired::TORQUE}
+        {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"torque", ModeDesired::TORQUE},
+        {"current", ModeDesired::CURRENT}, {"voltage", ModeDesired::VOLTAGE}
     };    
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
-        {"chirp", TuningMode::CHIRP}};
+        {"chirp", TuningMode::CHIRP}, {"random", TuningMode::RANDOM}};
     std::vector<std::pair<std::string, StepperMode>> stepper_mode_map{
         {"current", StepperMode::STEPPER_CURRENT}, {"voltage", StepperMode::STEPPER_VOLTAGE}
     };
@@ -164,20 +239,23 @@ int main(int argc, char** argv) {
     state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
     state_mode->add_option("--kt", command.state.kt, "Torque error gain");
     state_mode->add_option("--ks", command.state.ks, "Torque dot error gain");
+    auto impedance_mode = set->add_subcommand("impedance", "Impedance control mode")->final_callback([&](){command.mode_desired = ModeDesired::IMPEDANCE;})->fallthrough();
+    impedance_mode->add_option("--stiffness", command.impedance.stiffness, "Stiffness (Nm/rad)");
+    impedance_mode->add_option("--damping", command.impedance.damping, "Damping (Nm/(rad/s))");
     auto stepper_tuning_mode = set->add_subcommand("stepper_tuning", "Stepper tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_TUNING;});
     stepper_tuning_mode->add_option("--amplitude", command.stepper_tuning.amplitude, "Phase position tuning amplitude");
-    stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp");
+    stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     stepper_tuning_mode->add_option("--mode", command.stepper_tuning.mode, "Phase tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     stepper_tuning_mode->add_option("--kv", command.stepper_tuning.kv, "Motor kv (rad/s)");
     stepper_tuning_mode->add_option("--stepper_mode", command.stepper_tuning.stepper_mode, "Current/voltage mode")->transform(CLI::CheckedTransformer(stepper_mode_map, CLI::ignore_case));
     auto position_tuning_mode = set->add_subcommand("position_tuning", "Position tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::POSITION_TUNING;});
     position_tuning_mode->add_option("--amplitude", command.position_tuning.amplitude, "Position tuning amplitude");
-    position_tuning_mode->add_option("--frequency", command.position_tuning.frequency, "Position tuning frequency hz, or hz/s for chirp");
+    position_tuning_mode->add_option("--frequency", command.position_tuning.frequency, "Position tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     position_tuning_mode->add_option("--mode", command.position_tuning.mode, "Position tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     position_tuning_mode->add_option("--bias", command.position_tuning.bias, "Position trajectory offset");
     auto current_tuning_mode = set->add_subcommand("current_tuning", "Current tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::CURRENT_TUNING;});
     current_tuning_mode->add_option("--amplitude", command.current_tuning.amplitude, "Current tuning amplitude");
-    current_tuning_mode->add_option("--frequency", command.current_tuning.frequency, "Current tuning frequency hz, or hz/s for chirp");
+    current_tuning_mode->add_option("--frequency", command.current_tuning.frequency, "Current tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     current_tuning_mode->add_option("--mode", command.current_tuning.mode, "Current tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     current_tuning_mode->add_option("--bias", command.current_tuning.bias, "Current trajectory offset");
     auto stepper_velocity_mode = set->add_subcommand("stepper_velocity", "Stepper velocity mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_VELOCITY;});
@@ -187,7 +265,7 @@ int main(int argc, char** argv) {
     stepper_velocity_mode->add_option("--stepper_mode", command.stepper_velocity.stepper_mode, "Current/voltage mode")->transform(CLI::CheckedTransformer(stepper_mode_map, CLI::ignore_case));
     auto tuning_mode = set->add_subcommand("tuning", "Tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::TUNING;});
     tuning_mode->add_option("--amplitude", command.tuning_command.amplitude, "Tuning amplitude");
-    tuning_mode->add_option("--frequency", command.tuning_command.frequency, "Tuning frequency hz, or hz/s for chirp");
+    tuning_mode->add_option("--frequency", command.tuning_command.frequency, "Tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     tuning_mode->add_option("--tuning_mode", command.tuning_command.tuning_mode, "Tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     tuning_mode->add_option("--mode", command.tuning_command.mode, "Main Mode")->transform(CLI::CheckedTransformer(tuning_mode_options_map, CLI::ignore_case));
     tuning_mode->add_option("--bias", command.tuning_command.bias, "Trajectory offset");
@@ -208,8 +286,9 @@ int main(int argc, char** argv) {
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
     read_option->add_flag("-v,--compute-velocity", read_opts.compute_velocity, "Compute velocity from motor and joint position");
     read_option->add_option("-p,--precision", read_opts.precision, "floating point precision output")->expected(1);
-    read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
+    auto read_mini = read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
     read_option->add_flag("--fast_log", read_opts.fastlog, "Print the fast log");
+    read_option->add_flag("--print-reserved", read_opts.print_reserved, "Print reserved fields")->excludes(read_mini);
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]")->type_name("NUM_SAMPLES RANGE")->expected(0,2)->capture_default_str();
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
@@ -240,6 +319,8 @@ int main(int argc, char** argv) {
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
+    app.add_flag("--print-raw-packet", print_raw_packet, "Print raw packet only. Doesn't connect to motors");
+    app.add_flag("--parse-raw-packet", parse_raw_packet, "Parse raw packet only from stdin. Doesn't connect to motors")->needs(ip_option);
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });
@@ -253,6 +334,22 @@ int main(int argc, char** argv) {
         read_opts.host_time = true;
         no_list = true;
         no_print_unconnected = true;
+    }
+
+    if (print_raw_packet) {
+        // todo move ip specific stuff to motor_ip.cpp
+        raw_packet_printer(static_cast<bool>(*set_api), static_cast<bool>(*set), static_cast<bool>(*ip_option),
+            set_api_data, command);
+    }
+
+    if (parse_raw_packet) {
+        // only makes sense with the ip option
+        if (!*ip_option) {
+            std::cerr << "Error: --parse-raw-packet requires --ips" << std::endl;
+            exit(1);
+        }
+        raw_packet_parser(); // doesn't exit without signal
+        exit(1);
     }
 
     MotorManager m(user_space_driver, check_messages_version);
@@ -633,6 +730,9 @@ int main(int argc, char** argv) {
             }
             text_thread.done();
         } else {
+            if (read_opts.print_reserved) {
+                std::cout << reserved_print_on;
+            }
             std::vector<double> cpu_frequency_hz(motors.size());
             if (read_opts.statistics || read_opts.read_write_statistics) {
                 std::cout << "host_time_ns period_avg_ns period_std_dev_ns period_min_ns period_max_ns read_time_avg_ns read_time_std_dev_ns read_time_min_ns read_time_max_ns";
@@ -661,7 +761,7 @@ int main(int argc, char** argv) {
                         std::cout << "t_seconds" << i << ", ";
                     }
                 }
-                std::cout << m.status_headers(read_opts.mini);
+                std::cout << m.status_headers(read_opts.mini, read_opts.print_reserved);
                 if (read_opts.compute_velocity) {
                     for (int i=0;i<motors.size();i++) {
                         std::cout << "motor_velocity_computed" << i << ", ";

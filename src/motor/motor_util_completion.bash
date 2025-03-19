@@ -35,6 +35,7 @@ _motor_util_completion()
             stepper_velocity) subcommand=stepper_velocity ; break ;;
             voltage) subcommand=voltage ; break ;;
             state) subcommand=state ; break ;;
+            impedance) subcommand=impedance ; break ;;
             tuning) subcommand=tuning_mode ; break ;;
         esac
         (( i-- ))
@@ -49,12 +50,12 @@ _motor_util_completion()
       --api --api-timing --run-stats --set-timeout -v --version -u --user-space --allow-simulated --lock 
       -h --help";
     case $subcommand in
-        set) words="--host_time --mode --current --position --velocity --torque --torque_dot --reserved --gpio state position_tuning current_tuning stepper_tuning voltage stepper_velocity tuning read -h --help";
+        set) words="--host_time --mode --current --position --velocity --torque --torque_dot --reserved --gpio impedance state position_tuning current_tuning stepper_tuning voltage stepper_velocity tuning read -h --help";
             case $last in
                 --host_time|--current|--position|--velocity|--reserved|--gpio) return 0 ;;
                 --mode) words="open damped current position velocity torque impedance state current_tuning position_tuning voltage phase_lock stepper_tuning hardware_brake joint_position admittance find_limits driver_enable driver_disable clear_faults fault sleep crash reset" ;;
             esac ;;
-        read) words="--poll --ppoll --aread --nonblock --frequency --statistics --read-write-statistics --text --fast_log -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision -m --short set -h --help";
+        read) words="--poll --ppoll --aread --nonblock --frequency --statistics --read-write-statistics --text --fast_log -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision -m --short --print-reserved set -h --help";
             case $last in
                 --frequency|--timestamp_frequency|-p|--precision) return 0 ;;
             esac ;;
@@ -84,9 +85,13 @@ _motor_util_completion()
             words=$base_words ;;
         check_messages_version) words="none major minor $base_words" ;;
         set_api) return 0 ;;
-        state) words="--position --velocity --torque --torque_dot --kp --kd --kt --ks -h --help" ;
+        state) words="--position --velocity --torque --torque_dot --current --kp --kd --kt --ks -h --help" ;
             case $last in
-                --position|--velocity|--torque|--torque_dot|--kp|--kd|--kt|--ks) return 0 ;;
+                --position|--velocity|--torque|--torque_dot|--current|--kp|--kd|--kt|--ks) return 0 ;;
+            esac ;;
+        impedance) words="--position --velocity --torque --torque_dot --current --stiffness --damping -h --help" ;
+            case $last in
+                --position|--velocity|--torque|--torque_dot|--current|--stiffness|--damping) return 0 ;;
             esac ;;
         voltage) words="--voltage --velocity read -h --help" ;;
         stepper_velocity) words="--voltage --velocity --current --stepper_mode read -h --help" ;
@@ -97,13 +102,13 @@ _motor_util_completion()
         tuning) words="--amplitude --frequency --mode --bias --kv read -h --help";
             case $last in
                 --amplitude|--frequency|--bias) return 0 ;;
-                --mode) words="sine square triangle chirp" ;;
+                --mode) words="sine square triangle chirp random" ;;
             esac ;;
         tuning_mode) words="--amplitude --frequency --mode --bias --tuning_mode read -h --help";
             case $last in
                 --amplitude|--frequency|--bias) return 0 ;;
-                --tuning_mode) words="sine square triangle chirp" ;;
-                --mode) words="position velocity torque" ;;
+                --tuning_mode) words="sine square triangle chirp random" ;;
+                --mode) words="position velocity torque current voltage" ;;
             esac ;;
         *) words=$base_words ;;
     esac

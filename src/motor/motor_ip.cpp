@@ -94,27 +94,46 @@ void MotorIP::open() {
 
     freeaddrinfo(result);
     
+    create_communication_lock();
     //flush();
 }
 
-int MotorIP::lock() {
+int MotorIP::create_communication_lock() {
     // lock file to prevent multiple instances from using the same port
     std::string lock_file = "/tmp/obot." + addrstr_ + ":" + port_ + ".lock";
-    int fd_lock = ::open(lock_file.c_str(), O_CREAT | O_RDWR, 0666);
-    if (fd_lock < 0) {
+    fd_communication_lock_ = ::open(lock_file.c_str(), O_CREAT | O_RDWR, 0666);
+    if (fd_communication_lock_ < 0) {
       throw std::runtime_error("Error opening lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
-    int err = ::lseek(fd_lock, 0, SEEK_SET);
+    int err = ::lseek(fd_communication_lock_, 0, SEEK_SET);
     if (err < 0) {
       throw std::runtime_error("Error lseek lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
-    err = lockf(fd_lock, F_TLOCK, 0); 
+    return err;
+}
+
+int UDPFile::lock_communication() {
+    int err = lockf(fd_communication_lock_, F_LOCK, 0); 
     if (err) {
-        std::cerr << "error locking " + lock_file;
+        std::cerr << "error locking " + std::to_string(errno) + ": " + strerror(errno);
         pid_t pid;
-        int err2 = get_lock_pid(fd_lock, &pid);
+        int err2 = get_lock_pid(fd_communication_lock_, &pid);
         if (err2 == 0) {
             std::cerr << ", already locked by process: " << pid;
+        }
+        std::cerr << std::endl;
+    }
+    return err;
+}
+
+int UDPFile::unlock_communication() {
+    int err = lockf(fd_communication_lock_, F_ULOCK, 0);
+    if (err) {
+        std::cerr << "error unlocking " + std::to_string(errno) + ": " + strerror(errno);
+        pid_t pid;
+        int err2 = get_lock_pid(fd_communication_lock_, &pid);
+        if (err2 == 0) {
+            std::cerr << ", locked by process: " << pid;
         }
         std::cerr << std::endl;
     }
@@ -150,7 +169,7 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
     uint16_t crc = crc16((uint8_t*)&send_packet, 4);
     send_packet.data[send_packet.length] = (crc >> 8) & 0xFF;
     send_packet.data[send_packet.length+1] = crc & 0xFF;
-
+    lock_communication();
     int send_result = sendto(fd_, &send_packet, send_packet.length+6, 0, (sockaddr *) &addr_, sizeof(addr_));
     if (send_result < 0) {
       return send_result;
@@ -158,17 +177,17 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
   }
 
   std::unique_lock<std::mutex> lk(rx_data_cv_m_);
-  std::cv_status status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_));
+  bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_len_ != 0; });
+  unlock_communication();
 
-  if (status == std::cv_status::timeout) {
-    //std::cout << "timed out" << std::endl;
+  if (status == false) {
     errno = ETIMEDOUT;
     return -1;
   } else {
-    //std::cout << "cv result " << (int) status << std::endl;
     size_t len = std::min((size_t) length, rx_len_);
     std::memset(data, 0, length);
     std::memcpy(data, rx_buf_, len);
+    rx_len_ = 0;
     return len;
   }
 }
@@ -176,9 +195,10 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
 ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
   ssize_t retval = _read(data, length, write_read);
   
-  if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
-      // a control packet
-      APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data);
+  if (api_mode_) {
+    if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
+        // a control packet
+        APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data);
       if (packet->type == TIMEOUT_REQUEST) {
           // timeout request
           if (retval == sizeof(APIControlPacket)) {
@@ -212,8 +232,9 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
               std::memmove(data_ptr, data_ptr + header_size, retval - header_size);
               // ignoring packet_number
           }
-          retval = total_count_received;
-      }
+            retval = total_count_received;
+        }
+    }
   }
   return retval;
 }
@@ -237,6 +258,7 @@ ssize_t UDPFile::write(const char * data, unsigned int length, bool write_read) 
     packet.data[length+1] = crc & 0xFF;
 
     std::memcpy(packet.data, data, length);
+    lock_communication();
     int send_result = sendto(fd_, &packet, 6+length, 0, (sockaddr *) &addr_, sizeof(addr_));
     return send_result;
 }
@@ -304,7 +326,7 @@ ssize_t MotorIP::read() {
   //std::cout << "read " << std::endl;
   int ret = realtime_communication_.read((char *) &status_, sizeof(status_));
   if (ret < 0) {
-    return 0;
+    std::cout << "read error " << ret << std::endl;
   }
   return ret;
 }

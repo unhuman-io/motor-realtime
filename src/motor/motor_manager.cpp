@@ -562,7 +562,7 @@ std::string MotorManager::command_headers() const {
     return ss.str();
 }
 
-std::string MotorManager::status_headers(bool mini) const {
+std::string MotorManager::status_headers(bool mini, bool print_reserved) const {
     std::stringstream ss;
     int length = motors_.size();
     if (!mini) {
@@ -620,6 +620,13 @@ std::string MotorManager::status_headers(bool mini) const {
             ss << "mode_error_text" << i << ", ";
         }
     }
+    for (int i=0;i<length;i++) {
+        if (print_reserved) {
+            for (int j=0;j<sizeof(MotorStatus::large.reserved)/sizeof(MotorStatus::large.reserved[0]);j++) {
+                ss << "reserved" << j << i << ", ";
+            }
+        }
+    }
     return ss.str();
 }
 
@@ -634,7 +641,7 @@ const std::map<const ModeDesired, const std::string> MotorManager::mode_map{
         {ModeDesired::PHASE_LOCK, "phase_lock"}, {ModeDesired::STEPPER_TUNING, "stepper_tuning"},
         {ModeDesired::STEPPER_VELOCITY, "stepper_velocity"}, {ModeDesired::HARDWARE_BRAKE, "hardware_brake"},
         {ModeDesired::JOINT_POSITION, "joint_position"}, {ModeDesired::ADMITTANCE, "admittance"}, 
-        {ModeDesired::FIND_LIMITS, "find_limits"},
+        {ModeDesired::FIND_LIMITS, "find_limits"}, {ModeDesired::TUNING, "tuning"},
         {ModeDesired::DRIVER_ENABLE, "driver_enable"}, {ModeDesired::DRIVER_DISABLE, "driver_disable"},
         {ModeDesired::CLEAR_FAULTS, "clear_faults"},
         {ModeDesired::FAULT, "fault"}, {ModeDesired::SLEEP, "sleep"},
