@@ -82,7 +82,10 @@ void MotorUARTObot::set_baud_rate(uint32_t baud_rate) {
   int result;
   struct termios2 tio2 = {};
 
-  ioctl(fd_, TCGETS2, &tio2);
+  result = ioctl(fd_, TCGETS2, &tio2);
+  if (result < 0) {
+    throw std::runtime_error("Error tcgets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+  }
   tio2.c_cflag = CS8 | CREAD | CLOCAL | CBAUDEX;
   tio2.c_lflag = 0;
   tio2.c_iflag = 0;
@@ -95,6 +98,14 @@ void MotorUARTObot::set_baud_rate(uint32_t baud_rate) {
 
   if (result < 0) {
     throw std::runtime_error("Error tcsets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+  }
+
+  result = ioctl(fd_, TCGETS2, &tio2);
+  if (result < 0) {
+    throw std::runtime_error("Error tcgets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+  }
+  if (tio2.c_ispeed != baud_rate || tio2.c_ospeed != baud_rate) {
+    throw std::runtime_error("Error setting baud rate " + std::to_string(baud_rate) + " on " + dev_path_);
   }
 }
 

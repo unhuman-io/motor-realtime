@@ -17,6 +17,7 @@
 #include <json.hpp>
 #include "protocol_parser.h"
 #include <atomic>
+#include <string_view>
 
 using namespace obot;
 
@@ -625,7 +626,9 @@ int main(int argc, char** argv) {
     if (*set_api && motors.size()) {
         char c[MAX_API_LONG_DATA_SIZE+1];
         for (auto &api_str : set_api_data) {
-            std::cout << api_str << std::endl;
+            if (!no_list) {
+                std::cout << api_str << std::endl;
+            }
             for (auto motor : m.motors()) {
                 auto tstart = std::chrono::steady_clock::now();
                 auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_LONG_DATA_SIZE);
@@ -633,11 +636,15 @@ int main(int argc, char** argv) {
                 if (api_timing) {
                     std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
                 }
-                if (nbytes < 0) {
-                    std::cout << motor->name() << ": api_error" << std::endl;
+                if (no_list) {
+                    std::cout << std::string_view(c,nbytes);
                 } else {
-                    c[nbytes] = 0;
-                    std::cout << motor->name() << ": " << c << std::endl;
+                    if (nbytes < 0) {
+                        std::cout << motor->name() << ": api_error" << std::endl;
+                    } else {
+                        c[nbytes] = 0;
+                        std::cout << motor->name() << ": " << std::string_view(c,nbytes) << std::endl;
+                    }
                 }
             }
         }
