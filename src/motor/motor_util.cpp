@@ -17,6 +17,7 @@
 #include <json.hpp>
 #include "protocol_parser.h"
 #include <atomic>
+#include <string_view>
 
 using namespace obot;
 
@@ -637,7 +638,7 @@ int main(int argc, char** argv) {
                     std::cout << motor->name() << ": api_error" << std::endl;
                 } else {
                     c[nbytes] = 0;
-                    std::cout << motor->name() << ": " << c << std::endl;
+                    std::cout << motor->name() << ": " << std::string_view(c,nbytes) << std::endl;
                 }
             }
         }
