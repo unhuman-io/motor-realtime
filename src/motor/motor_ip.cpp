@@ -224,15 +224,29 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
           while (total_length > total_count_received) {
               // assemble multiple packets
               char * data_ptr = data + total_count_received;
-              retval = _read(data_ptr, length, write_read);
+              char buf[length];
+              retval = _read(buf, length, write_read);
               if (retval < 0) {
                   return retval;
               }
+              APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(buf);
+              if (packet->type != LONG_PACKET) {
+                  std::cerr << "Error: expected long packet, got " << packet->type << std::endl;
+                  return -EINVAL;
+              }
+              if (packet->long_packet.packet_number != ++packet_number) {
+                  std::cerr << "Error: expected packet number " << packet_number << ", got " << packet->long_packet.packet_number << std::endl;
+                  return -EINVAL;
+              }
               total_count_received += retval - header_size;
-              std::memmove(data_ptr, data_ptr + header_size, retval - header_size);
+              std::memmove(data_ptr, buf + header_size, retval - header_size);
               // ignoring packet_number
           }
-            retval = total_count_received;
+          if (total_count_received != total_length) {
+            std::cerr << "Error: expected " << total_length << " bytes, got " << total_count_received << std::endl;
+            return -EINVAL;
+          }
+          retval = total_count_received;
         }
     }
   }
