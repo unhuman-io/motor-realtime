@@ -176,6 +176,10 @@ class CANFile : public TextFile {
                     total_count_received += retval - header_size;
                     std::memmove(data_ptr, data_ptr + header_size, retval - header_size);
                 }
+                if (total_count_received != total_length) {
+                    std::cerr << "Error: expected " << total_length << " bytes, got " << total_count_received << std::endl;
+                    return -EINVAL;
+                }
                 retval = total_count_received;
             }
         }
