@@ -29,6 +29,9 @@ class UartObotTextFile : public TextFile {
       uint8_t rx_buf_[1024];
       size_t rx_len_ = 0;
       uint32_t timeout_ms_ = 100;
+      std::condition_variable rx_data_request_cv_;
+      std::mutex rx_data_request_cv_m_; // protects rx_data_request_
+      bool rx_data_request_ = false;
   };
 
 MotorUARTObot::MotorUARTObot(std::string dev_path, uint32_t baud_rate) {
@@ -118,6 +121,11 @@ ssize_t MotorUARTObot::read() {
     return retval;
   }
 
+  {
+    std::lock_guard<std::mutex> lk(rx_data_request_cv_m_);
+    rx_data_request_ = true;
+  }
+  rx_data_request_cv_.notify_one();
   std::unique_lock<std::mutex> lk(rx_data_cv_m_);
   bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_len_ != 0; });
   if (status == false) {
@@ -175,6 +183,12 @@ MotorUARTObot::~MotorUARTObot() {
 void UartObotTextFile::register_callbacks() {
   parser_.registerCallback(recv_frame_id_, [this](const uint8_t* buf, uint16_t len)
   {
+    std::unique_lock<std::mutex> lk(rx_data_request_cv_m_);
+    bool status = rx_data_request_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_data_request_; });
+    if (status == false) {
+      throw std::runtime_error("rx_callback timeout");
+    }
+    rx_data_request_ = false;
     {
       std::lock_guard<std::mutex> lk(rx_data_cv_m_);
       std::memcpy(rx_buf_, buf, len);
@@ -185,6 +199,11 @@ void UartObotTextFile::register_callbacks() {
 }
 
 ssize_t UartObotTextFile::read(char * data, unsigned int length) {
+  {
+    std::lock_guard<std::mutex> lk(rx_data_request_cv_m_);
+    rx_data_request_ = true;
+  }
+  rx_data_request_cv_.notify_one();
   std::unique_lock<std::mutex> lk(rx_data_cv_m_);
   bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_len_ != 0; });
   if (status == false) {
