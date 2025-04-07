@@ -72,6 +72,42 @@ std::string Motor::get_fast_log() {
     return s_out;
 }
 
+std::string Motor::get_main_log() {
+    std::string s_read, s_out;
+    s_out = "timestamp, position, iq_des, iq_meas_filt, ia, ib, ic, va, vb, vc, vbus, " 
+            "torque, output_position, output_velocity, motor_position, motor_velocity, motor_temperature_estimate, "
+            "mode, error, power\n";
+
+    s_read = motor_txt_->writeread("main_log");
+    for(int i=0; i<50; i++) {
+        if (s_read.length() >= (i+1)*sizeof(FastLog)) {
+            MainLog log = *(MainLog *) (s_read.c_str() + i*sizeof(MainLog));
+            s_out += 
+                std::to_string(log.fast_loop.timestamp) + ", " +
+                std::to_string(log.fast_loop.measured_motor_position) + ", " +
+                std::to_string(log.fast_loop.command_iq) + ", " +
+                std::to_string(log.fast_loop.measured_iq) + ", " +
+                std::to_string(log.fast_loop.measured_ia) + ", " +
+                std::to_string(log.fast_loop.measured_ib) + ", " +
+                std::to_string(log.fast_loop.measured_ic) + ", " +
+                std::to_string(log.fast_loop.command_va) + ", " +
+                std::to_string(log.fast_loop.command_vb) + ", " +
+                std::to_string(log.fast_loop.command_vc) + ", " +
+                std::to_string(log.fast_loop.vbus) + ", " +
+                std::to_string(log.torque) + ", " +
+                std::to_string(log.output_position) + ", " +
+                std::to_string(log.output_velocity_filtered) + ", " +
+                std::to_string(log.motor_position) + ", " +
+                std::to_string(log.motor_velocity_filtered) + ", " +
+                std::to_string(log.motor_temperature_estimate) + ", " +
+                std::to_string(log.mode) + ", " +
+                std::to_string(log.error.all) + ", " +
+                std::to_string(log.power) + "\n";
+        }
+    }
+    return s_out;
+}
+
 std::vector<std::string> Motor::get_api_options() {
     std::vector<std::string> v;
     uint16_t length = std::stoi((*this)["api_length"].get());
