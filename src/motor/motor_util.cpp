@@ -165,6 +165,7 @@ struct ReadOptions {
     int precision;
     bool mini;
     bool fastlog;
+    bool mainlog;
     bool print_reserved;
 };
 
@@ -289,6 +290,7 @@ int main(int argc, char** argv) {
     read_option->add_option("-p,--precision", read_opts.precision, "floating point precision output")->expected(1);
     auto read_mini = read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
     read_option->add_flag("--fast_log", read_opts.fastlog, "Print the fast log");
+    read_option->add_flag("--main_log", read_opts.mainlog, "Print the main log");
     read_option->add_flag("--print-reserved", read_opts.print_reserved, "Print reserved fields")->excludes(read_mini);
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]")->type_name("NUM_SAMPLES RANGE")->expected(0,2)->capture_default_str();
@@ -616,7 +618,7 @@ int main(int argc, char** argv) {
         m.write_saved_commands();
     }
 
-    if (api_mode || (*read_option && *text_read || (*read_option && read_opts.fastlog))) {
+    if (api_mode || (*read_option && *text_read || (*read_option && read_opts.fastlog) || (*read_option && read_opts.mainlog))) {
         if (motors.size() != 1) {
             std::cout << "Select one motor to use api mode" << std::endl;
             return 1;
@@ -684,6 +686,11 @@ int main(int argc, char** argv) {
 
         if (read_opts.fastlog) {
             std::cout << m.motors()[0]->get_fast_log();
+            return 0;
+        }
+        
+        if (read_opts.mainlog) {
+            std::cout << m.motors()[0]->get_main_log();
             return 0;
         }
         
