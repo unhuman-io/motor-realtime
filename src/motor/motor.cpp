@@ -58,8 +58,8 @@ std::string Motor::get_fast_log() {
                 std::to_string(log.electrical_position) + ", " +
                 std::to_string(log.command_iq) + ", " +
                 std::to_string(log.command_id) + ", " +
-                std::to_string(log.measured_id) + ", " +
                 std::to_string(log.measured_iq) + ", " +
+                std::to_string(log.measured_id) + ", " +
                 std::to_string(log.command_vq) + ", " +
                 std::to_string(log.command_vd) + ", " +
                 std::to_string(log.vbus) + ", " +
@@ -73,7 +73,7 @@ std::string Motor::get_fast_log2() {
     std::string s_read, s_out;
     s_out += "timestamp, electrical_position, measured_ia, measured_ib, measured_ic, command_va, command_vb, command_vc,"
              " motor_encoder_flags, mode\n";
-    s_read = motor_txt_->writeread("fast_log");
+    s_read = motor_txt_->writeread("fast_log2");
     for(int i=0; i<FAST_LOG_LENGTH; i++) {
         if (s_read.length() >= (i+1)*sizeof(FastLog2)) {
             FastLog2 log = *(FastLog2 *) (s_read.c_str() + i*sizeof(FastLog2));
