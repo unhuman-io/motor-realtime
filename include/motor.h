@@ -362,6 +362,7 @@ class Motor : public MotorDescription {
     Command * command() { return &command_; }
     TextFile* motor_text() { return motor_txt_.get(); }
     std::string get_fast_log();
+    std::string get_fast_log2();
     virtual std::vector<std::string> get_api_options();
     uint32_t get_cpu_frequency() { return std::stoi((*this)["cpu_frequency"].get()); }
  protected:
