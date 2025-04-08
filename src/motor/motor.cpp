@@ -47,30 +47,52 @@ Motor::~Motor() { close(); }
 
 std::string Motor::get_fast_log() {
     std::string s_read, s_out;
-    s_out += "timestamp, position, iq_des, iq_meas_filt, ia, ib, ic, va, vb, vc, vbus\n";
-
-    for(int j=0; j<10; j++) {
-        s_read = motor_txt_->writeread("fast_log");
-        for(int i=0; i<10; i++) {
-            if (s_read.length() >= (i+1)*sizeof(FastLog)) {
-                FastLog log = *(FastLog *) (s_read.c_str() + i*sizeof(FastLog));
-                s_out += 
-                    std::to_string(log.timestamp) + ", " +
-                    std::to_string(log.measured_motor_position) + ", " +
-                    std::to_string(log.command_iq) + ", " +
-                    std::to_string(log.measured_iq) + ", " +
-                    std::to_string(log.measured_ia) + ", " +
-                    std::to_string(log.measured_ib) + ", " +
-                    std::to_string(log.measured_ic) + ", " +
-                    std::to_string(log.command_va) + ", " +
-                    std::to_string(log.command_vb) + ", " +
-                    std::to_string(log.command_vc) + ", " +
-                    std::to_string(log.vbus) + "\n";
-            }
+    s_out += "timestamp, electrical_position, command_iq, command_id, measured_iq, measured_id, command_vq, command_vd,"
+             " vbus, ibus\n";
+    s_read = motor_txt_->writeread("fast_log");
+    for(int i=0; i<FAST_LOG_LENGTH; i++) {
+        if (s_read.length() >= (i+1)*sizeof(FastLog)) {
+            FastLog log = *(FastLog *) (s_read.c_str() + i*sizeof(FastLog));
+            s_out += 
+                std::to_string(log.timestamp) + ", " +
+                std::to_string(log.electrical_position) + ", " +
+                std::to_string(log.command_iq) + ", " +
+                std::to_string(log.command_id) + ", " +
+                std::to_string(log.measured_iq) + ", " +
+                std::to_string(log.measured_id) + ", " +
+                std::to_string(log.command_vq) + ", " +
+                std::to_string(log.command_vd) + ", " +
+                std::to_string(log.vbus) + ", " +
+                std::to_string(log.ibus) + "\n";
         }
     }
     return s_out;
 }
+
+std::string Motor::get_fast_log2() {
+    std::string s_read, s_out;
+    s_out += "timestamp, electrical_position, measured_ia, measured_ib, measured_ic, command_va, command_vb, command_vc,"
+             " motor_encoder_flags, mode\n";
+    s_read = motor_txt_->writeread("fast_log2");
+    for(int i=0; i<FAST_LOG_LENGTH; i++) {
+        if (s_read.length() >= (i+1)*sizeof(FastLog2)) {
+            FastLog2 log = *(FastLog2 *) (s_read.c_str() + i*sizeof(FastLog2));
+            s_out += 
+                std::to_string(log.timestamp) + ", " +
+                std::to_string(log.electrical_position) + ", " +
+                std::to_string(log.measured_ia) + ", " +
+                std::to_string(log.measured_ib) + ", " +
+                std::to_string(log.measured_ic) + ", " +
+                std::to_string(log.command_va) + ", " +
+                std::to_string(log.command_vb) + ", " +
+                std::to_string(log.command_vc) + ", " +
+                std::to_string(log.motor_encoder_flags) + ", " +
+                std::to_string(log.mode) + "\n";
+        }
+    }
+    return s_out;
+}
+
 
 std::vector<std::string> Motor::get_api_options() {
     std::vector<std::string> v;
