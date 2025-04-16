@@ -1,5 +1,5 @@
 add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cpp motor_uart_obot.cpp motor_can.cpp
-            realtime_thread.cpp motor_thread.cpp motor_app.cpp motor_util_fun.cpp)
+            realtime_thread.cpp motor_thread.cpp motor_app.cpp motor_util_fun.cpp gdbserver.cpp)
 target_link_libraries(motor_manager PUBLIC udev pthread cli11 obot-protocol)
 target_include_directories(motor_manager PUBLIC ${PROJECT_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 

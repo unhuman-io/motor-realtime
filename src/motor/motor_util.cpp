@@ -18,6 +18,7 @@
 #include "protocol_parser.h"
 #include <atomic>
 #include <string_view>
+#include "gdbserver.h"
 
 using namespace obot;
 
@@ -319,6 +320,7 @@ int main(int argc, char** argv) {
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)")->expected(1,-1);
     app.add_flag("--api", api_mode, "Enter API mode");
     app.add_flag("--api-timing", api_timing, "Print API response times");
+    auto gdbserver = app.add_subcommand("gdbserver", "Use gdb protocol over api");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
@@ -673,6 +675,16 @@ int main(int argc, char** argv) {
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
+    }
+    #define PORT 8080 
+    #define SA struct sockaddr 
+    if (*gdbserver) {
+        if (motors.size() != 1) {
+            std::cout << "Select one motor to use gdbserver" << std::endl;
+            return 1;
+        }
+        GDBServer gdb;
+        gdb.start();
     }
 
     try {
