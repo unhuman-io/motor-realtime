@@ -187,6 +187,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> uart_paths = {};
     std::vector<std::string> can_devs = {"any"};
     bool uart_raw = false;
+    bool list_api_names = false;
     bool print_raw_packet = false;
     bool parse_raw_packet = false;
     std::vector<std::string> ips = {};
@@ -317,6 +318,7 @@ int main(int argc, char** argv) {
     app.add_flag("--uart-raw", uart_raw, "Use raw protocol for UART")->needs(uart_paths_option);
     app.add_flag("--lock", lock_motors, "Lock write access to motors");
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)")->expected(1,-1);
+    app.add_flag("--list-api", list_api_names, "List all api names of first motor");
     app.add_flag("--api", api_mode, "Enter API mode");
     app.add_flag("--api-timing", api_timing, "Print API response times");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
@@ -623,6 +625,14 @@ int main(int argc, char** argv) {
             std::cout << "Select one motor to use api mode" << std::endl;
             return 1;
         }
+    }
+
+    if (list_api_names && motors.size()) {
+        std::vector<std::string> api_names = motors[0]->get_api_options();
+        for (auto &api_str : api_names) {
+            std::cout << api_str << " ";
+        }
+        std::cout << std::endl;
     }
 
     if (*set_api && motors.size()) {

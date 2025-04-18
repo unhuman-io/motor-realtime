@@ -37,6 +37,7 @@ _motor_util_completion()
             state) subcommand=state ; break ;;
             impedance) subcommand=impedance ; break ;;
             tuning) subcommand=tuning_mode ; break ;;
+            --set-api) subcommand=api_set ; break ;;
         esac
         (( i-- ))
     done
@@ -110,6 +111,7 @@ _motor_util_completion()
                 --tuning_mode) words="sine square triangle chirp random" ;;
                 --mode) words="position velocity torque current voltage" ;;
             esac ;;
+        api_set) words="$(motor_util ${COMP_WORDS[@]:1:$((i-1))} --no-list --list-api)" ;;
         *) words=$base_words ;;
     esac
 
