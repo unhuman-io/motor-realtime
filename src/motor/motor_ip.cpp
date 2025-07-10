@@ -182,7 +182,7 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
   }
   rx_data_request_cv_.notify_one();
   std::unique_lock<std::mutex> lk(rx_data_cv_m_);
-  bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_len_ != 0; });
+  bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_received_ != false; });
   unlock_communication();
 
   if (status == false) {
@@ -192,7 +192,7 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
     size_t len = std::min((size_t) length, rx_len_);
     std::memset(data, 0, length);
     std::memcpy(data, rx_buf_, len);
-    rx_len_ = 0;
+    rx_received_ = false;
     return len;
   }
 }
@@ -290,7 +290,7 @@ ssize_t UDPFile::writeread(const char * data_out, unsigned int length_out, char 
         return write_result;
       }
       int read_result = read(data_in, length_in, true);
-      if (read_result <= 0) {
+      if (read_result < 0) {
         // retry
         continue;
       }
@@ -311,6 +311,7 @@ void UDPFile::rx_callback(const uint8_t* buf, uint16_t len) {
     std::lock_guard<std::mutex> lk(rx_data_cv_m_);
     std::memcpy(rx_buf_, buf, len);
     rx_len_ = len;
+    rx_received_ = true;
   }
   rx_data_cv_.notify_one();
 }
