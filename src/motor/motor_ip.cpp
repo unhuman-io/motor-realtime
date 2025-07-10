@@ -290,7 +290,7 @@ ssize_t UDPFile::writeread(const char * data_out, unsigned int length_out, char 
         return write_result;
       }
       int read_result = read(data_in, length_in, true);
-      if (read_result <= 0) {
+      if (read_result < 0) {
         // retry
         continue;
       }
