@@ -227,6 +227,7 @@ int main(int argc, char** argv) {
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .csv = false, .reconnect = false, .read_write_statistics = false,
         .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
+    bool get_log = false;
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -292,6 +293,7 @@ int main(int argc, char** argv) {
     auto read_mini = read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
     read_option->add_flag("--fast_log", read_opts.fastlog, "Print the fast log");
     read_option->add_flag("--fast_log2", read_opts.fastlog2, "Print the fast log2");
+    app.add_flag("--get-log", get_log, "Print the log");
     read_option->add_flag("--print-reserved", read_opts.print_reserved, "Print reserved fields")->excludes(read_mini);
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]")->type_name("NUM_SAMPLES RANGE")->expected(0,2)->capture_default_str();
@@ -682,6 +684,13 @@ int main(int argc, char** argv) {
                 }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+
+    if (get_log) {
+        for(auto &m : m.motors()) {
+            std::cout << "Log for motor " << m->name() << std::endl;
+            std::cout << m->get_log();
         }
     }
 
