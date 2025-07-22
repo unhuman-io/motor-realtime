@@ -93,6 +93,21 @@ std::string Motor::get_fast_log2() {
     return s_out;
 }
 
+std::string Motor::get_log() {
+    std::string s_read {}, s_out {};
+    motor_txt_->writeread("log_reset");
+
+    while (true) {
+        s_read = motor_txt_->writeread("log");
+        if (s_read.length() > 0 && s_read != "log end") {
+            s_out += s_read + "\n";
+        } else {
+            break;
+        }
+    }
+    return s_out;
+}
+
 
 std::vector<std::string> Motor::get_api_options() {
     std::vector<std::string> v;
