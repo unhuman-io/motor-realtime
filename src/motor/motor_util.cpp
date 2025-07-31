@@ -167,6 +167,7 @@ struct ReadOptions {
     bool fastlog;
     bool fastlog2;
     bool print_reserved;
+    std::vector<std::string> fields;
 };
 
 int main(int argc, char** argv) {
@@ -191,6 +192,7 @@ int main(int argc, char** argv) {
     bool print_raw_packet = false;
     bool parse_raw_packet = false;
     std::vector<std::string> ips = {};
+    std::string field_list = "mcu_timestamp, host_timestamp_received, motor_position, joint_position, iq, torque, motor_encoder, rr_index, rr_data, reserved, motor_velocity, joint_velocity, iq_desired, mode, error, misc, mode_error_text, reserved1, reserved2, reserved3, reserved4, reserved5, reserved6, reserved7, reserved8, reserved9, reserved10";
     
     std::string config_dir = get_config_dir();
     std::string json_ip_file_default = config_dir + "device_ip_map.json";
@@ -297,6 +299,7 @@ int main(int argc, char** argv) {
     read_option->add_flag("--print-reserved", read_opts.print_reserved, "Print reserved fields")->excludes(read_mini);
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]")->type_name("NUM_SAMPLES RANGE")->expected(0,2)->capture_default_str();
+    auto fields_option = read_option->add_option("--fields", read_opts.fields, "Fields to read, options " + field_list)->type_name("FIELD")->expected(0,-1)->capture_default_str();
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
     app.add_flag("-c,--check-messages-version", check_messages_version, "Check motor messages version")->type_name("TYPE")->transform(CLI::CheckedTransformer(messages_check_map, CLI::ignore_case))->expected(0,1)->default_str("major");
     app.add_flag("--no-list", no_list, "Do not list connected motors");
@@ -765,6 +768,16 @@ int main(int argc, char** argv) {
         } else {
             if (read_opts.print_reserved) {
                 std::cout << reserved_print_on;
+            }
+            if (*fields_option) {
+                std::cout << fields_on;
+                std::cout << (std::find(read_opts.fields.begin(), read_opts.fields.end(), "mcu_timestamp") != read_opts.fields.end() ? mcu_timestamp_on : mcu_timestamp_off);
+                std::cout << (std::find(read_opts.fields.begin(), read_opts.fields.end(), "host_timestamp_received") != read_opts.fields.end() ? host_timestamp_received_on : host_timestamp_received_off);
+                std::cout << (std::find(read_opts.fields.begin(), read_opts.fields.end(), "motor_position") != read_opts.fields.end() ? motor_position_on : motor_position_off);
+                std::cout << (std::find(read_opts.fields.begin(), read_opts.fields.end(), "joint_position") != read_opts.fields.end() ? joint_position_on : joint_position_off);
+                std::cout << (std::find(read_opts.fields.begin(), read_opts.fields.end(), "reserved") != read_opts.fields.end() ? reserved_on : reserved_off);
+            } else {
+                std::cout << fields_off;
             }
             std::vector<double> cpu_frequency_hz(motors.size());
             if (read_opts.statistics || read_opts.read_write_statistics) {

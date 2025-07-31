@@ -38,6 +38,7 @@ _motor_util_completion()
             impedance) subcommand=impedance ; break ;;
             tuning) subcommand=tuning_mode ; break ;;
             --set-api) subcommand=api_set ; break ;;
+            --fields) subcommand=fields ; break ;;
         esac
         (( i-- ))
     done
@@ -56,7 +57,7 @@ _motor_util_completion()
                 --host_time|--current|--position|--velocity|--reserved|--gpio) return 0 ;;
                 --mode) words="open damped current position velocity torque impedance state current_tuning position_tuning voltage phase_lock stepper_tuning hardware_brake joint_position admittance find_limits driver_enable driver_disable clear_faults fault sleep crash reset" ;;
             esac ;;
-        read) words="--poll --ppoll --aread --nonblock --frequency --statistics --read-write-statistics --text --fast_log --fast_log2 -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision -m --short --print-reserved set -h --help";
+        read) words="--poll --ppoll --aread --nonblock --frequency --statistics --read-write-statistics --text --fast_log --fast_log2 -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision -m --short --print-reserved --fields set -h --help";
             case $last in
                 --frequency|--timestamp_frequency|-p|--precision) return 0 ;;
             esac ;;
@@ -112,6 +113,7 @@ _motor_util_completion()
                 --mode) words="position velocity torque current voltage" ;;
             esac ;;
         api_set) words="$(motor_util ${COMP_WORDS[@]:1:$((i-1))} --no-list --list-api)" ;;
+        fields) words="mcu_timestamp host_timestamp_received motor_position joint_position iq torque motor_encoder rr_index rr_data reserved motor_velocity joint_velocity iq_desired mode error misc mode_error_text reserved1 reserved2 reserved3 reserved4 reserved5 reserved6 reserved7 reserved8 reserved9 reserved10 -h --help";;
         *) words=$base_words ;;
     esac
 

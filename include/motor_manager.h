@@ -37,6 +37,14 @@ class FrequencyLimiter {
 class MotorManager {
  public:
     static const std::map<const ModeDesired, const std::string> mode_map;
+    static constexpr std::string_view read_fields[] = {
+      "mcu_timestamp", "host_timestamp_received", "motor_position", "joint_position",
+      "iq", "torque", "motor_encoder", "rr_index", "rr_data", "reserved",
+      "motor_velocity", "joint_velocity", "iq_desired", "mode", "error",
+      "misc", "mode_error_text", "reserved1", "reserved2",
+      "reserved3", "reserved4", "reserved5", "reserved6", "reserved7",
+      "reserved8", "reserved9", "reserved10"
+    };
 
     MotorManager(bool user_space_driver = false, Motor::MessagesCheck check_messages_version = Motor::MessagesCheck::MAJOR) :
        user_space_driver_(user_space_driver),
@@ -259,21 +267,120 @@ inline std::ostream& reserved_print_off(std::ostream& os) {
    return os;
 }
 
+inline int fields_index() {
+   static int index = std::ios_base::xalloc();
+   return index;
+}
+
+inline std::ostream& fields_on(std::ostream& os) {
+   os.iword(fields_index()) = 1;
+   return os;
+}
+
+inline std::ostream& fields_off(std::ostream& os) {
+   os.iword(fields_index()) = 0;
+   return os;
+}
+
+inline int mcu_timestamp_index() {
+   static int index = std::ios_base::xalloc();
+   return index;
+}
+
+inline std::ostream& mcu_timestamp_on(std::ostream& os) {
+   os.iword(mcu_timestamp_index()) = 1;
+   return os;
+}
+
+inline std::ostream& mcu_timestamp_off(std::ostream& os) {
+   os.iword(mcu_timestamp_index()) = 0;
+   return os;
+}
+
+inline int host_timestamp_received_index() {
+   static int index = std::ios_base::xalloc();
+   return index;
+}
+
+inline std::ostream& host_timestamp_received_on(std::ostream& os) {
+   os.iword(host_timestamp_received_index()) = 1;
+   return os;
+}
+
+inline std::ostream& host_timestamp_received_off(std::ostream& os) {
+   os.iword(host_timestamp_received_index()) = 0;
+   return os;
+}
+
+inline int motor_position_index() {
+   static int index = std::ios_base::xalloc();
+   return index;
+}
+
+inline std::ostream& motor_position_on(std::ostream& os) {
+   os.iword(motor_position_index()) = 1;
+   return os;
+}
+
+inline std::ostream& motor_position_off(std::ostream& os) {
+   os.iword(motor_position_index()) = 0;
+   return os;
+}
+
+inline int joint_position_index() {
+   static int index = std::ios_base::xalloc();
+   return index;
+}
+
+inline std::ostream& joint_position_on(std::ostream& os) {
+   os.iword(joint_position_index()) = 1;
+   return os;
+}
+
+inline std::ostream& joint_position_off(std::ostream& os) {
+   os.iword(joint_position_index()) = 0;
+   return os;
+}
+
+inline int reserved_index() {
+   static int index = std::ios_base::xalloc();
+   return index;
+}
+
+inline std::ostream& reserved_on(std::ostream& os) {
+   os.iword(reserved_index()) = 1;
+   return os;
+}
+
+inline std::ostream& reserved_off(std::ostream& os) {
+   os.iword(reserved_index()) = 0;
+   return os;
+}
+
 inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> &status)
 {
 
-   for (auto s : status) {
-      os << std::setw(10) << s.mcu_timestamp << ", ";
+   if (!os.iword(fields_index()) || os.iword(mcu_timestamp_index())) {
+      for (auto s : status) {
+         os << std::setw(10) << s.mcu_timestamp << ", ";
+      }
    }
-   for (auto s : status) {
-      os << s.host_timestamp_received << ", ";
+   if (!os.iword(fields_index()) || os.iword(host_timestamp_received_index())) {
+      for (auto s : status) {
+         os << std::setw(10) << s.host_timestamp_received << ", ";
+      }
    }
-   for (auto s : status) {
-      os << std::setw(8) << s.motor_position << ", ";
+   if (!os.iword(fields_index()) || os.iword(motor_position_index())) {
+      for (auto s : status) {
+         os << std::setw(8) << s.motor_position << ", ";
+      }
    }
-   for (auto s : status) {
-      os << std::setw(8) << s.joint_position << ", ";
+   if (!os.iword(fields_index()) || os.iword(joint_position_index())) {
+      for (auto s : status) {
+         os << std::setw(8) << s.joint_position << ", ";
+      }
    }
+   if (!os.iword(fields_index())) {
    for (auto s : status) {
       os << std::setw(8) << s.iq << ", ";
    }
@@ -297,9 +404,13 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> &sta
             break;
       }
    }
-   for (auto s : status) {
-      os << s.reserved << ", ";
    }
+   if (!os.iword(fields_index()) || os.iword(reserved_index())) {
+      for (auto s : status) {
+         os << s.reserved << ", ";
+      }
+   }
+   if (!os.iword(fields_index())) {
    for (auto s : status) {
       os << std::setw(8) << s.motor_velocity << ", ";
    }
@@ -330,6 +441,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> &sta
             os << s.large.reserved[i] << ", ";
          }
       }
+   }
    }
    return os;
 }
