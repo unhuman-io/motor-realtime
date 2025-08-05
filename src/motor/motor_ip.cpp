@@ -113,6 +113,10 @@ int MotorIP::create_communication_lock() {
 }
 
 int UDPFile::lock_communication() {
+    communication_lock_count_++;
+    if (communication_lock_count_ > 1) {
+        return 0; // already locked
+    }
     int err = lockf(fd_communication_lock_, F_LOCK, 0); 
     if (err) {
         std::cerr << "error locking " + std::to_string(errno) + ": " + strerror(errno);
@@ -127,6 +131,10 @@ int UDPFile::lock_communication() {
 }
 
 int UDPFile::unlock_communication() {
+    communication_lock_count_--;
+    if (communication_lock_count_ > 0) {
+        return 0; // not ready to unlock yet
+    }
     int err = lockf(fd_communication_lock_, F_ULOCK, 0);
     if (err) {
         std::cerr << "error unlocking " + std::to_string(errno) + ": " + strerror(errno);
@@ -169,7 +177,6 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
     uint16_t crc = crc16((uint8_t*)&send_packet, 4);
     send_packet.data[send_packet.length] = (crc >> 8) & 0xFF;
     send_packet.data[send_packet.length+1] = crc & 0xFF;
-    lock_communication();
     int send_result = sendto(fd_, &send_packet, send_packet.length+6, 0, (sockaddr *) &addr_, sizeof(addr_));
     if (send_result < 0) {
       return send_result;
@@ -183,7 +190,6 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
   rx_data_request_cv_.notify_one();
   std::unique_lock<std::mutex> lk(rx_data_cv_m_);
   bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_received_ != false; });
-  unlock_communication();
 
   if (status == false) {
     errno = ETIMEDOUT;
@@ -198,6 +204,7 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
 }
 
 ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
+  lock_communication();
   ssize_t retval = _read(data, length, write_read);
   
   if (api_mode_) {
@@ -213,6 +220,7 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
               timeout_ms_ += packet->timeout_request.timeout_us/1000;
               ssize_t retval = _read(data, length, write_read);
               timeout_ms_ = old_timeout_ms;
+              unlock_communication();
               return retval;
           }
       } else if (packet->type == LONG_PACKET) {
@@ -223,6 +231,7 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
           uint16_t total_count_received = retval - header_size;
           if (total_length > length) {
               // too long
+              unlock_communication();
               return -EINVAL;
           }
           std::memmove(data, data + header_size, total_count_received);
@@ -232,15 +241,18 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
               char buf[length];
               retval = _read(buf, length, write_read);
               if (retval < 0) {
+                  unlock_communication();
                   return retval;
               }
               APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(buf);
               if (packet->type != LONG_PACKET) {
                   std::cerr << "Error: expected long packet, got " << packet->type << std::endl;
+                  unlock_communication();
                   return -EINVAL;
               }
               if (packet->long_packet.packet_number != ++packet_number) {
                   std::cerr << "Error: expected packet number " << packet_number << ", got " << packet->long_packet.packet_number << std::endl;
+                  unlock_communication();
                   return -EINVAL;
               }
               total_count_received += retval - header_size;
@@ -249,12 +261,14 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
           }
           if (total_count_received != total_length) {
             std::cerr << "Error: expected " << total_length << " bytes, got " << total_count_received << std::endl;
+            unlock_communication();
             return -EINVAL;
           }
           retval = total_count_received;
         }
     }
   }
+  unlock_communication();
   return retval;
 }
 
@@ -277,27 +291,21 @@ ssize_t UDPFile::write(const char * data, unsigned int length, bool write_read) 
     packet.data[length+1] = crc & 0xFF;
 
     std::memcpy(packet.data, data, length);
-    lock_communication();
     int send_result = sendto(fd_, &packet, 6+length, 0, (sockaddr *) &addr_, sizeof(addr_));
     return send_result;
 }
 
 ssize_t UDPFile::writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
-    for (int i = 0; i<3; i++) {
-      int write_result = write(data_out, length_out, true);
-      if (write_result < 0) {
-        //std::cout << "write result " << write_result << std::endl;
-        return write_result;
-      }
-      int read_result = read(data_in, length_in, true);
-      if (read_result < 0) {
-        // retry
-        continue;
-      }
-      //std::cout << "api " << read_result << " " << data_in[0] << std::endl;
-      return read_result;
+    lock_communication();
+    int retval = write(data_out, length_out, true);
+    if (retval < 0) {
+      unlock_communication();
+      return retval;
     }
-    return -1;
+    retval = read(data_in, length_in, true);
+
+    unlock_communication();
+    return retval;
 }
 
 void UDPFile::rx_callback(const uint8_t* buf, uint16_t len) {
