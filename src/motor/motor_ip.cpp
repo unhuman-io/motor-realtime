@@ -56,7 +56,8 @@ inline uint16_t crc16(const uint8_t* buf, uint32_t len) {  // NOLINT
   return crc;
 }
 
-void MotorIP::open() {
+template<typename Parser, typename ObotPacket>
+void MotorIPBase<Parser, ObotPacket>::open() {
     fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
     //std::cout << "socket fd " << fd_ << std::endl;
     addrinfo hints = {};
@@ -98,7 +99,8 @@ void MotorIP::open() {
     //flush();
 }
 
-int MotorIP::create_communication_lock() {
+template<typename Parser, typename ObotPacket>
+int MotorIPBase<Parser, ObotPacket>::create_communication_lock() {
     // lock file to prevent multiple instances from using the same port
     std::string lock_file = "/tmp/obot." + addrstr_ + ":" + port_ + ".lock";
     fd_communication_lock_ = ::open(lock_file.c_str(), O_CREAT | O_RDWR, 0666);
@@ -112,7 +114,8 @@ int MotorIP::create_communication_lock() {
     return err;
 }
 
-int UDPFile::lock_communication() {
+template<typename Parser, typename ObotPacket>
+int UDPFile<Parser, ObotPacket>::lock_communication() {
     int err = lockf(fd_communication_lock_, F_LOCK, 0); 
     if (err) {
         std::cerr << "error locking " + std::to_string(errno) + ": " + strerror(errno);
@@ -126,7 +129,8 @@ int UDPFile::lock_communication() {
     return err;
 }
 
-int UDPFile::unlock_communication() {
+template<typename Parser, typename ObotPacket>
+int UDPFile<Parser, ObotPacket>::unlock_communication() {
     int err = lockf(fd_communication_lock_, F_ULOCK, 0);
     if (err) {
         std::cerr << "error unlocking " + std::to_string(errno) + ": " + strerror(errno);
@@ -140,7 +144,8 @@ int UDPFile::unlock_communication() {
     return err;
 }
 
-void UDPFile::flush() {
+template<typename Parser, typename ObotPacket>
+void UDPFile<Parser, ObotPacket>::flush() {
     int result;
     char c[1024];
     do {
@@ -148,7 +153,8 @@ void UDPFile::flush() {
     } while (result > 0);
 }
 
-int UDPFile::poll() {
+template<typename Parser, typename ObotPacket>
+int UDPFile<Parser, ObotPacket>::poll() {
     pollfd tmp;
     tmp.fd = fd_;
     tmp.events = POLLIN;
@@ -161,7 +167,8 @@ int UDPFile::poll() {
     return poll_result;
 }
 
-ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
+template<typename Parser, typename ObotPacket>
+ssize_t UDPFile<Parser, ObotPacket>::_read(char * data, unsigned int length, bool write_read) {
   if (!write_read) {
     ObotPacket send_packet;
     send_packet.frame_id = recv_frame_id_;
@@ -197,7 +204,8 @@ ssize_t UDPFile::_read(char * data, unsigned int length, bool write_read) {
   }
 }
 
-ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
+template<typename Parser, typename ObotPacket>
+ssize_t UDPFile<Parser, ObotPacket>::read(char * data, unsigned int length, bool write_read) {
   ssize_t retval = _read(data, length, write_read);
   
   if (api_mode_) {
@@ -258,8 +266,8 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
   return retval;
 }
 
-ssize_t UDPFile::write(const char * data, unsigned int length, bool write_read) {
-    ObotPacket packet;
+template<typename Parser, typename ObotPacket>
+ssize_t UDPFile<Parser, ObotPacket>::write(const char * data, unsigned int length, bool write_read) {
     // Pack data into packet
     uint8_t send_frame_id;
     if (write_read) {
@@ -295,7 +303,8 @@ ssize_t UDPFile<Parser, ObotPacket>::writeread(const char * data_out, unsigned i
     return -1;
 }
 
-void UDPFile::rx_callback(const uint8_t* buf, uint16_t len) {
+template<typename Parser, typename ObotPacket>
+void UDPFile<Parser, ObotPacket>::rx_callback(const uint8_t* buf, uint16_t len) {
   std::unique_lock<std::mutex> lk(rx_data_request_cv_m_);
   bool status = rx_data_request_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_data_request_; });
   if (status == false) {
@@ -311,12 +320,14 @@ void UDPFile::rx_callback(const uint8_t* buf, uint16_t len) {
   rx_data_cv_.notify_one();
 }
 
-MotorIP::~MotorIP() {
+template<typename Parser, typename ObotPacket>
+MotorIPBase<Parser, ObotPacket>::~MotorIPBase() {
   terminate_ = true;
   rx_thread_.join(); // todo add timeout
 }
 
-bool MotorIP::connect() {
+template<typename Parser, typename ObotPacket>
+bool MotorIPBase<Parser, ObotPacket>::connect() {
     fd_flags_ = fcntl(fd_, F_GETFL);
     messages_version_ = operator[]("messages_version").get();
     if (messages_version_ == "") {
@@ -338,12 +349,14 @@ bool MotorIP::connect() {
     return true;  
 }
 
-void MotorIP::set_timeout_ms(int timeout_ms) {
-    static_cast<UDPFile*>(motor_txt_.get())->timeout_ms_ = timeout_ms;
+template<typename Parser, typename ObotPacket>
+void MotorIPBase<Parser, ObotPacket>::set_timeout_ms(int timeout_ms) {
+    static_cast<UDPFile<Parser, ObotPacket>*>(motor_txt_.get())->timeout_ms_ = timeout_ms;
     realtime_communication_.timeout_ms_ = timeout_ms;
 }
 
-ssize_t MotorIP::read() {
+template<typename Parser, typename ObotPacket>
+ssize_t MotorIPBase<Parser, ObotPacket>::read() {
   //std::cout << "read " << std::endl;
   int ret = realtime_communication_.read((char *) &status_, sizeof(status_));
   if (ret < 0) {
@@ -352,12 +365,14 @@ ssize_t MotorIP::read() {
   return ret;
 }
 
-ssize_t MotorIP::write() {
+template<typename Parser, typename ObotPacket>
+ssize_t MotorIPBase<Parser, ObotPacket>::write() {
   //std::cout << "write " << std::endl;
   return realtime_communication_.write((char *) &command_, sizeof(command_));
 }
 
-void MotorIP::rx_data() {
+template<typename Parser, typename ObotPacket>
+void MotorIPBase<Parser, ObotPacket>::rx_data() {
   //std::cout << "rx_data started, fd_ " << fd_ << std::endl;
   while(1) {
     // assume blocking i/o
@@ -382,5 +397,8 @@ void MotorIP::rx_data() {
     }
   }
 }
+
+template class MotorIPBase<figure::ProtocolParser, FigureProtocolParserObotPacket>;
+template class MotorIPBase<ACFParser, ACFPacket>;
 
 }; // namespace obot

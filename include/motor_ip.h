@@ -4,29 +4,17 @@
 
 #include <netdb.h>
 #include "protocol_parser.h"
+#include "acf_parser.h"
 #include <thread>
 #include <atomic>
 #include <condition_variable>
 
 namespace obot {
 
+template<typename Parser, typename ObotPacket>
 class UDPFile : public TextFile {
  public:
-    /*
-    * [ Start bytes (2) ] = {0xCA, 0xFE}
-    * [ Frame ID (1) ]
-    * [ Payload Length (1) ]
-    * [ Payload (n) ]
-    * [ CRC (2) ]
-    */
-    struct ObotPacket {
-        ObotPacket() : start_bytes{0xCA, 0xFE} {}
-        uint8_t start_bytes[2];
-        uint8_t frame_id;
-        uint8_t length;
-        uint8_t data[1024];
-    };
-    UDPFile(figure::ProtocolParser &parser) :
+    UDPFile(Parser &parser) :
         parser_(parser) {
         register_parser_callbacks();
     }
@@ -56,7 +44,7 @@ class UDPFile : public TextFile {
     sockaddr_in addr_ = {};
  private:
     ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false);
-    figure::ProtocolParser &parser_;
+    Parser &parser_;
     std::condition_variable rx_data_cv_;
     std::mutex rx_data_cv_m_; // protects rx_data_cv_, rx_buf_, rx_received_ and rx_len_
     uint8_t rx_buf_[1024];
@@ -68,9 +56,10 @@ class UDPFile : public TextFile {
     bool api_mode_ = false;
 };
 
-class MotorIP : public Motor {
+template<typename Parser, typename ObotPacket>
+class MotorIPBase : public Motor {
  public:
-    MotorIP(std::string address, std::string ip_alias = "") : realtime_communication_(parser_) {
+    MotorIPBase(std::string address, std::string ip_alias = "") : realtime_communication_(parser_) {
 
         int n = address.find(":");
         if (n == std::string::npos) {
@@ -86,8 +75,8 @@ class MotorIP : public Motor {
 
         ip_alias_ = ip_alias;
 
-        motor_txt_ = std::move(std::unique_ptr<UDPFile>(new UDPFile(parser_)));
-        UDPFile * motor_txt = static_cast<UDPFile *>(motor_txt_.get());
+        motor_txt_ = std::move(std::unique_ptr<UDPFile<Parser, ObotPacket>>(new UDPFile<Parser, ObotPacket>(parser_)));
+        UDPFile<Parser, ObotPacket> * motor_txt = static_cast<UDPFile<Parser, ObotPacket> *>(motor_txt_.get());
         motor_txt->send_recv_frame_id_ = 4;
         motor_txt->recv_frame_id_ = 5;
         motor_txt->send_frame_id_ = 4;
@@ -104,7 +93,7 @@ class MotorIP : public Motor {
         rx_thread_ = std::thread([this]{ this->rx_data(); });
         connected_ = connect();
     }
-    virtual ~MotorIP();
+    virtual ~MotorIPBase();
     
     int create_communication_lock();
     virtual void set_timeout_ms(int timeout_ms) override;
@@ -128,19 +117,31 @@ class MotorIP : public Motor {
 
  private:
     static const int kProtocolOverheadBytes = 6;
-    UDPFile::ObotPacket read_buffer_;
-    UDPFile::ObotPacket write_buffer_;
+    ObotPacket read_buffer_;
+    ObotPacket write_buffer_;
 
     const static uint32_t RX_BUFFER_SIZE = 2048;
     uint8_t rx_buffer_[RX_BUFFER_SIZE];
     uint8_t rx_lin_buffer_[RX_BUFFER_SIZE];
-    figure::ProtocolParser parser_{rx_buffer_, RX_BUFFER_SIZE};
+    Parser parser_{rx_buffer_, RX_BUFFER_SIZE};
     std::atomic<uint32_t> current_read_idx_{0};
     std::thread rx_thread_;
     std::atomic<bool> terminate_{false};
     bool connected_ = false;
-    UDPFile realtime_communication_; // relies on parser_
+    UDPFile<Parser, ObotPacket> realtime_communication_; // relies on parser_
     int fd_communication_lock_;
 };
+
+struct FigureProtocolParserObotPacket {
+    FigureProtocolParserObotPacket() : start_bytes{0xCA, 0xFE} {}
+    uint8_t start_bytes[2];
+    uint8_t frame_id;
+    uint8_t length;
+    uint8_t data[1024];
+};
+
+using MotorIP = MotorIPBase<figure::ProtocolParser, FigureProtocolParserObotPacket>;
+
+using MotorIPCAN = MotorIPBase<ACFParser, ACFPacket>;
 
 }; // namespace obot

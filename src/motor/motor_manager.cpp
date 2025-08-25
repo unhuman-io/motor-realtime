@@ -206,6 +206,43 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
     return m;
 }
 
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip_can(std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated, std::vector<std::string> ip_aliases) {
+    std::vector<std::shared_ptr<Motor>> m(ips.size());
+    std::vector<std::future<std::shared_ptr<MotorIPCAN>>> futures(ips.size());
+    for (uint8_t i=0; i<ips.size(); i++) {
+        std::string& ip = ips[i];
+        std::string ip_alias;
+        if (ip_aliases.size() > i) {
+            ip_alias = ip_aliases[i];
+        }
+        futures[i] = std::async(std::launch::async, [&ip, ip_alias]
+        {
+            std::shared_ptr<MotorIPCAN> motor = std::make_shared<MotorIPCAN>(ip, ip_alias);
+            return motor;
+        });
+    }
+    int j = 0;
+    for (uint8_t i=0; i<ips.size(); i++) {
+        std::shared_ptr<MotorIPCAN> motor = futures[i].get();
+        if (motor->connected()) {
+            m[j++] = motor;
+        } else {
+            if (print_unconnected) {
+                std::cerr << "Motor IP CAN: " << motor->addrstr_ << "(" << motor->hostname_;
+                if (motor->ip_alias_.size()) {
+                    std::cerr << ": " << motor->ip_alias_;
+                }
+                std::cerr << ") not connected" << std::endl;
+            }
+        }
+    }
+    m.resize(j);
+    if (connect) {
+        set_motors(m);
+    }
+    return m;
+}
+
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_can(std::vector<std::string> can_interfaces, bool connect, bool allow_simulated) {
     std::vector<std::shared_ptr<Motor>> m;
     std::vector<std::string> new_interfaces;
