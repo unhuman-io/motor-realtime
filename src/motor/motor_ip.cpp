@@ -261,28 +261,23 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
 ssize_t UDPFile::write(const char * data, unsigned int length, bool write_read) {
     ObotPacket packet;
     // Pack data into packet
-    // todo: use generate_packet()
-    std::memcpy(packet.data, data, length);
+    uint8_t send_frame_id;
     if (write_read) {
-      packet.frame_id = send_recv_frame_id_;
+      send_frame_id = send_recv_frame_id_;
     } else {
-      packet.frame_id = send_frame_id_;
+      send_frame_id = send_frame_id_;
     }
-    
-    packet.length = length;
-    //std::cout << "send length " << length << std::endl;
-    // Calculate CRC of command payload
-    uint16_t crc = crc16((uint8_t*)&packet, length+4);
-    packet.data[length] = (crc >> 8) & 0xFF;
-    packet.data[length+1] = crc & 0xFF;
 
-    std::memcpy(packet.data, data, length);
+    uint8_t length_out;
+    uint8_t *packet = parser_.generatePacket((const uint8_t *) data, length, send_frame_id, &length_out);
+
     lock_communication();
-    int send_result = sendto(fd_, &packet, 6+length, 0, (sockaddr *) &addr_, sizeof(addr_));
+    int send_result = sendto(fd_, packet, length_out, 0, (sockaddr *) &addr_, sizeof(addr_));
     return send_result;
 }
 
-ssize_t UDPFile::writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
+template<typename Parser, typename ObotPacket>
+ssize_t UDPFile<Parser, ObotPacket>::writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
     for (int i = 0; i<3; i++) {
       int write_result = write(data_out, length_out, true);
       if (write_result < 0) {
