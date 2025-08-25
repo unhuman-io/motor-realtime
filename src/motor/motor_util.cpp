@@ -196,6 +196,7 @@ int main(int argc, char** argv) {
     std::string json_ip_file_default = config_dir + "device_ip_map.json";
     std::string json_ip_file = json_ip_file_default;
     bool no_print_unconnected = false;
+    bool ip_can = false;
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map;
     for (const std::pair<const ModeDesired, const std::string> &pair : MotorManager::mode_map) {
@@ -314,6 +315,7 @@ int main(int argc, char** argv) {
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
     auto ip_option = app.add_option("-i,--ips", ips, "Connect to IP(S). If left empty, connect to all ips specified in --json-ip-file")->type_name("IP")->expected(0,-1)->default_str("{}");
+    app.add_flag("--ip-can", ip_can, "Connect to CAN devices over IP")->needs(ip_option);
     app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     app.add_flag("--no-print-unconnected", no_print_unconnected, "Don't print unconnected motors, currently only used with --ips");
     auto uart_paths_option = app.add_option("-a,--uart-paths", uart_paths, "Connect to UART_PATH(S) [BAUD_RATE]")->type_name("UART_PATH")->expected(-1);
@@ -407,8 +409,14 @@ int main(int argc, char** argv) {
             }
         }
 
-        auto tmp_motors = m.get_motors_by_ip(ips, true, !no_print_unconnected, false, ip_aliases);
-        motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+        if (ip_can) {
+            // Connect to CAN devices over IP
+            auto tmp_motors = m.get_motors_by_ip_can(ips, true, !no_print_unconnected, false, ip_aliases);
+            motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+        } else {
+            auto tmp_motors = m.get_motors_by_ip(ips, true, !no_print_unconnected, false, ip_aliases);
+            motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+        }
     }
     if (uart_paths.size()) {
         uint32_t baud_rate = 0;

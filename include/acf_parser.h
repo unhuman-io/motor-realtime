@@ -64,7 +64,7 @@ private:
     ACFPacket packet_in_;
     size_t buffer_size_;
     uint32_t last_idx_ = 0;
-    uint8_t can_bus_id_ = 0;
+    uint8_t can_bus_id_ = 1;
     callback_t callbacks[16];
 };
 
