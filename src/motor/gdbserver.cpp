@@ -20,8 +20,17 @@ const int PORT = 3293;
 #include "gdbserver.h"
 
 namespace obot {
+
+void GDBServer::send_response(std::string response) {
+    std::cout << "sending response: " << response << std::endl;
+    int n = write(connfd_, response.c_str(), response.size());
+    if (n < 0) {
+        throw std::runtime_error("write error");
+    }
+}
+
 void GDBServer::start() {
-    int connfd, len; 
+    int len; 
     struct sockaddr_in cli; 
     
     int sockfd = socket(AF_INET, SOCK_STREAM, 0); 
@@ -37,7 +46,7 @@ void GDBServer::start() {
     servaddr.sin_port = htons(PORT); 
     
     if ((bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr))) != 0) { 
-        throw std::runtime_error("socket bind failed"); 
+        throw std::runtime_error("socket bind failed: " + std::string(strerror(errno))); 
     } 
     std::cout << "socket successfully bound" << std::endl; 
     
@@ -47,8 +56,8 @@ void GDBServer::start() {
     std::cout << "server listening" << std::endl;; 
     len = sizeof(cli); 
     
-    connfd = accept(sockfd, (struct sockaddr*)&cli, (socklen_t*) &len); 
-    if (connfd < 0) { 
+    connfd_ = accept(sockfd, (struct sockaddr*)&cli, (socklen_t*) &len); 
+    if (connfd_ < 0) { 
         throw std::runtime_error("server accept failed..."); 
     }
     std::cout << "server accepted the client" << std::endl;
@@ -58,7 +67,7 @@ void GDBServer::start() {
     for (;;) {
         bzero(buf, MAX); 
     
-        int reval = read(connfd, buf, sizeof(buf)); 
+        int reval = read(connfd_, buf, sizeof(buf)); 
         std::cout << "read result " << reval << std::endl;
         if (reval < 0) {
             throw std::runtime_error("read error");
@@ -71,35 +80,44 @@ void GDBServer::start() {
         std::cout << "From gdb: " <<  buf << std::endl;
         std::string response;
         std::string_view str(buf);
-        bool ack;
+        bool ack = false;
         if (str.rfind("$", 0) == 0) {
+            send_ack();
             ack = true;
-            response = "+";
         } else if (str.rfind("+", 0) == 0) {
             //ignore
-            ack = false;
-            response = "";
+            str.remove_prefix(1);
+            if (str.rfind("$", 0) == 0) {
+                send_ack();
+                ack = true;
+            }
         } else {
             //else "-"
-            ack = false;
-            response = "-";
-        }
-        if (response.size() > 0) {
-            std::cout << "sending gdb response: " << response << std::endl;
-            int n = write(connfd, response.c_str(), response.size());
-            if (n < 0) {
-                throw std::runtime_error("write error");
-            }
+            send_nack();
         }
         if (!ack) {
             continue;
         }
+
         if (str.rfind("$qSupported", 0) == 0) {
             std::cout << "gdb command: " << str.substr(1) << std::endl;
             response = "read+;write+;";
         } else if (str.rfind("$g", 0) == 0) {
             std::cout << "gdb command: " << str.substr(1) << std::endl;
-            response = "00";
+            response = std::string(17*4*2, '0');
+            response = "000000004aff7f40000000000000000000000000000000000000000000000000000000000000000044f10b000000000000000000a0fd7f400000000038ab000000000001";
+        } else if (str.rfind("$?", 0) == 0) {
+            std::cout << "gdb command: " << str.substr(1) << std::endl;
+            response = "S05";
+        } else if (str.rfind("$Hc-1", 0) == 0) {
+            std::cout << "gdb command: " << str.substr(1) << std::endl;
+            response = "qC";
+        } else if (str.rfind("$qAttached", 0) == 0) {
+            std::cout << "gdb command: " << str.substr(1) << std::endl;
+            response = "1";
+        } else if (str.rfind("$mbf284", 0) == 0) {
+            std::cout << "gdb command: " << str.substr(1) << std::endl;
+            response = "12345678";
         } else {
             response = "";
         }
@@ -112,7 +130,7 @@ void GDBServer::start() {
         snprintf(checksum_str, sizeof(checksum_str), "%02x", checksum);
         std::string gdb_response = "$" + response + "#" + checksum_str;
         std::cout << "gdb response: " << gdb_response << std::endl;
-        int n = write(connfd, gdb_response.c_str(), gdb_response.size());
+        int n = write(connfd_, gdb_response.c_str(), gdb_response.size());
         if (n < 0) {
             throw std::runtime_error("write error");
         }
