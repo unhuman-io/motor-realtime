@@ -683,7 +683,9 @@ int main(int argc, char** argv) {
             std::cout << "Select one motor to use gdbserver" << std::endl;
             return 1;
         }
-        GDBServer gdb;
+        GDBServer gdb([motor_text = motors[0]->motor_text()](std::string_view s) mutable {
+            return motor_text->writeread(std::string(s));
+        });
         gdb.start();
     }
 

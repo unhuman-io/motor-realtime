@@ -105,19 +105,26 @@ void GDBServer::start() {
         } else if (str.rfind("$g", 0) == 0) {
             std::cout << "gdb command: " << str.substr(1) << std::endl;
             response = std::string(17*4*2, '0');
-            response = "000000004aff7f40000000000000000000000000000000000000000000000000000000000000000044f10b000000000000000000a0fd7f400000000038ab000000000001";
+            //response = "000000004aff7f40000000000000000000000000000000000000000000000000000000000000000044f10b000000000000000000a0fd7f400000000038ab000000000001";
         } else if (str.rfind("$?", 0) == 0) {
             std::cout << "gdb command: " << str.substr(1) << std::endl;
-            response = "S05";
+            response = "S05"; // "T05thread:pbdeab.bdeab;"
         } else if (str.rfind("$Hc-1", 0) == 0) {
             std::cout << "gdb command: " << str.substr(1) << std::endl;
-            response = "qC";
+            response = "OK";
         } else if (str.rfind("$qAttached", 0) == 0) {
             std::cout << "gdb command: " << str.substr(1) << std::endl;
             response = "1";
+        } else if (str.rfind("$qOffsets", 0) == 0) {
+            std::cout << "gdb command: " << str.substr(1) << std::endl;
+            response = "Text=00000000;Data=00000000;Bss=00000000";
         } else if (str.rfind("$mbf284", 0) == 0) {
             std::cout << "gdb command: " << str.substr(1) << std::endl;
             response = "12345678";
+        } else if (str.rfind("$m", 0) == 0) {
+            std::string_view memory_read = str.substr(0, str.size() - 3);
+            std::cout << "gdb command: " << memory_read << std::endl;
+            response = writeread_(memory_read);
         } else {
             response = "";
         }
