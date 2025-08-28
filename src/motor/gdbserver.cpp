@@ -75,23 +75,31 @@ void GDBServer::start() {
         if (str.rfind("$", 0) == 0) {
             ack = true;
             response = "+";
+        } else if (str.rfind("+", 0) == 0) {
+            //ignore
+            ack = false;
+            response = "";
         } else {
-            //else "+"
             //else "-"
             ack = false;
             response = "-";
         }
-        int n = write(connfd, response.c_str(), response.size());
-        if (n < 0) {
-            throw std::runtime_error("write error");
+        if (response.size() > 0) {
+            std::cout << "sending gdb response: " << response << std::endl;
+            int n = write(connfd, response.c_str(), response.size());
+            if (n < 0) {
+                throw std::runtime_error("write error");
+            }
         }
         if (!ack) {
             continue;
         }
-
         if (str.rfind("$qSupported", 0) == 0) {
             std::cout << "gdb command: " << str.substr(1) << std::endl;
             response = "read+;write+;";
+        } else if (str.rfind("$g", 0) == 0) {
+            std::cout << "gdb command: " << str.substr(1) << std::endl;
+            response = "00";
         } else {
             response = "";
         }
@@ -104,7 +112,7 @@ void GDBServer::start() {
         snprintf(checksum_str, sizeof(checksum_str), "%02x", checksum);
         std::string gdb_response = "$" + response + "#" + checksum_str;
         std::cout << "gdb response: " << gdb_response << std::endl;
-        n = write(connfd, gdb_response.c_str(), gdb_response.size());
+        int n = write(connfd, gdb_response.c_str(), gdb_response.size());
         if (n < 0) {
             throw std::runtime_error("write error");
         }
