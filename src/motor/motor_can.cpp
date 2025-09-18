@@ -370,6 +370,15 @@ static std::vector<std::string> get_can_interfaces() {
         
         tmp = tmp->ifa_next;
     }
+    if (interfaces.empty()) {
+        throw std::runtime_error("No valid CAN interfaces found");
+    } else {
+        std::cout << "Found CAN interfaces: ";
+        for (auto &s : interfaces) {
+            std::cout << s << " ";
+        }
+        std::cout << std::endl;
+    }
     freeifaddrs(addrs);
     return interfaces;
 }
