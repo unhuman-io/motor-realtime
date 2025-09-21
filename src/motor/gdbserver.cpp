@@ -125,6 +125,10 @@ void GDBServer::start() {
             std::string_view memory_read = str.substr(0, str.size() - 3);
             std::cout << "gdb command: " << memory_read << std::endl;
             response = writeread_(memory_read);
+        } else if (str.rfind("$M", 0) == 0) {
+            std::string_view memory_write = str.substr(0, str.size() - 3);
+            std::cout << "gdb command: " << memory_write << std::endl;
+            response = writeread_(memory_write);
         } else {
             response = "";
         }
