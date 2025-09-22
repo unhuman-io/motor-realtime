@@ -12,6 +12,7 @@ namespace obot {
 class SocketFile : public TextFile {
  public:
     SocketFile() {}
+    virtual ~SocketFile() override {}
     int poll();
     virtual void flush();
     virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false);
@@ -42,21 +43,13 @@ std::string address_;
 
 class MotorSocket : public Motor {
  public:
-    MotorSocket(std::string address, std::string address_alias = "") {
+    MotorSocket(std::string address, std::string interface = "lo", std::string address_alias = "") {
         address_alias_ = address_alias;
+        mac_ = address;
+        interface_ = interface;
 
-        motor_txt_ = std::move(std::unique_ptr<SocketFile>(new SocketFile()));
-        SocketFile * motor_txt = static_cast<SocketFile *>(motor_txt_.get());
-        open();
-        motor_txt->fd_ = fd_;
-        motor_txt->fd_communication_lock_ = fd_communication_lock_;
-        motor_txt->address_ = address;
-        motor_txt->set_api_mode();
-        realtime_communication_.fd_ = fd_;
-        realtime_communication_.address_ = address;
-        realtime_communication_.fd_communication_lock_ = fd_communication_lock_;
-        rx_thread_ = std::thread([this]{ this->rx_data(); });
-        connected_ = connect();
+
+        
     }
     virtual ~MotorSocket();
 
@@ -74,10 +67,10 @@ class MotorSocket : public Motor {
 
     std::string address_;
     std::string address_alias_;
-    std::string addrstr_;
-    char hostname_[64];
+    std::string mac_;
+    std::string interface_;
 
- private:
+ protected:
     static const int kProtocolOverheadBytes = 6;
 
     const static uint32_t RX_BUFFER_SIZE = 2048;

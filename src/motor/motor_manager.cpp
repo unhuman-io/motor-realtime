@@ -209,7 +209,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated, std::vector<std::string> ip_aliases) {
     std::vector<std::shared_ptr<Motor>> m(ips.size());
-    std::vector<std::future<std::shared_ptr<MotorIP>>> futures(ips.size());
+    std::vector<std::future<std::shared_ptr<MotorEthL2>>> futures(ips.size());
     for (uint8_t i=0; i<ips.size(); i++) {
         std::string& ip = ips[i];
         std::string ip_alias;
@@ -218,20 +218,20 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
         }
         futures[i] = std::async(std::launch::async, [&ip, ip_alias]
         {
-            std::shared_ptr<MotorIP> motor = std::make_shared<MotorIP>(ip, ip_alias);
+            std::shared_ptr<MotorEthL2> motor = std::make_shared<MotorEthL2>(ip, ip_alias);
             return motor;
         });
     }
     int j = 0;
     for (uint8_t i=0; i<ips.size(); i++) {
-        std::shared_ptr<MotorIP> motor = futures[i].get();
+        std::shared_ptr<MotorEthL2> motor = futures[i].get();
         if (motor->connected()) {
             m[j++] = motor;
         } else {
             if (print_unconnected) {
-                std::cerr << "Motor IP: " << motor->addrstr_ << "(" << motor->hostname_;
-                if (motor->ip_alias_.size()) {
-                    std::cerr << ": " << motor->ip_alias_;
+                std::cerr << "Motor Eth L2: " << motor->mac_ << " (" << motor->interface_;
+                if (motor->alias_.size()) {
+                    std::cerr << ": " << motor->alias_;
                 }
                 std::cerr << ") not connected" << std::endl;
             }

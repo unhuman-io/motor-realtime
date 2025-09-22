@@ -3,13 +3,28 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <linux/if_ether.h>
+#include <linux/if_packet.h>
+#include <net/if.h>
 #include <errno.h>
 #include "poll.h"
 
 namespace obot {
 
 void MotorSocket::open() {
-    fd_ = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));    
+    fd_ = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    if (fd_ < 0) {
+      throw std::runtime_error("socket failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
+    }
+
+    sockaddr_ll server_addr = {};
+    server_addr.sll_family = AF_PACKET;
+    server_addr.sll_protocol = htons(ETH_P_ALL);
+    server_addr.sll_ifindex = if_nametoindex("lo");//interface_.c_str());
+  
+    int retval = bind(fd_, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    if (retval < 0) {
+      throw std::runtime_error("bind failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
+    }
     
     create_communication_lock();
     //flush();
@@ -17,7 +32,7 @@ void MotorSocket::open() {
 
 int MotorSocket::create_communication_lock() {
     // lock file to prevent multiple instances from using the same port
-    std::string lock_file = "/tmp/obot." + addrstr_ + ".lock";
+    std::string lock_file = "/tmp/obot." + mac_ + ".lock";
     fd_communication_lock_ = ::open(lock_file.c_str(), O_CREAT | O_RDWR, 0666);
     if (fd_communication_lock_ < 0) {
       throw std::runtime_error("Error opening lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
@@ -172,15 +187,15 @@ ssize_t SocketFile::read(char * data, unsigned int length, bool write_read) {
 }
 
 ssize_t SocketFile::write(const char * data, unsigned int length, bool write_read) {
+    std::cout << "write length " << length << ", " << data << std::endl;
     lock_communication();
-    char buffer[length + 14];
-    std::memcpy(buffer + 14, data, length);
+    char buffer[length];
+    std::memcpy(buffer, data, length);
     int send_result = send(fd_, buffer, sizeof(buffer), 0);
     return send_result;
 }
 
 ssize_t SocketFile::writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
-    for (int i = 0; i<3; i++) {
       int write_result = write(data_out, length_out, true);
       if (write_result < 0) {
         //std::cout << "write result " << write_result << std::endl;
@@ -189,11 +204,10 @@ ssize_t SocketFile::writeread(const char * data_out, unsigned int length_out, ch
       int read_result = read(data_in, length_in, true);
       if (read_result < 0) {
         // retry
-        continue;
+        //continue;
       }
       //std::cout << "api " << read_result << " " << data_in[0] << std::endl;
       return read_result;
-    }
     return -1;
 }
 
@@ -234,8 +248,8 @@ bool MotorSocket::connect() {
     board_num_ = operator[]("board_num").get();
     config_ = operator[]("config").get();
     serial_number_ = operator[]("serial").get();
-    dev_path_ = hostname_;
-    base_path_ = addrstr_;
+    dev_path_ = interface_;
+    base_path_ = mac_;
     devnum_ = 123;
     return true;  
 }
@@ -255,7 +269,7 @@ ssize_t MotorSocket::read() {
 }
 
 ssize_t MotorSocket::write() {
-  //std::cout << "write " << std::endl;
+  // std::cout << "write " << std::endl;
   return realtime_communication_.write((char *) &command_, sizeof(command_));
 }
 
