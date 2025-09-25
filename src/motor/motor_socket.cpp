@@ -18,8 +18,8 @@ void MotorSocket::open() {
 
     sockaddr_ll server_addr = {};
     server_addr.sll_family = AF_PACKET;
-    server_addr.sll_protocol = htons(ETH_P_ALL);
-    server_addr.sll_ifindex = if_nametoindex("lo");//interface_.c_str());
+    server_addr.sll_protocol = htons(0x88B5);
+    server_addr.sll_ifindex = if_nametoindex(interface_.c_str());
   
     int retval = bind(fd_, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (retval < 0) {
@@ -32,7 +32,7 @@ void MotorSocket::open() {
 
 int MotorSocket::create_communication_lock() {
     // lock file to prevent multiple instances from using the same port
-    std::string lock_file = "/tmp/obot." + mac_ + ".lock";
+    std::string lock_file = "/tmp/obot." + address_ + ".lock";
     fd_communication_lock_ = ::open(lock_file.c_str(), O_CREAT | O_RDWR, 0666);
     if (fd_communication_lock_ < 0) {
       throw std::runtime_error("Error opening lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
@@ -249,7 +249,7 @@ bool MotorSocket::connect() {
     config_ = operator[]("config").get();
     serial_number_ = operator[]("serial").get();
     dev_path_ = interface_;
-    base_path_ = mac_;
+    base_path_ = address_;
     devnum_ = 123;
     return true;  
 }

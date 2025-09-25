@@ -43,13 +43,9 @@ std::string address_;
 
 class MotorSocket : public Motor {
  public:
-    MotorSocket(std::string address, std::string interface = "lo", std::string address_alias = "") {
-        address_alias_ = address_alias;
-        mac_ = address;
+    MotorSocket(std::string interface, std::string address) {
         interface_ = interface;
-
-
-        
+        address_ = address;
     }
     virtual ~MotorSocket();
 
@@ -66,8 +62,6 @@ class MotorSocket : public Motor {
     void rx_data();
 
     std::string address_;
-    std::string address_alias_;
-    std::string mac_;
     std::string interface_;
 
  protected:
