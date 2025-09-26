@@ -19,6 +19,7 @@ class EthL2RawFile : public SocketFile {
     virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false) override;
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) override;
     uint8_t dst_mac_[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    uint8_t src_mac_[6] = {0, 0, 0, 0, 0, 0};
 };
 
 struct L2Frame {
@@ -82,14 +83,17 @@ class MotorEthL2 : public MotorSocket {
         motor_txt_ = std::move(std::unique_ptr<EthL2File>(new EthL2File(address)));
         EthL2File * motor_txt = static_cast<EthL2File *>(motor_txt_.get());
         open();
+        get_interface_mac_address();
         motor_txt->fd_ = fd_;
         motor_txt->fd_communication_lock_ = fd_communication_lock_;
         motor_txt->address_ = address;
+        std::memcpy(motor_txt->src_mac_, src_mac_, 6);
 
         motor_txt->set_api_mode();
         realtime_communication_.fd_ = fd_;
         realtime_communication_.address_ = address;
         realtime_communication_.fd_communication_lock_ = fd_communication_lock_;
+        //std::memcpy(realtime_communication_.src_mac_, src_mac_, 6);
         rx_thread_ = std::thread([this]{ this->rx_data(); });
 
         connected_ = connect();
@@ -104,6 +108,9 @@ class MotorEthL2 : public MotorSocket {
         }
     }
     virtual ~MotorEthL2() {}
+    void get_interface_mac_address();
+
+    uint8_t src_mac_[6] = {};
     
 };
 
