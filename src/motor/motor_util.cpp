@@ -18,6 +18,7 @@
 #include "protocol_parser.h"
 #include <atomic>
 #include <string_view>
+#include "terminal.h"
 
 using namespace obot;
 
@@ -543,7 +544,9 @@ int main(int argc, char** argv) {
                     }
               }
         } else {
+            std::cout << (motors.size() == 0 ? ANSI_YELLOW : ANSI_GREEN);
             std::cout << motors.size() << " connected motor" << (motors.size() == 1 ? "" : "s");
+            std::cout << ANSI_RESET;
             if (dfu_devices.size() > 0) {
                 std::cout << ", " << dfu_devices.size() << " connected dfu device" << (dfu_devices.size() == 1 ? "" : "s");
             }

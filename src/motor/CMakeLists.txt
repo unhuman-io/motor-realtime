@@ -1,5 +1,5 @@
 add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cpp motor_uart_obot.cpp motor_can.cpp
-            realtime_thread.cpp motor_thread.cpp motor_app.cpp motor_util_fun.cpp)
+            realtime_thread.cpp motor_thread.cpp motor_app.cpp motor_util_fun.cpp terminal.cpp)
 target_link_libraries(motor_manager PUBLIC udev pthread cli11 obot-protocol)
 target_include_directories(motor_manager PUBLIC ${PROJECT_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
@@ -17,7 +17,9 @@ set(MOTOR_MANAGER_PUBLIC_HEADERS
     ${PROJECT_SOURCE_DIR}/include/motor_subscriber.h
     ${PROJECT_SOURCE_DIR}/include/motor_chain_messages.h
     ${PROJECT_SOURCE_DIR}/include/motor_util_fun.h
-    ${PROJECT_SOURCE_DIR}/include/cstack.h)
+    ${PROJECT_SOURCE_DIR}/include/cstack.h
+    ${PROJECT_SOURCE_DIR}/include/terminal.h
+    )
 set_target_properties(motor_manager PROPERTIES PUBLIC_HEADER 
     "${MOTOR_MANAGER_PUBLIC_HEADERS}")
 if(BUILD_SHARED_LIBS)
