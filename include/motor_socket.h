@@ -43,9 +43,10 @@ std::string address_;
 
 class MotorSocket : public Motor {
  public:
-    MotorSocket(std::string interface, std::string address) {
+    MotorSocket(std::string interface, std::string address, std::string alias) {
         interface_ = interface;
         address_ = address;
+        alias_ = alias;
     }
     virtual ~MotorSocket();
 
@@ -63,6 +64,7 @@ class MotorSocket : public Motor {
 
     std::string address_;
     std::string interface_;
+    std::string alias_;
 
  protected:
     static const int kProtocolOverheadBytes = 6;
