@@ -218,23 +218,28 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
         }
         futures[i] = std::async(std::launch::async, [&interface_mac, ip_alias]
         {
-            std::string interface = "lo";
             std::shared_ptr<MotorEthL2> motor = std::make_shared<MotorEthL2>(interface_mac, ip_alias);
             return motor;
         });
     }
     int j = 0;
     for (uint8_t i=0; i<interface_macs.size(); i++) {
-        std::shared_ptr<MotorEthL2> motor = futures[i].get();
-        if (motor->connected()) {
-            m[j++] = motor;
-        } else {
-            if (print_unconnected) {
-                std::cerr << "Motor Eth L2: " << motor->address_ << " (" << motor->interface_;
-                if (motor->alias_.size()) {
-                    std::cerr << ": " << motor->alias_;
+        try {
+            std::shared_ptr<MotorEthL2> motor = futures[i].get();
+            if (motor->connected()) {
+                m[j++] = motor;
+            } else {
+                if (print_unconnected) {
+                    std::cerr << "Motor Eth L2: " << motor->address_ << " (" << motor->interface_;
+                    if (motor->alias_.size()) {
+                        std::cerr << ": " << motor->alias_;
+                    }
+                    std::cerr << ") not connected" << std::endl;
                 }
-                std::cerr << ") not connected" << std::endl;
+            }
+        } catch (const std::exception &e) {
+            if (print_unconnected) {
+                std::cerr << "Motor Eth L2 exception: " << e.what() << std::endl;
             }
         }
     }

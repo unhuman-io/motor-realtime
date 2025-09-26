@@ -34,14 +34,14 @@ class MotorEthL2 : public MotorSocket {
         unsigned int mac_bytes[6];
         // Use sscanf to parse MAC address string into uint8_t array
         
-            if (sscanf(address.c_str(), "%02x:%02x:%02x:%02x:%02x:%02x",
+            if (sscanf(address.c_str(), "%*20[^:]:%02x:%02x:%02x:%02x:%02x:%02x",
                 &mac_bytes[0], &mac_bytes[1], &mac_bytes[2],
                 &mac_bytes[3], &mac_bytes[4], &mac_bytes[5]) == 6) {
                 for (int i = 0; i < 6; ++i) {
                     motor_txt->dst_mac_[i] = static_cast<uint8_t>(mac_bytes[i]);
                 }
             } else {
-                throw std::runtime_error("Invalid MAC address format: ");
+                throw std::runtime_error("Invalid MAC address format: " + address);
             }
 
         motor_txt->set_api_mode();
@@ -54,7 +54,12 @@ class MotorEthL2 : public MotorSocket {
     }
 
     static std::string get_interface(std::string_view address) {
-        return "lo";
+        char interface[20];
+        if (sscanf(address.data(), "%20[^:]", interface) == 1) {
+            return std::string(interface);
+        } else {
+            throw std::runtime_error("Invalid MAC address interface format: " + std::string(address));
+        }
     }
     virtual ~MotorEthL2() {}
     std::string alias_;
