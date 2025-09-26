@@ -68,7 +68,7 @@ DFUDevice::DFUDevice(std::string dev_path) {
     struct udev *udev = udev_new();
     struct stat st;
     if (stat(dev_path.c_str(), &st) < 0) {
-        throw std::runtime_error("Motor stat error " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Motor stat error " + std::to_string(errno) + ": " + strerror(errno));
     }
     struct udev_device *dev = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
     const char * sysname = udev_device_get_sysname(dev);

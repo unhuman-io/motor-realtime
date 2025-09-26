@@ -18,6 +18,7 @@
 #include "protocol_parser.h"
 #include <atomic>
 #include <string_view>
+#include "terminal.h"
 
 using namespace obot;
 
@@ -450,7 +451,7 @@ int main(int argc, char** argv) {
         if (motors.size() > 0) {
             try {
                 m.set_motors(motors);
-            } catch (std::runtime_error &e) {
+            } catch (RuntimeException &e) {
                 messages_mismatch = true;
                 messages_mismatch_error = e.what();
                 m.check_messages_version(Motor::MessagesCheck::NONE);
@@ -462,7 +463,7 @@ int main(int argc, char** argv) {
     if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !*ip_option && !*can_option) {
         try {
             motors = m.get_connected_motors();
-        } catch (std::runtime_error &e) {
+        } catch (RuntimeException &e) {
             messages_mismatch = true;
             messages_mismatch_error = e.what();
             m.check_messages_version(Motor::MessagesCheck::NONE);
@@ -543,12 +544,15 @@ int main(int argc, char** argv) {
                     }
               }
         } else {
+            std::cout << (motors.size() == 0 ? ANSI_YELLOW : ANSI_GREEN);
             std::cout << motors.size() << " connected motor" << (motors.size() == 1 ? "" : "s");
+            std::cout << ANSI_RESET;
             if (dfu_devices.size() > 0) {
                 std::cout << ", " << dfu_devices.size() << " connected dfu device" << (dfu_devices.size() == 1 ? "" : "s");
             }
             std::cout << std::endl;
             if (motor_list.size() > 0) {
+                std::cout << ANSI_BOLD;
                 std::cout << std::setw(dev_path_width) << "Dev" << std::setw(name_width) << "Name"
                             << std::setw(serial_number_width) << " Serial number"
                             << std::setw(version_width) << "Version" << std::setw(path_width) << std::left << "  Path" << std::right << std::setw(device_num_width) << "Devnum";
@@ -558,7 +562,7 @@ int main(int argc, char** argv) {
                         << std::setw(board_num_width) << "Board num"
                         << std::setw(config_width) << "Config";
                 }             
-                std::cout << std::endl;
+                std::cout << ANSI_RESET << std::endl;
                 std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width + device_num_width + board_name_width + board_rev_width + board_num_width + config_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
                 for (auto m : motor_list) {
                     std::cout << std::setw(dev_path_width) << m->dev_path()
@@ -698,7 +702,7 @@ int main(int argc, char** argv) {
 
     if (*read_option) {
         if (m.motors().size() == 0) {
-            throw std::runtime_error("No motors connected");
+            throw RuntimeException("No motors connected");
         }
         
         m.set_reconnect(read_opts.reconnect);

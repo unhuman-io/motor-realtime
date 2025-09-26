@@ -66,7 +66,7 @@ void MotorIP::open() {
     addrinfo *result, *res;
     int addr_info_result = getaddrinfo(ip_.c_str(), port_.c_str(), &hints, &result);
     if (addr_info_result != 0) {
-      throw std::runtime_error("getaddrinfo failed for " + ip_ + ":" + port_ + ", error: " + std::to_string(addr_info_result));
+      throw RuntimeException("getaddrinfo failed for " + ip_ + ":" + port_ + ", error: " + std::to_string(addr_info_result));
     }
 
     char addrstr[100];
@@ -77,7 +77,7 @@ void MotorIP::open() {
         n_results++;
         socklen_t addr_len = 0;
         if (res->ai_family != AF_INET) {
-          throw std::runtime_error(ip_ + ":" + port_ + ", not ipv4");
+          throw RuntimeException(ip_ + ":" + port_ + ", not ipv4");
         }
         ptr = &((struct sockaddr_in *) res->ai_addr)->sin_addr;
         addr_len = sizeof(sockaddr_in);
@@ -86,7 +86,7 @@ void MotorIP::open() {
         res = res->ai_next;
     }
     if (n_results != 1) {
-      throw std::runtime_error(ip_ + ":" + port_ + ", n_results error: " + std::to_string(n_results));
+      throw RuntimeException(ip_ + ":" + port_ + ", n_results error: " + std::to_string(n_results));
     }
     std::memcpy(&addr_, result->ai_addr, result->ai_addrlen);
 
@@ -103,11 +103,11 @@ int MotorIP::create_communication_lock() {
     std::string lock_file = "/tmp/obot." + addrstr_ + ":" + port_ + ".lock";
     fd_communication_lock_ = ::open(lock_file.c_str(), O_CREAT | O_RDWR, 0666);
     if (fd_communication_lock_ < 0) {
-      throw std::runtime_error("Error opening lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
+      throw RuntimeException("Error opening lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     int err = ::lseek(fd_communication_lock_, 0, SEEK_SET);
     if (err < 0) {
-      throw std::runtime_error("Error lseek lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
+      throw RuntimeException("Error lseek lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     return err;
 }
@@ -304,7 +304,7 @@ void UDPFile::rx_callback(const uint8_t* buf, uint16_t len) {
   std::unique_lock<std::mutex> lk(rx_data_request_cv_m_);
   bool status = rx_data_request_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_data_request_; });
   if (status == false) {
-    throw std::runtime_error("rx_callback timeout");
+    throw RuntimeException("rx_callback timeout");
   }
   rx_data_request_ = false;
   {
@@ -374,7 +374,7 @@ void MotorIP::rx_data() {
       int result = recv(fd_, rx_lin_buffer_, RX_BUFFER_SIZE, 0);
       // std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
       if (result < 0) {
-        throw std::runtime_error("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
       }
       for (int i=0; i<result; i++) {
         rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
