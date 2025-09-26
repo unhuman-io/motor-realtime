@@ -10,4 +10,7 @@ std::string_view ANSI_GREEN = isatty(fileno(stdout)) ? "\033[32m" : "";
 std::string_view ANSI_YELLOW = isatty(fileno(stdout)) ? "\033[33m" : "";
 std::string_view ANSI_BLUE = isatty(fileno(stdout)) ? "\033[34m" : "";
 
+std::string_view ANSI_RESET_STDERR = isatty(fileno(stderr)) ? "\033[0m" : "";
+std::string_view ANSI_RED_STDERR = isatty(fileno(stderr)) ? "\033[31m" : "";
+
 };

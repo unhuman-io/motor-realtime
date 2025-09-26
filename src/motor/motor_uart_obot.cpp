@@ -38,7 +38,7 @@ MotorUARTObot::MotorUARTObot(std::string dev_path, uint32_t baud_rate) {
   dev_path_ = dev_path;
   int result = open();
   if (result < 0) {
-    throw std::runtime_error("Error opening " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    throw RuntimeException("Error opening " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
   motor_txt_ = std::move(std::unique_ptr<UartObotTextFile>(new UartObotTextFile(parser_)));
   UartObotTextFile * text_mailbox = static_cast<UartObotTextFile *>(motor_txt_.get());
@@ -58,7 +58,7 @@ MotorUARTObot::MotorUARTObot(std::string dev_path, uint32_t baud_rate) {
   // only one item can access uart devices due to protocol
   result = lock();
   if (result < 0) {
-    throw std::runtime_error("Error locking: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    throw RuntimeException("Error locking: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
   set_baud_rate(baud_rate);
 
@@ -87,7 +87,7 @@ void MotorUARTObot::set_baud_rate(uint32_t baud_rate) {
 
   result = ioctl(fd_, TCGETS2, &tio2);
   if (result < 0) {
-    throw std::runtime_error("Error tcgets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    throw RuntimeException("Error tcgets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
   tio2.c_cflag = CS8 | CREAD | CLOCAL | CBAUDEX;
   tio2.c_lflag = 0;
@@ -100,15 +100,15 @@ void MotorUARTObot::set_baud_rate(uint32_t baud_rate) {
   result = ioctl(fd_, TCSETS2, &tio2);
 
   if (result < 0) {
-    throw std::runtime_error("Error tcsets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    throw RuntimeException("Error tcsets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
 
   result = ioctl(fd_, TCGETS2, &tio2);
   if (result < 0) {
-    throw std::runtime_error("Error tcgets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    throw RuntimeException("Error tcgets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
   if (tio2.c_ispeed != baud_rate || tio2.c_ospeed != baud_rate) {
-    throw std::runtime_error("Error setting baud rate " + std::to_string(baud_rate) + " on " + dev_path_);
+    throw RuntimeException("Error setting baud rate " + std::to_string(baud_rate) + " on " + dev_path_);
   }
 }
 
@@ -161,7 +161,7 @@ void MotorUARTObot::rx_data() {
       int result = ::read(fd_, rx_lin_buffer_, RX_BUFFER_SIZE);
       // std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
       if (result < 0) {
-        throw std::runtime_error("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
       }
       for (int i=0; i<result; i++) {
         rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
@@ -186,7 +186,7 @@ void UartObotTextFile::register_callbacks() {
     std::unique_lock<std::mutex> lk(rx_data_request_cv_m_);
     bool status = rx_data_request_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_data_request_; });
     if (status == false) {
-      throw std::runtime_error("rx_callback timeout");
+      throw RuntimeException("rx_callback timeout");
     }
     rx_data_request_ = false;
     {
