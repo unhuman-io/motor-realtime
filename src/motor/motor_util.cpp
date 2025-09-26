@@ -204,7 +204,7 @@ int main(int argc, char** argv) {
     }
     std::vector<std::pair<std::string, ModeDesired>> tuning_mode_options_map{
         {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"torque", ModeDesired::TORQUE},
-        {"current", ModeDesired::CURRENT}, {"voltage", ModeDesired::VOLTAGE}
+        {"current", ModeDesired::CURRENT}, {"voltage", ModeDesired::VOLTAGE}, {"impedance", ModeDesired::IMPEDANCE}
     };    
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 

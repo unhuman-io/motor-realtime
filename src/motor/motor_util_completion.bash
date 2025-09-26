@@ -109,7 +109,7 @@ _motor_util_completion()
             case $last in
                 --amplitude|--frequency|--bias) return 0 ;;
                 --tuning_mode) words="sine square triangle chirp random" ;;
-                --mode) words="position velocity torque current voltage" ;;
+                --mode) words="position velocity torque current voltage impedance" ;;
             esac ;;
         api_set) words="$(motor_util ${COMP_WORDS[@]:1:$((i-1))} --no-list --list-api)" ;;
         *) words=$base_words ;;
