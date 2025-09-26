@@ -12,7 +12,7 @@ class EthL2RawFile : public SocketFile {
             &dst_mac_[0], &dst_mac_[1], &dst_mac_[2],
             &dst_mac_[3], &dst_mac_[4], &dst_mac_[5]) == 6) {
         } else {
-            throw std::runtime_error("Invalid MAC address format: " + address);
+            throw RuntimeException("Invalid MAC address format: " + address);
         }
     }
     virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
@@ -35,7 +35,7 @@ class EthL2CANFile : public EthL2RawFile {
         if (sscanf(address.c_str(), "%*38[^-]-%hhu:%hhu",
             &can_bus_id_, &can_id_) == 2) {
         } else {
-            throw std::runtime_error("Invalid CAN over MAC address format: " + address);
+            throw RuntimeException("Invalid CAN over MAC address format: " + address);
         }
     }
     virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
@@ -104,7 +104,7 @@ class MotorEthL2 : public MotorSocket {
         if (sscanf(address.data(), "%20[^:]", interface) == 1) {
             return std::string(interface);
         } else {
-            throw std::runtime_error("Invalid MAC address interface format: " + std::string(address));
+            throw RuntimeException("Invalid MAC address interface format: " + std::string(address));
         }
     }
     virtual ~MotorEthL2() {}

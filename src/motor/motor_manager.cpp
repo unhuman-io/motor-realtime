@@ -81,7 +81,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
             } else {
                 m.push_back(std::make_shared<Motor>(dev_path));
             }
-        } catch (std::runtime_error &e) {
+        } catch (RuntimeException &e) {
             // There is a runtime_error if the motor is disconnected during this function
             std::cout << "get_connected_motors error: " << e.what() << std::endl;
         }
@@ -102,13 +102,13 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(st
             m[i] = found_motors[0];
         } else {
             if (found_motors.size() > 1) {
-                throw std::runtime_error("Found too many motors matching: " + names[i]);
+                throw RuntimeException("Found too many motors matching: " + names[i]);
             }
             if (allow_simulated) {
                 std::cout << "Warning: found no motors matching \"" << names[i] << "\", using simulated motor" << std::endl;
                 m[i] = std::make_shared<SimulatedMotor>(names[i]);
             } else {
-                throw std::runtime_error("Found no motors matching: " + names[i]);
+                throw RuntimeException("Found no motors matching: " + names[i]);
             }
         }
     }
@@ -138,7 +138,7 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
     if (check_messages_version_) {
         for (auto &motor : motors) {
             if (motor->check_messages_version(check_messages_version_) == false) {
-                  throw std::runtime_error("Motor messages version mismatch " + motor->name() + 
+                  throw RuntimeException("Motor messages version mismatch " + motor->name() + 
                      ": " + motor->messages_version()  + ", motor-realtime: " + MOTOR_MESSAGES_VERSION);
             }
         }
@@ -323,7 +323,7 @@ std::vector<Status> &MotorManager::read() {
                                 std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
                                 motors_[i] = motors[0];
                             }
-                        } catch (std::runtime_error &e) {
+                        } catch (RuntimeException &e) {
                             std::cerr << e.what() << std::endl;
                         }
                     }
@@ -336,7 +336,7 @@ std::vector<Status> &MotorManager::read() {
         statuses_[i] = *motors_[i]->status();
     }
     if (should_throw) {
-        throw std::runtime_error(err_msg);
+        throw RuntimeException(err_msg);
     }
     return statuses_;
 }
@@ -375,7 +375,7 @@ void MotorManager::lock() {
     for (uint8_t i=0; i<motors_.size(); i++) {
         int err = motors_[i]->lock();
         if (err) {
-            throw std::runtime_error("Error locking: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error locking: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
         }
     }
 }
@@ -391,7 +391,7 @@ void MotorManager::write(std::vector<Command> &commands) {
     for (uint8_t i=0; i<motors_.size(); i++) {
         *motors_[i]->command() = commands[i];
         if (motors_[i]->write() < 0) {
-            throw std::runtime_error("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
         }
     }
 }

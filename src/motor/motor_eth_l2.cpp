@@ -52,7 +52,7 @@ void MotorEthL2<mode>::get_interface_mac_address() {
     struct ifreq ifr = {};
     std::strncpy(ifr.ifr_name, interface_.c_str(), IFNAMSIZ - 1);
     if (ioctl(fd_, SIOCGIFHWADDR, &ifr) == -1) {
-        throw std::runtime_error("ioctl SIOCGIFHWADDR failed for " + interface_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("ioctl SIOCGIFHWADDR failed for " + interface_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
     }
     std::memcpy(src_mac_, ifr.ifr_hwaddr.sa_data, 6);
 }

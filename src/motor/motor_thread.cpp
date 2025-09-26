@@ -37,7 +37,7 @@ void MotorThread::update() {
         if (retval != motor_manager_.size()) {
             if (!user_space_driver_) {
                 // user space driver currently doesn't deal with poll
-                throw std::runtime_error("MotorThread poll error " + std::to_string(retval) + " " + strerror(-retval));
+                throw RuntimeException("MotorThread poll error " + std::to_string(retval) + " " + strerror(-retval));
             }
         }
     }

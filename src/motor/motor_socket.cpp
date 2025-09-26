@@ -13,7 +13,7 @@ namespace obot {
 void MotorSocket::open() {
     fd_ = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (fd_ < 0) {
-      throw std::runtime_error("socket failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
+      throw RuntimeException("socket failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
     }
 
     sockaddr_ll server_addr = {};
@@ -23,7 +23,7 @@ void MotorSocket::open() {
   
     int retval = bind(fd_, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (retval < 0) {
-      throw std::runtime_error("bind failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
+      throw RuntimeException("bind failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
     }
     
     create_communication_lock();
@@ -35,11 +35,11 @@ int MotorSocket::create_communication_lock() {
     std::string lock_file = "/tmp/obot." + address_ + ".lock";
     fd_communication_lock_ = ::open(lock_file.c_str(), O_CREAT | O_RDWR, 0666);
     if (fd_communication_lock_ < 0) {
-      throw std::runtime_error("Error opening lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
+      throw RuntimeException("Error opening lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     int err = ::lseek(fd_communication_lock_, 0, SEEK_SET);
     if (err < 0) {
-      throw std::runtime_error("Error lseek lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
+      throw RuntimeException("Error lseek lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     return err;
 }
@@ -215,7 +215,7 @@ void SocketFile::rx_callback(const uint8_t* buf, uint16_t len) {
   std::unique_lock<std::mutex> lk(rx_data_request_cv_m_);
   bool status = rx_data_request_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_data_request_; });
   if (status == false) {
-    throw std::runtime_error("rx_callback timeout");
+    throw RuntimeException("rx_callback timeout");
   }
   rx_data_request_ = false;
   {
@@ -287,7 +287,7 @@ void MotorSocket::rx_data() {
       int result = recv(fd_, rx_lin_buffer_, RX_BUFFER_SIZE, 0);
       // std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
       if (result < 0) {
-        throw std::runtime_error("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
       }
       for (int i=0; i<result; i++) {
         rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
