@@ -18,6 +18,7 @@
 #include "protocol_parser.h"
 #include <atomic>
 #include <string_view>
+#include "terminal.h"
 #include "gdbserver.h"
 
 using namespace obot;
@@ -188,6 +189,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> uart_paths = {};
     std::vector<std::string> can_devs = {"any"};
     bool uart_raw = false;
+    bool list_api_names = false;
     bool print_raw_packet = false;
     bool parse_raw_packet = false;
     std::vector<std::string> ips = {};
@@ -227,6 +229,7 @@ int main(int argc, char** argv) {
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .csv = false, .reconnect = false, .read_write_statistics = false,
         .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
+    bool get_log = false;
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -292,6 +295,7 @@ int main(int argc, char** argv) {
     auto read_mini = read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
     read_option->add_flag("--fast_log", read_opts.fastlog, "Print the fast log");
     read_option->add_flag("--fast_log2", read_opts.fastlog2, "Print the fast log2");
+    app.add_flag("--get-log", get_log, "Print the log");
     read_option->add_flag("--print-reserved", read_opts.print_reserved, "Print reserved fields")->excludes(read_mini);
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]")->type_name("NUM_SAMPLES RANGE")->expected(0,2)->capture_default_str();
@@ -318,6 +322,7 @@ int main(int argc, char** argv) {
     app.add_flag("--uart-raw", uart_raw, "Use raw protocol for UART")->needs(uart_paths_option);
     app.add_flag("--lock", lock_motors, "Lock write access to motors");
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)")->expected(1,-1);
+    app.add_flag("--list-api", list_api_names, "List all api names of first motor");
     app.add_flag("--api", api_mode, "Enter API mode");
     app.add_flag("--api-timing", api_timing, "Print API response times");
     auto gdbserver = app.add_subcommand("gdbserver", "Use gdb protocol over api");
@@ -448,7 +453,7 @@ int main(int argc, char** argv) {
         if (motors.size() > 0) {
             try {
                 m.set_motors(motors);
-            } catch (std::runtime_error &e) {
+            } catch (RuntimeException &e) {
                 messages_mismatch = true;
                 messages_mismatch_error = e.what();
                 m.check_messages_version(Motor::MessagesCheck::NONE);
@@ -460,7 +465,7 @@ int main(int argc, char** argv) {
     if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !*ip_option && !*can_option) {
         try {
             motors = m.get_connected_motors();
-        } catch (std::runtime_error &e) {
+        } catch (RuntimeException &e) {
             messages_mismatch = true;
             messages_mismatch_error = e.what();
             m.check_messages_version(Motor::MessagesCheck::NONE);
@@ -541,12 +546,15 @@ int main(int argc, char** argv) {
                     }
               }
         } else {
+            std::cout << (motors.size() == 0 ? ANSI_YELLOW : ANSI_GREEN);
             std::cout << motors.size() << " connected motor" << (motors.size() == 1 ? "" : "s");
+            std::cout << ANSI_RESET;
             if (dfu_devices.size() > 0) {
                 std::cout << ", " << dfu_devices.size() << " connected dfu device" << (dfu_devices.size() == 1 ? "" : "s");
             }
             std::cout << std::endl;
             if (motor_list.size() > 0) {
+                std::cout << ANSI_BOLD;
                 std::cout << std::setw(dev_path_width) << "Dev" << std::setw(name_width) << "Name"
                             << std::setw(serial_number_width) << " Serial number"
                             << std::setw(version_width) << "Version" << std::setw(path_width) << std::left << "  Path" << std::right << std::setw(device_num_width) << "Devnum";
@@ -556,7 +564,7 @@ int main(int argc, char** argv) {
                         << std::setw(board_num_width) << "Board num"
                         << std::setw(config_width) << "Config";
                 }             
-                std::cout << std::endl;
+                std::cout << ANSI_RESET << std::endl;
                 std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width + device_num_width + board_name_width + board_rev_width + board_num_width + config_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
                 for (auto m : motor_list) {
                     std::cout << std::setw(dev_path_width) << m->dev_path()
@@ -627,6 +635,14 @@ int main(int argc, char** argv) {
         }
     }
 
+    if (list_api_names && motors.size()) {
+        std::vector<std::string> api_names = motors[0]->get_api_options();
+        for (auto &api_str : api_names) {
+            std::cout << api_str << " ";
+        }
+        std::cout << std::endl;
+    }
+
     if (*set_api && motors.size()) {
         char c[MAX_API_LONG_DATA_SIZE+1];
         for (auto &api_str : set_api_data) {
@@ -689,11 +705,18 @@ int main(int argc, char** argv) {
         gdb.start();
     }
 
+    if (get_log) {
+        for(auto &m : m.motors()) {
+            std::cout << "Log for motor " << m->name() << std::endl;
+            std::cout << m->get_log();
+        }
+    }
+
     try {
 
     if (*read_option) {
         if (m.motors().size() == 0) {
-            throw std::runtime_error("No motors connected");
+            throw RuntimeException("No motors connected");
         }
         
         m.set_reconnect(read_opts.reconnect);

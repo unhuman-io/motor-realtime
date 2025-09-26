@@ -2,7 +2,7 @@
 
 #include <time.h>
 #include <cstdint>
-#include <stdexcept>
+#include "exception.h"
 #include <vector>
 #include "motor_messages.h"
 
@@ -56,7 +56,7 @@ class Timer {
         struct timespec t;
         int retval = clock_gettime(CLOCK_MONOTONIC, &t);
         if (retval < 0) {
-            throw std::runtime_error("clock get time error");
+            throw RuntimeException("clock get time error");
         }
         return t;
     }

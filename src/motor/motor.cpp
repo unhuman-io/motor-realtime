@@ -15,7 +15,7 @@ Motor::Motor(std::string dev_path) {
     struct udev *udev = udev_new();
     struct udev_device *dev = udev_device_new_from_subsystem_sysname(udev, "usbmisc", basename(const_cast<char *>(dev_path.c_str())));
     if (!dev) {
-        throw std::runtime_error("No device: " + dev_path);
+        throw RuntimeException("No device: " + dev_path);
     }
     name_ = udev_device_check_and_get_sysattr_value(dev, "device/interface");
 
@@ -93,6 +93,21 @@ std::string Motor::get_fast_log2() {
     return s_out;
 }
 
+std::string Motor::get_log() {
+    std::string s_read {}, s_out {};
+    motor_txt_->writeread("log_reset");
+
+    while (true) {
+        s_read = motor_txt_->writeread("log");
+        if (s_read.length() > 0 && s_read != "log end") {
+            s_out += s_read + "\n";
+        } else {
+            break;
+        }
+    }
+    return s_out;
+}
+
 
 std::vector<std::string> Motor::get_api_options() {
     std::vector<std::string> v;
@@ -116,12 +131,12 @@ void Motor::set_timeout_ms(int timeout_ms) {
     std::string timeout_path = attr_path_ + "/timeout_ms";
     int fd = ::open(timeout_path.c_str(), O_RDWR);
     if (fd < 0) {
-        throw std::runtime_error("timeout_ms open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + timeout_path);
+        throw RuntimeException("timeout_ms open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + timeout_path);
     }
     std::string s = std::to_string(timeout_ms);
     int retval = ::write(fd, s.c_str(), s.size());
     if (retval < 0) {
-        throw std::runtime_error("set timeout error " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("set timeout error " + std::to_string(errno) + ": " + strerror(errno));
     }
     ::close(fd);
 }
@@ -130,12 +145,12 @@ int Motor::get_timeout_ms() const {
     std::string timeout_path = attr_path_ + "/timeout_ms";
     int fd = ::open(timeout_path.c_str(), O_RDWR);
     if (fd < 0) {
-        throw std::runtime_error("timeout_ms open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + timeout_path);
+        throw RuntimeException("timeout_ms open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + timeout_path);
     }
     char c[64];
     int retval = ::read(fd, c, 64);
     if (retval < 0) {
-        throw std::runtime_error("get timeout error " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("get timeout error " + std::to_string(errno) + ": " + strerror(errno));
     }
     ::close(fd);
     return std::atoi(c);

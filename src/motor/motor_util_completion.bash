@@ -37,6 +37,7 @@ _motor_util_completion()
             state) subcommand=state ; break ;;
             impedance) subcommand=impedance ; break ;;
             tuning) subcommand=tuning_mode ; break ;;
+            --set-api) subcommand=api_set ; break ;;
         esac
         (( i-- ))
     done
@@ -45,7 +46,7 @@ _motor_util_completion()
     local words
     local base_words="-l --list -c --check-messages-version --no-list --list-names-only --list-path-only 
       --list-devpath-only --list-serial-number-only --list-devnum-only --no-dfu-list -n --names -i --ips 
-      -j --json-ip-file --no-print-unconnected
+      -j --json-ip-file --no-print-unconnected --get-log
       -a --uart-paths --uart-raw -f --can -p --paths -d --devpaths -s --serial_numbers set read --set-api 
       --api --api-timing --run-stats --set-timeout -v --version -u --user-space --allow-simulated --lock 
       -h --help";
@@ -110,6 +111,7 @@ _motor_util_completion()
                 --tuning_mode) words="sine square triangle chirp random" ;;
                 --mode) words="position velocity torque current voltage" ;;
             esac ;;
+        api_set) words="$(motor_util ${COMP_WORDS[@]:1:$((i-1))} --no-list --list-api)" ;;
         *) words=$base_words ;;
     esac
 

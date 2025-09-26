@@ -86,6 +86,18 @@ static MotorError dict_to_motor_error(py::dict d) {
     return e;
 }
 
+py::object cast_rr_data(const RoundRobinData &rrd) {
+    if (rrd.type == RoundRobinType::FLOAT) {
+        return py::cast(rrd.data);
+    } else if (rrd.type == RoundRobinType::UINT32_T) {
+        return py::cast(rrd.data_u32);
+    } else if (rrd.type == RoundRobinType::INT32_T) {
+        return py::cast(rrd.data_i32);
+    } else {
+        return py::cast(rrd.data_u32);
+    }
+}
+
 PYBIND11_MODULE(motor, m)
 {
     m.doc() = "Motor interface";
@@ -169,6 +181,18 @@ PYBIND11_MODULE(motor, m)
         //.def("assign", static_cast<void (TextAPIItem::*)(const std::string &)>(&TextAPIItem::operator=));
         .def("assign", &TextAPIItem::set);
 
+    py::class_<RoundRobinData>(m, "RoundRobinData")
+        .def_readonly("index", &RoundRobinData::index)
+        .def_readonly("type", &RoundRobinData::type)
+        .def_readonly("data_float", &RoundRobinData::data)
+        .def_readonly("data_u32", &RoundRobinData::data_u32)
+        .def_readonly("data_i32", &RoundRobinData::data_i32)
+        .def("data", cast_rr_data)
+        .def("__repr__", [](const RoundRobinData &rrd)
+             { return "<RoundRobinData index: " + std::to_string(rrd.index) + " type: " + std::to_string(rrd.type) +
+                " data: " + py::str(cast_rr_data(rrd)).cast<std::string>() + ">"; });
+        
+
     py::class_<MotorError>(m, "MotorError")
         .def_readonly("all", &MotorError::all)
         .def_property_readonly("bits", [](const MotorError &e)
@@ -201,6 +225,7 @@ PYBIND11_MODULE(motor, m)
         .def_readonly("joint_velocity", &Status::joint_velocity)
         .def_readonly("iq_desired", &Status::iq_desired)
         .def_readonly("reserved", &Status::reserved)
+        .def_readonly("rr_data", &Status::rr_data)
         .def_readonly("flags", &Status::flags)
         .def_readonly("large", &Status::large)
         .def("__repr__", [](const Status &s)
@@ -239,6 +264,7 @@ PYBIND11_MODULE(motor, m)
         .def("board_num", &Motor::board_num)
         .def("messages_version", &Motor::messages_version)
         .def("config", &Motor::config)
+        .def("get_log", &Motor::get_log)
         .def("get_fast_log", &Motor::get_fast_log)
         .def("get_fast_log2", &Motor::get_fast_log2)
         .def("__repr__", [](const Motor &m){ return "<Motor " + m.name() + ">"; })
@@ -254,7 +280,7 @@ PYBIND11_MODULE(motor, m)
                 error_mask = m["error_mask"].get();
                 mask.all = std::stoul(error_mask, 0, 16);
             } catch (std::invalid_argument) {
-                throw std::runtime_error("Invalid error mask received from motor: " + error_mask);
+                throw RuntimeException("Invalid error mask received from motor: " + error_mask);
             }
             return motor_error_dict(mask); })
         .def("set_error_mask", [](Motor &m, py::dict d){ 

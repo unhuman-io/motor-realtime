@@ -45,6 +45,7 @@ class UDPFile : public TextFile {
     int fd_;
     int timeout_ms_ = 50;
     int fd_communication_lock_;
+    std::atomic<int> communication_lock_count_{};
 
     void register_parser_callbacks() {
         parser_.registerCallback(recv_frame_id_, [this](const uint8_t* buf, uint16_t len){ 
@@ -58,9 +59,10 @@ class UDPFile : public TextFile {
     ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false);
     figure::ProtocolParser &parser_;
     std::condition_variable rx_data_cv_;
-    std::mutex rx_data_cv_m_; // protects rx_data_cv_, rx_buf_ and rx_len_
+    std::mutex rx_data_cv_m_; // protects rx_data_cv_, rx_buf_, rx_received_ and rx_len_
     uint8_t rx_buf_[1024];
     size_t rx_len_ = 0;
+    bool rx_received_ = false;
     std::condition_variable rx_data_request_cv_;
     std::mutex rx_data_request_cv_m_; // protects rx_data_request_
     bool rx_data_request_ = false;

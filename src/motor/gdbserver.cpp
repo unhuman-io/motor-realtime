@@ -10,6 +10,7 @@
 #include <string_view>
 #include <thread>
 #include <chrono>
+#include "exception.h"
 
 // in gdb
 // set debug remote 1
@@ -25,7 +26,7 @@ void GDBServer::send_response(std::string response) {
     std::cout << "sending response: " << response << std::endl;
     int n = write(connfd_, response.c_str(), response.size());
     if (n < 0) {
-        throw std::runtime_error("write error");
+        throw RuntimeException("write error");
     }
 }
 
@@ -35,7 +36,7 @@ void GDBServer::start() {
     
     int sockfd = socket(AF_INET, SOCK_STREAM, 0); 
     if (sockfd == -1) { 
-        throw std::runtime_error("socket creation failed");
+        throw RuntimeException("socket creation failed");
     }
 
     std::cout << "socket created successfully" << std::endl;
@@ -46,19 +47,19 @@ void GDBServer::start() {
     servaddr.sin_port = htons(PORT); 
     
     if ((bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr))) != 0) { 
-        throw std::runtime_error("socket bind failed: " + std::string(strerror(errno))); 
+        throw RuntimeException("socket bind failed: " + std::string(strerror(errno))); 
     } 
     std::cout << "socket successfully bound" << std::endl; 
     
     if ((listen(sockfd, 0)) != 0) { 
-        throw std::runtime_error("Listen failed"); 
+        throw RuntimeException("Listen failed"); 
     } 
     std::cout << "server listening" << std::endl;; 
     len = sizeof(cli); 
     
     connfd_ = accept(sockfd, (struct sockaddr*)&cli, (socklen_t*) &len); 
     if (connfd_ < 0) { 
-        throw std::runtime_error("server accept failed..."); 
+        throw RuntimeException("server accept failed..."); 
     }
     std::cout << "server accepted the client" << std::endl;
 
@@ -70,10 +71,10 @@ void GDBServer::start() {
         int reval = read(connfd_, buf, sizeof(buf)); 
         std::cout << "read result " << reval << std::endl;
         if (reval < 0) {
-            throw std::runtime_error("read error");
+            throw RuntimeException("read error");
         }
         if (reval == 0) {
-            throw std::runtime_error("read closed pipe");
+            throw RuntimeException("read closed pipe");
         }
 
 
@@ -143,7 +144,7 @@ void GDBServer::start() {
         std::cout << "gdb response: " << gdb_response << std::endl;
         int n = write(connfd_, gdb_response.c_str(), gdb_response.size());
         if (n < 0) {
-            throw std::runtime_error("write error");
+            throw RuntimeException("write error");
         }
         std::cout << "write result " << n << std::endl;
         if (n == 0) {
