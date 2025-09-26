@@ -45,6 +45,7 @@ class UDPFile : public TextFile {
     int fd_;
     int timeout_ms_ = 50;
     int fd_communication_lock_;
+    std::atomic<int> communication_lock_count_{};
 
     void register_parser_callbacks() {
         parser_.registerCallback(recv_frame_id_, [this](const uint8_t* buf, uint16_t len){ 
