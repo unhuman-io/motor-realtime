@@ -28,11 +28,11 @@ class CANFile : public TextFile {
         lock_file_ = "/tmp/obot." + ifname + ":" + std::to_string(devnum) + ".lock";
         fd_lock_ = ::open(lock_file_.c_str(), O_CREAT | O_RDWR, 0666);
         if (fd_lock_ < 0) {
-            throw std::runtime_error("Error opening lock file " + lock_file_ + ":" + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error opening lock file " + lock_file_ + ":" + std::to_string(errno) + ": " + strerror(errno));
         }
         int err = ::lseek(fd_lock_, 0, SEEK_SET);
         if (err < 0) {
-            throw std::runtime_error("Error lseek lock file " + lock_file_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error lseek lock file " + lock_file_ + ": " + std::to_string(errno) + ": " + strerror(errno));
         }
         open();
     }
@@ -44,7 +44,7 @@ class CANFile : public TextFile {
         rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
         if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
-            throw std::runtime_error("Error setting filter for " + ifname_ + ":" + std::to_string(devnum_) + ": "
+            throw RuntimeException("Error setting filter for " + ifname_ + ":" + std::to_string(devnum_) + ": "
                 + std::to_string(errno) + ": " + strerror(errno));
         }
     }
@@ -200,7 +200,7 @@ class CANFile : public TextFile {
 
         int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
         if (nbytes < 0) {
-            throw std::runtime_error("Error writing canfile " + std::to_string(devnum_) + ": " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error writing canfile " + std::to_string(devnum_) + ": " + std::to_string(errno) + ": " + strerror(errno));
         }
         return nbytes;
     }
@@ -233,7 +233,7 @@ class CANFile : public TextFile {
 MotorCAN::MotorCAN(std::string address) {
     int n = address.find(":");
     if (n == std::string::npos) {
-        throw std::runtime_error("Error parsing address " + address + ": missing ':'");
+        throw RuntimeException("Error parsing address " + address + ": missing ':'");
     } else {
         dev_path_ = address.substr(0, n);
         std::string tmp = address.substr(n+1,-1);
@@ -243,7 +243,7 @@ MotorCAN::MotorCAN(std::string address) {
             try {
                 devnum_ = std::stoi(tmp);
             } catch (std::exception &e) {
-                throw std::runtime_error("Error parsing address " + address + ": " + e.what());
+                throw RuntimeException("Error parsing address " + address + ": " + e.what());
             }
         }
     }
@@ -253,7 +253,7 @@ MotorCAN::MotorCAN(std::string address) {
     rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
     if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
-        throw std::runtime_error("Error setting filter for " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error setting filter for " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
 
     motor_txt_ = std::move(std::unique_ptr<CANFile>(new CANFile(dev_path_, devnum_)));
@@ -287,10 +287,10 @@ int MotorCAN::open_socket(std::string if_name) {
 
     int fd;
 	if ((fd = socket(PF_CAN, SOCK_RAW, CAN_RAW)) == -1) {
-		throw std::runtime_error("Error opening socket for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
+		throw RuntimeException("Error opening socket for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
 	}
     if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, &canfd_on, sizeof(canfd_on))){
-        throw std::runtime_error("Error enabling canfd for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error enabling canfd for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
 
     strcpy(ifr.ifr_name, ifname);
@@ -299,7 +299,7 @@ int MotorCAN::open_socket(std::string if_name) {
         ifr.ifr_ifindex = 0;
     } else {	
 	    if(ioctl(fd, SIOCGIFINDEX, &ifr)) {
-            throw std::runtime_error("Error getting ifindex for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error getting ifindex for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
         }
     }
 	
@@ -309,7 +309,7 @@ int MotorCAN::open_socket(std::string if_name) {
 	// printf("%s at index %d\n", ifname, ifr.ifr_ifindex);
 
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-        throw std::runtime_error("Error binding " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error binding " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
 	}
     return fd;
 }
@@ -342,7 +342,7 @@ ssize_t MotorCAN::write() {
 
 	int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
     if (nbytes < 0) {
-        throw std::runtime_error("Error writing can " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error writing can " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     return nbytes;
 }
@@ -353,7 +353,7 @@ static std::vector<std::string> get_can_interfaces() {
     struct ifaddrs *addrs,*tmp;
 
     if (getifaddrs(&addrs)) {
-        throw std::runtime_error("Error getting interfaces: " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error getting interfaces: " + std::to_string(errno) + ": " + strerror(errno));
     }
     tmp = addrs;
 
@@ -366,9 +366,18 @@ static std::vector<std::string> get_can_interfaces() {
                 interfaces.push_back(tmp->ifa_name);
                 ::close(fd);
             }
-        } catch (std::runtime_error &e) {}
+        } catch (RuntimeException &e) {}
         
         tmp = tmp->ifa_next;
+    }
+    if (interfaces.empty()) {
+        throw RuntimeException("No valid CAN interfaces found");
+    } else {
+        std::cout << "Found CAN interfaces: ";
+        for (auto &s : interfaces) {
+            std::cout << s << " ";
+        }
+        std::cout << std::endl;
     }
     freeifaddrs(addrs);
     return interfaces;
@@ -389,7 +398,7 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
     rfilter[0].can_mask = 0x780 | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
     if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
-        throw std::runtime_error("Error setting filter for " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error setting filter for " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
 
 
@@ -402,7 +411,7 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
 
         int nbytes = ::write(write_fd, &frame, sizeof(struct canfd_frame));
         if (nbytes < 0) {
-            throw std::runtime_error("Error writing can " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error writing can " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
         }
     }
 
@@ -430,10 +439,10 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
                 int devnum = frame.can_id & 0x7F;
                 devices.push_back(std::string(ifr.ifr_name) + ":" + std::to_string(devnum));
             } else {
-                throw std::runtime_error("Error reading " + interface + "(" + std::string(ifr.ifr_name) + ")" ": " + std::to_string(errno) + ": " + strerror(errno));
+                throw RuntimeException("Error reading " + interface + "(" + std::string(ifr.ifr_name) + ")" ": " + std::to_string(errno) + ": " + strerror(errno));
             }
         } else if (poll_result < 0) {
-            throw std::runtime_error("Error polling " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error polling " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
         }
     } while (t.get_time_remaining_ns() > 0);
 
