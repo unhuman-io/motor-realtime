@@ -291,7 +291,9 @@ ssize_t UDPFile::write(const char * data, unsigned int length, bool write_read) 
     packet.data[length+1] = crc & 0xFF;
 
     std::memcpy(packet.data, data, length);
+    lock_communication();
     int send_result = sendto(fd_, &packet, 6+length, 0, (sockaddr *) &addr_, sizeof(addr_));
+    unlock_communication();
     return send_result;
 }
 
