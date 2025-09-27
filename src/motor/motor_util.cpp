@@ -938,9 +938,7 @@ int main(int argc, char** argv) {
     } catch (const RuntimeException &e) {
         std::cerr << "Caught RuntimeException" << std::endl;
         std::cerr << " what(): " << e.what() << std::endl;
-        std::cerr << " location(): " << e.location().file_name() << "(" << e.location().line() << ")" << std::endl;
-        std::cerr << "             " << e.location().function_name() << std::endl;
-    
+        std::cerr << e.location_print() << std::endl;    
     } catch (const std::exception &e) {
         int status;
         std::cerr << "Caught exception of type " << abi::__cxa_demangle(typeid(e).name(), NULL, NULL, &status) << std::endl;
