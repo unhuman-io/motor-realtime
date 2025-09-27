@@ -19,6 +19,7 @@
 #include <atomic>
 #include <string_view>
 #include "terminal.h"
+#include <cxxabi.h>
 
 using namespace obot;
 
@@ -170,7 +171,7 @@ struct ReadOptions {
     bool print_reserved;
 };
 
-int main(int argc, char** argv) {
+int _main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers\n"
                  "\n"
                  "Use the environment variable MOTOR_UTIL_CONFIG_DIR to set the configuration directory\n"
@@ -929,4 +930,19 @@ int main(int argc, char** argv) {
     }
 
     return 0;
+}
+
+int main(int argc, char** argv) {
+    try {
+        return _main(argc, argv);
+    } catch (const RuntimeException &e) {
+        std::cerr << "Caught RuntimeException" << std::endl;
+        std::cerr << " what(): " << e.what() << std::endl;
+        std::cerr << e.location_print() << std::endl;    
+    } catch (const std::exception &e) {
+        int status;
+        std::cerr << "Caught exception of type " << abi::__cxa_demangle(typeid(e).name(), NULL, NULL, &status) << std::endl;
+        std::cerr << "  what():  " << e.what() << std::endl;
+        return 1;
+    }
 }
