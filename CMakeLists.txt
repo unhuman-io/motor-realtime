@@ -31,7 +31,7 @@ configure_file(rt_version.h.in rt_version.h)
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA)
 INCLUDE(CPack)
 
-set (CMAKE_CXX_STANDARD 20)
+set (CMAKE_CXX_STANDARD 17)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 option(BUILD_SHARED_LIBS "Build libraries shared" ON)

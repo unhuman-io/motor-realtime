@@ -27,7 +27,7 @@ class RuntimeException : public std::runtime_error {
  public:
     explicit RuntimeException(const std::string& message)
         : std::runtime_error(std::string(ANSI_RED_STDERR) + message + std::string(ANSI_RESET_STDERR)) {}
-    sstd::string location_print() const { return ""; }
+    std::string location_print() const { return ""; }
 };
 #endif // c++ 20
 
