@@ -314,7 +314,7 @@ void UDPFile::rx_callback(const uint8_t* buf, uint16_t len) {
   std::unique_lock<std::mutex> lk(rx_data_request_cv_m_);
   bool status = rx_data_request_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_data_request_; });
   if (status == false) {
-    throw RuntimeException("rx_callback timeout");
+    throw RuntimeException("rx_callback timeout - data received without active request");
   }
   rx_data_request_ = false;
   {
@@ -374,27 +374,32 @@ ssize_t MotorIP::write() {
 
 void MotorIP::rx_data() {
   //std::cout << "rx_data started, fd_ " << fd_ << std::endl;
-  while(1) {
-    // assume blocking i/o
-    pollfd tmp;
-    tmp.fd = fd_;
-    tmp.events = POLLIN;
-    int poll_result = ::poll(&tmp, 1, 5 /* ms */);
-    if (poll_result > 0) {
-      int result = recv(fd_, rx_lin_buffer_, RX_BUFFER_SIZE, 0);
-      // std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
-      if (result < 0) {
-        throw RuntimeException("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+  try {
+    while(1) {
+      // assume blocking i/o
+      pollfd tmp;
+      tmp.fd = fd_;
+      tmp.events = POLLIN;
+      int poll_result = ::poll(&tmp, 1, 5 /* ms */);
+      if (poll_result > 0) {
+        int result = recv(fd_, rx_lin_buffer_, RX_BUFFER_SIZE, 0);
+        // std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
+        if (result < 0) {
+          throw RuntimeException("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+        }
+        for (int i=0; i<result; i++) {
+          rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
+          current_read_idx_ = (current_read_idx_ + 1) % RX_BUFFER_SIZE;
+        }
+        parser_.process((current_read_idx_ - 1) % RX_BUFFER_SIZE);
       }
-      for (int i=0; i<result; i++) {
-        rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
-        current_read_idx_ = (current_read_idx_ + 1) % RX_BUFFER_SIZE;
+      if (terminate_) {
+        return;
       }
-      parser_.process((current_read_idx_ - 1) % RX_BUFFER_SIZE);
     }
-    if (terminate_) {
-      return;
-    }
+  } catch (const std::exception &e) {
+    std::cerr << "rx_thread caught exception: " << e.what() << std::endl;
+    std::cerr << "rx_thread terminating" << std::endl;
   }
 }
 
