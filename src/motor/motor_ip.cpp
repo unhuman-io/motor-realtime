@@ -328,7 +328,9 @@ void UDPFile::rx_callback(const uint8_t* buf, uint16_t len) {
 
 MotorIP::~MotorIP() {
   terminate_ = true;
-  rx_thread_.join(); // todo add timeout
+  if (rx_thread_.joinable()) {
+    rx_thread_.join();
+  }
 }
 
 bool MotorIP::connect() {

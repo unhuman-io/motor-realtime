@@ -25,7 +25,8 @@ class SocketFile : public TextFile {
     int fd_;
     int timeout_ms_ = 50;
     int fd_communication_lock_;
-std::string address_;
+    std::atomic<int> communication_lock_count_{};
+    std::string address_;
     void rx_callback(const uint8_t*, uint16_t);
  private:
     ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false);
