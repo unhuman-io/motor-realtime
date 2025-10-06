@@ -250,7 +250,7 @@ bool MotorSocket::connect() {
     fd_flags_ = fcntl(fd_, F_GETFL);
     messages_version_ = operator[]("messages_version").get();
     if (messages_version_ == "") {
-      return false;
+     // return false;
     }
     name_ = operator[]("name").get();
     if (name_ == "") {

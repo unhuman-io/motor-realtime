@@ -35,9 +35,10 @@ ssize_t EthL2CANFile::write(const char *data, unsigned int length, bool write_re
     std::memcpy(frame.payload, data, length);
     frame.can_bus_id = can_bus_id_;
     frame.can_id = can_id_;
-    frame.length = length;
-    frame.brs = 1;
-    frame.fdf = 1;
+    frame.length = length+1;
+    //frame.brs = 1;
+    //frame.fdf = 1;
+    frame.type = send_recv_frame_id_;
     SocketFile::write((const char *) &frame, sizeof(frame)-64+length, write_read);
     return 0;
 }

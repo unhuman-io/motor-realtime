@@ -20,6 +20,9 @@ class EthL2RawFile : public SocketFile {
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) override;
     uint8_t dst_mac_[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     uint8_t src_mac_[6] = {0, 0, 0, 0, 0, 0};
+    uint8_t send_frame_id_ = 1; // command
+    uint8_t recv_frame_id_ = 2; // status
+    uint8_t send_recv_frame_id_ = 3; // command_status
 };
 
 struct L2Frame {
@@ -49,23 +52,21 @@ struct L2CANFrame {
     uint8_t dst_mac[6] = {};
     uint8_t src_mac[6] = {};
     uint16_t ethertype = htons(0x88B5);
-    uint32_t header[6];
-    //struct ACFMessage {
-        uint8_t acf_message_type;
-        uint8_t length;
-        uint8_t pad:2;
-        uint8_t mtv:1;
-        uint8_t rtr:1;
-        uint8_t eff:1;
-        uint8_t brs:1;
-        uint8_t fdf:1;
-        uint8_t esi:1;
-        uint8_t reserved:3;
-        uint8_t can_bus_id:5;
-        uint32_t timestamp;
-        uint32_t can_id:7;
-        uint32_t frame_id:4;
-        uint32_t reserved_id:21;
+    uint8_t reserved0[2] = {};
+    uint32_t timestamp = {};
+    uint8_t reserved[1] = {};
+        uint8_t pad:2 = {};
+        uint8_t mtv:1 = {};
+        uint8_t rtr:1 = {};
+        uint8_t eff:1 = {};
+        uint8_t brs:1 = {};
+        uint8_t fdf:1 = {};
+        uint8_t esi:1 = {};
+    uint8_t can_bus_id = {};
+    uint8_t can_id;
+    uint8_t length;
+    uint8_t type;
+    
     uint8_t payload[64] = {};
 };
 
@@ -87,6 +88,9 @@ class MotorEthL2 : public MotorSocket {
         motor_txt->fd_ = fd_;
         motor_txt->fd_communication_lock_ = fd_communication_lock_;
         motor_txt->address_ = address;
+        motor_txt->send_recv_frame_id_ = 4;
+        motor_txt->recv_frame_id_ = 5;
+        motor_txt->send_frame_id_ = 4;
         std::memcpy(motor_txt->src_mac_, src_mac_, 6);
 
         motor_txt->set_api_mode();
