@@ -18,6 +18,7 @@ class EthL2RawFile : public SocketFile {
     virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
     virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false) override;
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) override;
+    virtual ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
     uint8_t dst_mac_[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     uint8_t src_mac_[6] = {0, 0, 0, 0, 0, 0};
     uint8_t send_frame_id_ = 1; // command
@@ -44,6 +45,7 @@ class EthL2CANFile : public EthL2RawFile {
     virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
     virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false) override;
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) override;
+    virtual ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
     uint8_t can_bus_id_ = 0;
     uint8_t can_id_ = 0;
 };
@@ -101,6 +103,17 @@ class MotorEthL2 : public MotorSocket {
         rx_thread_ = std::thread([this]{ this->rx_data(); });
 
         connected_ = connect();
+        if constexpr (mode == EthL2FileMode::ETH_L2_CAN) {
+            EthL2CANFile * motor_txt_can = static_cast<EthL2CANFile *>(motor_txt_.get());
+            devnum_ = motor_txt_can->can_id_;
+            dev_path_ += "-can";
+            char s[6*3+4] = {};
+            std::sprintf(s, "%02x:%02x:%02x:%02x:%02x:%02x-%u",
+                motor_txt_can->dst_mac_[0], motor_txt_can->dst_mac_[1], motor_txt_can->dst_mac_[2],
+                motor_txt_can->dst_mac_[3], motor_txt_can->dst_mac_[4], motor_txt_can->dst_mac_[5],
+                motor_txt_can->can_bus_id_);
+            base_path_ = s;
+        }
     }
 
     static std::string get_interface(std::string_view address) {

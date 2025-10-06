@@ -4,8 +4,7 @@
 namespace obot {
 
 ssize_t EthL2RawFile::read(char *data, unsigned int length, bool write_read) {
-    SocketFile::read(data, length, write_read);
-    return 0;
+    return SocketFile::read(data, length, write_read);
 }
 
 ssize_t EthL2RawFile::write(const char *data, unsigned int length, bool write_read) {
@@ -13,18 +12,29 @@ ssize_t EthL2RawFile::write(const char *data, unsigned int length, bool write_re
     std::memcpy(frame.dst_mac, dst_mac_, 6);
     std::memcpy(frame.src_mac, src_mac_, 6);
     std::memcpy(frame.payload, data, length);
-    SocketFile::write((const char *) &frame, length+14, write_read);
-    return 0;
+    return SocketFile::write((const char *) &frame, length+14, write_read);
 }
 
 ssize_t EthL2RawFile::writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) {
-    SocketFile::writeread(data_out, length_out, data_in, length_in);
-    return 0;
+    return SocketFile::writeread(data_out, length_out, data_in, length_in);
+}
+
+ssize_t EthL2RawFile::_read(char *data, unsigned int length, bool write_read) {
+    return SocketFile::_read(data, length, write_read);
+}
+
+ssize_t EthL2CANFile::_read(char *data, unsigned int length, bool write_read) {
+    ssize_t read_length = SocketFile::_read(data, length, write_read);
+    L2CANFrame frame;
+    length = std::min((size_t) length, sizeof(L2CANFrame));
+    std::memcpy(&frame, data, length);
+    ssize_t frame_read_length = frame.length;
+    std::memcpy(data, frame.payload, frame_read_length);
+    return frame_read_length;
 }
 
 ssize_t EthL2CANFile::read(char *data, unsigned int length, bool write_read) {
-    SocketFile::read(data, length, write_read);
-    return 0;
+    return SocketFile::read(data, length, write_read);
 }
 
 ssize_t EthL2CANFile::write(const char *data, unsigned int length, bool write_read) {
@@ -39,13 +49,11 @@ ssize_t EthL2CANFile::write(const char *data, unsigned int length, bool write_re
     //frame.brs = 1;
     //frame.fdf = 1;
     frame.type = send_recv_frame_id_;
-    SocketFile::write((const char *) &frame, sizeof(frame)-64+length, write_read);
-    return 0;
+    return SocketFile::write((const char *) &frame, sizeof(frame)-64+length, write_read);
 }
 
 ssize_t EthL2CANFile::writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) {
-    SocketFile::writeread(data_out, length_out, data_in, length_in);
-    return 0;
+    return SocketFile::writeread(data_out, length_out, data_in, length_in);
 }
 
 template<EthL2FileMode mode>

@@ -201,7 +201,7 @@ ssize_t SocketFile::read(char * data, unsigned int length, bool write_read) {
 }
 
 ssize_t SocketFile::write(const char * data, unsigned int length, bool write_read) {
-    std::cout << "write length " << length << ", " << data << std::endl;
+    //std::cout << "write length " << length << ", " << data << std::endl;
     lock_communication();
     char buffer[length];
     std::memcpy(buffer, data, length);
@@ -264,7 +264,7 @@ bool MotorSocket::connect() {
     serial_number_ = operator[]("serial").get();
     dev_path_ = interface_;
     base_path_ = address_;
-    devnum_ = 123;
+    devnum_ = 0;
     return true;  
 }
 
@@ -306,6 +306,7 @@ void MotorSocket::rx_data() {
           rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
           current_read_idx_ = (current_read_idx_ + 1) % RX_BUFFER_SIZE;
         }
+        dynamic_cast<SocketFile*>(motor_txt_.get())->rx_callback(rx_lin_buffer_, result);
         //parser_.process((current_read_idx_ - 1) % RX_BUFFER_SIZE);
       }
       if (terminate_) {

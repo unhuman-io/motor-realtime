@@ -17,7 +17,7 @@ class SocketFile : public TextFile {
     virtual void flush();
     virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false);
     virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false);
-    virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */);
+    virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) override;
 
     void set_api_mode() { api_mode_ = true; }
     int lock_communication();
@@ -28,8 +28,9 @@ class SocketFile : public TextFile {
     std::atomic<int> communication_lock_count_{};
     std::string address_;
     void rx_callback(const uint8_t*, uint16_t);
+ protected:
+    virtual ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false);
  private:
-    ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false);
     std::condition_variable rx_data_cv_;
     std::mutex rx_data_cv_m_; // protects rx_data_cv_, rx_buf_, rx_received_ and rx_len_
     uint8_t rx_buf_[1024];
