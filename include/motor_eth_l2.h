@@ -1,6 +1,8 @@
 #pragma once
 #include "motor_socket.h"
 
+#include <linux/filter.h>
+
 namespace obot {
 
 constexpr int MAX_ETH_L2_PAYLOAD_SIZE = 100;
@@ -14,6 +16,42 @@ class EthL2RawFile : public SocketFile {
         } else {
             throw RuntimeException("Invalid MAC address format: " + address);
         }
+    }
+
+    virtual void set_packet_filter() {
+        uint32_t dest_word1;
+        std::memcpy(&dest_word1, dst_mac_, 4);
+        dest_word1 = htonl(dest_word1);
+        uint16_t dest_word2;
+        std::memcpy(&dest_word2, dst_mac_+4, 2);
+        dest_word2 = htons(dest_word2);
+        // Set Berkeley Packet Filter to only receive packets with src_mac == dst_mac_
+        struct sock_filter bpf_code[] = {
+            // Load first 4 bytes of Ethernet src MAC (offset 6)
+            { BPF_LD+BPF_W+BPF_ABS, 0, 0, 0x00000006 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
+            // Compare with dst_mac_[0..3]
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, dest_word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+
+            // Load next 2 bytes of Ethernet src MAC (offset 10)
+            { BPF_LD+BPF_H+BPF_ABS, 0, 0, 0x0000000A }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
+            // Compare with dst_mac_[4..5]
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, dest_word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+
+            // Accept packet
+            { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
+
+            // Reject packet
+            { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
+        };
+
+        struct sock_fprog bpf_prog = {
+            .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
+            .filter = bpf_code,
+        };
+        if (int result = setsockopt(fd_, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
+            throw RuntimeException("Failed to set BPF filter " + std::to_string(errno) + ": " + strerror(errno));
+        }
+
     }
     virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
     virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false) override;
@@ -31,23 +69,6 @@ struct L2Frame {
     uint8_t src_mac[6] = {};
     uint16_t ethertype = htons(0x88B5);
     uint8_t payload[MAX_ETH_L2_PAYLOAD_SIZE] = {};
-};
-
-class EthL2CANFile : public EthL2RawFile {
- public:
-    EthL2CANFile(std::string address) : EthL2RawFile(address) {
-        if (sscanf(address.c_str(), "%*38[^-]-%hhu:%hhu",
-            &can_bus_id_, &can_id_) == 2) {
-        } else {
-            throw RuntimeException("Invalid CAN over MAC address format: " + address);
-        }
-    }
-    virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
-    virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false) override;
-    virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) override;
-    virtual ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
-    uint8_t can_bus_id_ = 0;
-    uint8_t can_id_ = 0;
 };
 
 struct L2CANFrame {
@@ -72,6 +93,65 @@ struct L2CANFrame {
     uint8_t payload[64] = {};
 };
 
+class EthL2CANFile : public EthL2RawFile {
+ public:
+    EthL2CANFile(std::string address) : EthL2RawFile(address) {
+        if (sscanf(address.c_str(), "%*38[^-]-%hhu:%hhu",
+            &can_bus_id_, &can_id_) == 2) {
+        } else {
+            throw RuntimeException("Invalid CAN over MAC address format: " + address);
+        }
+    }
+    virtual void set_packet_filter() {
+        uint32_t dest_word1;
+        std::memcpy(&dest_word1, dst_mac_, 4);
+        dest_word1 = htonl(dest_word1);
+        uint16_t dest_word2;
+        std::memcpy(&dest_word2, dst_mac_+4, 2);
+        dest_word2 = htons(dest_word2);
+        // std::cout << "offset dst_mac: " << offsetof(L2CANFrame, src_mac) << std::endl;
+        // std::cout << "offset type: " << offsetof(L2CANFrame, type) << std::endl;
+        // std::cout << "offset can_id: " << offsetof(L2CANFrame, can_id) << std::endl;
+        // Set Berkeley Packet Filter to only receive packets with src_mac == dst_mac_
+        struct sock_filter bpf_code[] = {
+            // Load first 4 bytes of Ethernet src MAC (offset 6)
+            { BPF_LD+BPF_W+BPF_ABS, 0, 0, offsetof(L2CANFrame, src_mac) }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
+            // Compare with dst_mac_[0..3]
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, dest_word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+
+            // Load next 2 bytes of Ethernet src MAC (offset 10)
+            { BPF_LD+BPF_H+BPF_ABS, 0, 0, offsetof(L2CANFrame, src_mac) + 4 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
+            // Compare with dst_mac_[4..5]
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, dest_word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+
+            // Load CAN ID
+            { BPF_LD+BPF_B+BPF_ABS, 0, 0, offsetof(L2CANFrame, can_id) }, // BPF_LD+BPF_B+BPF_ABS = 0x30, offset can_id
+            // Compare with can_id_
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, can_id_ }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+
+            // Accept packet
+            { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
+
+            // Reject packet
+            { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
+        };
+
+        struct sock_fprog bpf_prog = {
+            .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
+            .filter = bpf_code,
+        };
+        if (int result = setsockopt(fd_, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
+            throw RuntimeException("Failed to set BPF filter " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    }
+    virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
+    virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false) override;
+    virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) override;
+    virtual ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false) override;
+    uint8_t can_bus_id_ = 0;
+    uint8_t can_id_ = 0;
+};
+
 enum class EthL2FileMode {
     ETH_L2_RAW,
     ETH_L2_CAN
@@ -93,6 +173,7 @@ class MotorEthL2 : public MotorSocket {
         motor_txt->send_recv_frame_id_ = 4;
         motor_txt->recv_frame_id_ = 5;
         motor_txt->send_frame_id_ = 4;
+        motor_txt->set_packet_filter();
         std::memcpy(motor_txt->src_mac_, src_mac_, 6);
 
         motor_txt->set_api_mode();
