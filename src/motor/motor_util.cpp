@@ -19,6 +19,7 @@
 #include <atomic>
 #include <string_view>
 #include "terminal.h"
+#include <cxxabi.h>
 
 using namespace obot;
 
@@ -170,7 +171,7 @@ struct ReadOptions {
     bool print_reserved;
 };
 
-int main(int argc, char** argv) {
+int _main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers\n"
                  "\n"
                  "Use the environment variable MOTOR_UTIL_CONFIG_DIR to set the configuration directory\n"
@@ -205,7 +206,7 @@ int main(int argc, char** argv) {
     }
     std::vector<std::pair<std::string, ModeDesired>> tuning_mode_options_map{
         {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"torque", ModeDesired::TORQUE},
-        {"current", ModeDesired::CURRENT}, {"voltage", ModeDesired::VOLTAGE}
+        {"current", ModeDesired::CURRENT}, {"voltage", ModeDesired::VOLTAGE}, {"impedance", ModeDesired::IMPEDANCE}
     };    
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
@@ -628,7 +629,7 @@ int main(int argc, char** argv) {
 
     if (*set && motors.size()) {
         m.set_commands(std::vector<Command>(motors.size(), command));
-        std::cout << "Writing commands: \n" << m.command_headers() << std::endl << m.commands() << std::endl;
+        std::cout << ANSI_BOLD << "Writing commands: \n" << m.command_headers() << ANSI_RESET << std::endl << m.commands() << std::endl;
         m.write_saved_commands();
     }
 
@@ -651,7 +652,7 @@ int main(int argc, char** argv) {
         char c[MAX_API_LONG_DATA_SIZE+1];
         for (auto &api_str : set_api_data) {
             if (!no_list) {
-                std::cout << api_str << std::endl;
+                std::cout << ANSI_BOLD << api_str << ANSI_RESET << std::endl;
             }
             for (auto motor : m.motors()) {
                 auto tstart = std::chrono::steady_clock::now();
@@ -776,18 +777,18 @@ int main(int argc, char** argv) {
             if (read_opts.print_reserved) {
                 std::cout << reserved_print_on;
             }
+            std::cout << ANSI_BOLD;
             std::vector<double> cpu_frequency_hz(motors.size());
             if (read_opts.statistics || read_opts.read_write_statistics) {
                 std::cout << "host_time_ns period_avg_ns period_std_dev_ns period_min_ns period_max_ns read_time_avg_ns read_time_std_dev_ns read_time_min_ns read_time_max_ns";
                 if (read_opts.read_write_statistics) {
                    std::cout << " avg_hops";
                 }
-                std::cout << std::endl;
             } else if (*bits_option) {
                 std::cout << "motor_encoder, output_encoder, iq" << std::endl;
             } else {
                 if (read_opts.host_time) {
-                    std::cout << "t_host,";
+                    std::cout << "t_host, ";
                 }
                 if (read_opts.timestamp_in_seconds || read_opts.compute_velocity) {
                     for (int i=0;i<motors.size();i++) {
@@ -813,8 +814,8 @@ int main(int argc, char** argv) {
                         std::cout << "joint_velocity_computed" << i << ", ";
                     }
                 }
-                std::cout << std::endl;
             }
+            std::cout << ANSI_RESET << std::endl;
             auto start_time = std::chrono::steady_clock::now();
             auto next_time = start_time;
             auto loop_start_time = start_time;
@@ -935,4 +936,19 @@ int main(int argc, char** argv) {
     }
 
     return 0;
+}
+
+int main(int argc, char** argv) {
+    try {
+        return _main(argc, argv);
+    } catch (const RuntimeException &e) {
+        std::cerr << "Caught RuntimeException" << std::endl;
+        std::cerr << " what(): " << e.what() << std::endl;
+        std::cerr << e.location_print() << std::endl;    
+    } catch (const std::exception &e) {
+        int status;
+        std::cerr << "Caught exception of type " << abi::__cxa_demangle(typeid(e).name(), NULL, NULL, &status) << std::endl;
+        std::cerr << "  what():  " << e.what() << std::endl;
+        return 1;
+    }
 }
