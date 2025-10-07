@@ -63,6 +63,7 @@ class MotorSocket : public Motor {
     virtual ssize_t write() override;
 
     void rx_data();
+    virtual void rx_callback(const uint8_t*, uint16_t) = 0;
 
     std::string address_;
     std::string interface_;

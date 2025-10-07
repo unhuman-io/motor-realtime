@@ -114,6 +114,14 @@ class EthL2CANFile : public EthL2RawFile {
         // std::cout << "offset can_id: " << offsetof(L2CANFrame, can_id) << std::endl;
         // Set Berkeley Packet Filter to only receive packets with src_mac == dst_mac_
         struct sock_filter bpf_code[] = {
+            // ld [6]
+            // jne #0x12345678, drop
+            // ldh [0xa]
+            // jne #0xabcd, drop
+            // ldb [23]
+            // jne #1, drop
+            // ret #-1
+            // drop: ret #0
             // Load first 4 bytes of Ethernet src MAC (offset 6)
             { BPF_LD+BPF_W+BPF_ABS, 0, 0, offsetof(L2CANFrame, src_mac) }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
             // Compare with dst_mac_[0..3]
@@ -207,6 +215,7 @@ class MotorEthL2 : public MotorSocket {
     }
     virtual ~MotorEthL2() {}
     void get_interface_mac_address();
+    virtual void rx_callback(const uint8_t*, uint16_t) override;
 
     uint8_t src_mac_[6] = {};
     

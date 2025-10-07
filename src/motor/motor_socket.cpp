@@ -306,7 +306,7 @@ void MotorSocket::rx_data() {
           rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
           current_read_idx_ = (current_read_idx_ + 1) % RX_BUFFER_SIZE;
         }
-        dynamic_cast<SocketFile*>(motor_txt_.get())->rx_callback(rx_lin_buffer_, result);
+        rx_callback(rx_lin_buffer_, result);
         //parser_.process((current_read_idx_ - 1) % RX_BUFFER_SIZE);
       }
       if (terminate_) {

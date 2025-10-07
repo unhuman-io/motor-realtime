@@ -57,6 +57,19 @@ ssize_t EthL2CANFile::writeread(const char *data_out, unsigned int length_out, c
 }
 
 template<EthL2FileMode mode>
+void MotorEthL2<mode>::rx_callback(const uint8_t* data, uint16_t length) {
+    if constexpr (mode == EthL2FileMode::ETH_L2_CAN) {
+        L2CANFrame frame;
+        std::memcpy(&frame, data, std::min((size_t) length, sizeof(L2CANFrame)));
+        if (frame.type == 5) {
+            dynamic_cast<EthL2CANFile *>(motor_txt_.get())->rx_callback(data, length);
+        } else if (frame.type == 1) {
+            realtime_communication_.rx_callback(data, length);
+        }
+    }
+}
+
+template<EthL2FileMode mode>
 void MotorEthL2<mode>::get_interface_mac_address() {
     struct ifreq ifr = {};
     std::strncpy(ifr.ifr_name, interface_.c_str(), IFNAMSIZ - 1);
