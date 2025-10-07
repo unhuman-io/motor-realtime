@@ -16,17 +16,6 @@ void MotorSocket::open() {
       throw RuntimeException("socket failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
     }
 
-    sockaddr_ll server_addr = {};
-    server_addr.sll_family = AF_PACKET;
-    server_addr.sll_protocol = htons(0x88B5);
-    server_addr.sll_ifindex = if_nametoindex(interface_.c_str());
-  
-    int retval = bind(fd_, (struct sockaddr *)&server_addr, sizeof(server_addr));
-    if (retval < 0) {
-      throw RuntimeException("bind failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
-    }
-    
-    create_communication_lock();
     //flush();
 }
 
@@ -247,6 +236,18 @@ MotorSocket::~MotorSocket() {
 }
 
 bool MotorSocket::connect() {
+    sockaddr_ll server_addr = {};
+    server_addr.sll_family = AF_PACKET;
+    server_addr.sll_protocol = htons(0x88B5);
+    server_addr.sll_ifindex = if_nametoindex(interface_.c_str());
+
+    int retval = bind(fd_, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    if (retval < 0) {
+      throw RuntimeException("bind failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
+    }
+    
+    create_communication_lock();
+
     fd_flags_ = fcntl(fd_, F_GETFL);
     messages_version_ = operator[]("messages_version").get();
     if (messages_version_ == "") {
