@@ -61,7 +61,7 @@ class EthL2RawFile : public SocketFile {
     uint8_t src_mac_[6] = {0, 0, 0, 0, 0, 0};
     uint8_t send_frame_id_ = 1; // command
     uint8_t recv_frame_id_ = 2; // status
-    uint8_t send_recv_frame_id_ = 3; // command_status
+    uint8_t send_recv_frame_id_ = 2; // command_status
 };
 
 struct L2Frame {
