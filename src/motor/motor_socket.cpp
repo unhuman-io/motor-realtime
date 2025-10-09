@@ -92,8 +92,8 @@ int SocketFile::poll() {
 
 ssize_t SocketFile::_read(char * data, unsigned int length, bool write_read) {
   if (!write_read) {
-    char buffer[length + 14];
-    std::memcpy(buffer + 14, data, length);
+    char buffer[length];
+    std::memcpy(buffer, data, length);
     int send_result = send(fd_, buffer, sizeof(buffer), 0);
     if (send_result < 0) {
       return send_result;
@@ -271,12 +271,12 @@ bool MotorSocket::connect() {
 
 void MotorSocket::set_timeout_ms(int timeout_ms) {
     static_cast<SocketFile*>(motor_txt_.get())->timeout_ms_ = timeout_ms;
-    realtime_communication_.timeout_ms_ = timeout_ms;
+    realtime_communication_->timeout_ms_ = timeout_ms;
 }
 
 ssize_t MotorSocket::read() {
   //std::cout << "read " << std::endl;
-  int ret = realtime_communication_.read((char *) &status_, sizeof(status_));
+  int ret = realtime_communication_->read((char *) &status_, sizeof(status_));
   if (ret < 0) {
     std::cout << "read error " << ret << std::endl;
   }
@@ -285,7 +285,7 @@ ssize_t MotorSocket::read() {
 
 ssize_t MotorSocket::write() {
   // std::cout << "write " << std::endl;
-  return realtime_communication_.write((char *) &command_, sizeof(command_));
+  return realtime_communication_->write((char *) &command_, sizeof(command_));
 }
 
 void MotorSocket::rx_data() {

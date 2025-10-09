@@ -24,12 +24,18 @@ ssize_t EthL2RawFile::_read(char *data, unsigned int length, bool write_read) {
 }
 
 ssize_t EthL2CANFile::_read(char *data, unsigned int length, bool write_read) {
-    ssize_t read_length = SocketFile::_read(data, length, write_read);
-    L2CANFrame frame;
-    length = std::min((size_t) length, sizeof(L2CANFrame));
-    std::memcpy(&frame, data, length);
+    L2CANFrame frame = {};
+    std::memcpy(frame.dst_mac, dst_mac_, 6);
+    std::memcpy(frame.src_mac, src_mac_, 6);
+    frame.type = recv_frame_id_;
+    frame.can_bus_id = can_bus_id_;
+    frame.can_id = can_id_;
+    frame.length = 1;
+    //std::memcpy(data, &frame, sizeof(frame)-64);
+    ssize_t read_length = SocketFile::_read((char *) &frame, sizeof(frame), write_read);
+    length = std::min((size_t) length, sizeof(frame.payload));
+    std::memcpy(data, &frame.payload, length);
     ssize_t frame_read_length = frame.length;
-    std::memcpy(data, frame.payload, frame_read_length);
     return frame_read_length;
 }
 
@@ -63,8 +69,8 @@ void MotorEthL2<mode>::rx_callback(const uint8_t* data, uint16_t length) {
         std::memcpy(&frame, data, std::min((size_t) length, sizeof(L2CANFrame)));
         if (frame.type == 5) {
             dynamic_cast<EthL2CANFile *>(motor_txt_.get())->rx_callback(data, length);
-        } else if (frame.type == 1) {
-            realtime_communication_.rx_callback(data, length);
+        } else if (frame.type == 3) {
+            realtime_communication_->rx_callback(data, length);
         }
     }
 }

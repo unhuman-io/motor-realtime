@@ -18,7 +18,8 @@ class SocketFile : public TextFile {
     virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false);
     virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false);
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) override;
-
+    virtual void set_packet_filter() = 0;
+    
     void set_api_mode() { api_mode_ = true; }
     int lock_communication();
     int unlock_communication();
@@ -45,7 +46,7 @@ class SocketFile : public TextFile {
 
 class MotorSocket : public Motor {
  public:
-    MotorSocket(std::string interface, std::string address, std::string alias) {
+    MotorSocket(std::string interface, std::string address, std::string alias, SocketFile *realtime_communication = nullptr) : Motor(), realtime_communication_(realtime_communication) {
         interface_ = interface;
         address_ = address;
         alias_ = alias;
@@ -79,7 +80,7 @@ class MotorSocket : public Motor {
     std::thread rx_thread_;
     std::atomic<bool> terminate_{false};
     bool connected_ = false;
-    SocketFile realtime_communication_; // relies on parser_
+    SocketFile *realtime_communication_; // relies on parser_
     int fd_communication_lock_;
 };
 

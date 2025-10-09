@@ -170,7 +170,7 @@ class MotorEthL2 : public MotorSocket {
  public:
     using EthL2File = std::conditional_t<mode == EthL2FileMode::ETH_L2_RAW, EthL2RawFile,
                       std::conditional_t<mode == EthL2FileMode::ETH_L2_CAN, EthL2CANFile, void>>;
-    MotorEthL2(std::string address, std::string address_alias = "") : MotorSocket(get_interface(address), address, address_alias) {
+    MotorEthL2(std::string address, std::string address_alias = "") : MotorSocket(get_interface(address), address, address_alias, new EthL2File(address)) {
         motor_txt_ = std::move(std::unique_ptr<EthL2File>(new EthL2File(address)));
         EthL2File * motor_txt = static_cast<EthL2File *>(motor_txt_.get());
         open();
@@ -183,12 +183,14 @@ class MotorEthL2 : public MotorSocket {
         motor_txt->send_frame_id_ = 4;
         motor_txt->set_packet_filter();
         std::memcpy(motor_txt->src_mac_, src_mac_, 6);
-
         motor_txt->set_api_mode();
-        realtime_communication_.fd_ = fd_;
-        realtime_communication_.address_ = address;
-        realtime_communication_.fd_communication_lock_ = fd_communication_lock_;
-        //std::memcpy(realtime_communication_.src_mac_, src_mac_, 6);
+
+        realtime_communication_->fd_ = fd_;
+        realtime_communication_->fd_communication_lock_ = fd_communication_lock_;
+        realtime_communication_->address_ = address;
+        realtime_communication_->fd_communication_lock_ = fd_communication_lock_;
+        realtime_communication_->set_packet_filter();
+        std::memcpy(dynamic_cast<EthL2File *>(realtime_communication_)->src_mac_, src_mac_, 6);
         rx_thread_ = std::thread([this]{ this->rx_data(); });
 
         connected_ = connect();
