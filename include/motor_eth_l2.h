@@ -67,14 +67,14 @@ class EthL2RawFile : public SocketFile {
 struct L2Frame {
     uint8_t dst_mac[6] = {};
     uint8_t src_mac[6] = {};
-    uint16_t ethertype = htons(0x88B5);
+    uint8_t ethertype[2] = {0x88, 0xB5};
     uint8_t payload[MAX_ETH_L2_PAYLOAD_SIZE] = {};
 };
 
 struct L2CANFrame {
     uint8_t dst_mac[6] = {};
     uint8_t src_mac[6] = {};
-    uint16_t ethertype = htons(0x88B5);
+    uint8_t ethertype[2] = {0x88, 0xB5};
     uint8_t reserved0[2] = {};
     uint32_t timestamp = {};
     uint8_t reserved[1] = {};
