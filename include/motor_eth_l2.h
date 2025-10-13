@@ -72,24 +72,25 @@ struct L2Frame {
 };
 
 struct L2CANFrame {
+    constexpr L2CANFrame() : pad(0), mtv(0), rtr(0), eff(0), brs(0), fdf(0), esi(0) {}
     uint8_t dst_mac[6] = {};
     uint8_t src_mac[6] = {};
     uint8_t ethertype[2] = {0x88, 0xB5};
     uint8_t reserved0[2] = {};
     uint32_t timestamp = {};
     uint8_t reserved[1] = {};
-        uint8_t pad:2 = {};
-        uint8_t mtv:1 = {};
-        uint8_t rtr:1 = {};
-        uint8_t eff:1 = {};
-        uint8_t brs:1 = {};
-        uint8_t fdf:1 = {};
-        uint8_t esi:1 = {};
+        uint8_t pad:2;
+        uint8_t mtv:1;
+        uint8_t rtr:1;
+        uint8_t eff:1;
+        uint8_t brs:1;
+        uint8_t fdf:1;
+        uint8_t esi:1;
     uint8_t can_bus_id = {};
-    uint8_t can_id;
-    uint8_t length;
-    uint8_t type;
-    
+    uint8_t can_id = {};
+    uint8_t length = {};
+    uint8_t type = {};
+
     uint8_t payload[64] = {};
 };
 
