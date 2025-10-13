@@ -298,7 +298,7 @@ class Motor : public MotorDescription {
     virtual ~Motor();
     virtual ssize_t read() { return ::read(fd_, &status_, sizeof(status_)); }
     virtual ssize_t write() { if (!no_write_) {
-        return ::write(fd_, &command_, 12);//sizeof(command_));
+        return ::write(fd_, &command_, sizeof(command_));
      } else {
         std::cerr << "motor " + name() + " locked";
         pid_t pid;

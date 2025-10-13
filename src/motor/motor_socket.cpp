@@ -190,7 +190,6 @@ ssize_t SocketFile::read(char * data, unsigned int length, bool write_read) {
 }
 
 ssize_t SocketFile::write(const char * data, unsigned int length, bool write_read) {
-    //std::cout << "write length " << length << ", " << data << std::endl;
     lock_communication();
     char buffer[length];
     std::memcpy(buffer, data, length);
@@ -231,7 +230,7 @@ void SocketFile::rx_callback(const uint8_t* buf, uint16_t len) {
 MotorSocket::~MotorSocket() {
   terminate_ = true;
   if (rx_thread_.joinable()) {
-    rx_thread_.join();
+      rx_thread_.join();
   }
 }
 
@@ -297,6 +296,9 @@ void MotorSocket::rx_data() {
       tmp.fd = fd_;
       tmp.events = POLLIN;
       int poll_result = ::poll(&tmp, 1, 5 /* ms */);
+      if (terminate_) {
+        return;
+      }
       if (poll_result > 0) {
         int result = recv(fd_, rx_lin_buffer_, RX_BUFFER_SIZE, 0);
         // std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;

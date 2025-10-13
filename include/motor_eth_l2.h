@@ -215,7 +215,12 @@ class MotorEthL2 : public MotorSocket {
             throw RuntimeException("Invalid MAC address interface format: " + std::string(address));
         }
     }
-    virtual ~MotorEthL2() {}
+    virtual ~MotorEthL2() {
+        terminate_ = true;
+        if (rx_thread_.joinable()) {
+            rx_thread_.join();
+        }
+    }
     void get_interface_mac_address();
     virtual void rx_callback(const uint8_t*, uint16_t) override;
 
