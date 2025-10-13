@@ -193,6 +193,7 @@ int _main(int argc, char** argv) {
     bool print_raw_packet = false;
     bool parse_raw_packet = false;
     std::vector<std::string> ips = {};
+    std::vector<std::string> macs = {};
     
     std::string config_dir = get_config_dir();
     std::string json_ip_file_default = config_dir + "device_ip_map.json";
@@ -315,6 +316,7 @@ int _main(int argc, char** argv) {
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
+    auto eth_l2_option = app.add_option("-e,--eth-l2", macs, "Connect to motor eth l2 MAC(S)")->type_name("MAC")->expected(0,-1)->default_str("{}");
     auto ip_option = app.add_option("-i,--ips", ips, "Connect to IP(S). If left empty, connect to all ips specified in --json-ip-file")->type_name("IP")->expected(0,-1)->default_str("{}");
     app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     app.add_flag("--no-print-unconnected", no_print_unconnected, "Don't print unconnected motors, currently only used with --ips");
@@ -412,6 +414,10 @@ int _main(int argc, char** argv) {
         auto tmp_motors = m.get_motors_by_ip(ips, true, !no_print_unconnected, false, ip_aliases);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
+    if (*eth_l2_option) {
+        auto tmp_motors = m.get_motors_by_eth_l2(macs, true, !no_print_unconnected);
+        motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+    }
     if (uart_paths.size()) {
         uint32_t baud_rate = 0;
         if (uart_paths.size() > 1) {
@@ -461,7 +467,7 @@ int _main(int argc, char** argv) {
         }
     }
     
-    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !*ip_option && !*can_option) {
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !*ip_option && !*can_option && !*eth_l2_option) {
         try {
             motors = m.get_connected_motors();
         } catch (RuntimeException &e) {
