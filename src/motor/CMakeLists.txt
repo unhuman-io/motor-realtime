@@ -1,4 +1,5 @@
 add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cpp motor_uart_obot.cpp motor_can.cpp
+            motor_socket.cpp motor_eth_l2.cpp
             realtime_thread.cpp motor_thread.cpp motor_app.cpp motor_util_fun.cpp terminal.cpp)
 target_link_libraries(motor_manager PUBLIC udev pthread cli11 obot-protocol)
 target_include_directories(motor_manager PUBLIC ${PROJECT_SOURCE_DIR}/include)
@@ -10,6 +11,8 @@ set(MOTOR_MANAGER_PUBLIC_HEADERS
     ${PROJECT_SOURCE_DIR}/include/motor_uart.h
     ${PROJECT_SOURCE_DIR}/include/motor_uart_obot.h
     ${PROJECT_SOURCE_DIR}/include/motor_can.h
+    ${PROJECT_SOURCE_DIR}/include/motor_socket.h
+    ${PROJECT_SOURCE_DIR}/include/motor_eth_l2.h
     ${PROJECT_SOURCE_DIR}/include/realtime_thread.h
     ${PROJECT_SOURCE_DIR}/include/motor_thread.h
     ${PROJECT_SOURCE_DIR}/include/motor_app.h
@@ -57,6 +60,8 @@ if(INSTALL_MOTOR_EMBEDDED)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_manager.h motor_manager_embedded/motor_manager.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor.h motor_manager_embedded/motor.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_ip.h motor_manager_embedded/motor_ip.h COPYONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/include/motor_socket.h motor_manager_embedded/motor_socket.h COPYONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/include/motor_eth_l2.h motor_manager_embedded/motor_eth_l2.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_uart.h motor_manager_embedded/motor_uart.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_uart_obot.h motor_manager_embedded/motor_uart_obot.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_can.h motor_manager_embedded/motor_can.h COPYONLY)
@@ -71,6 +76,8 @@ if(INSTALL_MOTOR_EMBEDDED)
     configure_file(motor_manager.cpp motor_manager_embedded/motor_manager.cpp COPYONLY)
     configure_file(motor.cpp motor_manager_embedded/motor.cpp COPYONLY)
     configure_file(motor_ip.cpp motor_manager_embedded/motor_ip.cpp COPYONLY)
+    configure_file(motor_socket.cpp motor_manager_embedded/motor_socket.cpp COPYONLY)
+    configure_file(motor_eth_l2.cpp motor_manager_embedded/motor_eth_l2.cpp COPYONLY)
     configure_file(motor_uart.cpp motor_manager_embedded/motor_uart.cpp COPYONLY)
     configure_file(motor_uart_obot.cpp motor_manager_embedded/motor_uart_obot.cpp COPYONLY)
     configure_file(motor_can.cpp motor_manager_embedded/motor_can.cpp COPYONLY)
