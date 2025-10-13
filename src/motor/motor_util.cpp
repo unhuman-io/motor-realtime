@@ -467,7 +467,7 @@ int _main(int argc, char** argv) {
         }
     }
     
-    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !*ip_option && !*can_option && !eth_l2_option) {
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !*ip_option && !*can_option && !*eth_l2_option) {
         try {
             motors = m.get_connected_motors();
         } catch (RuntimeException &e) {
