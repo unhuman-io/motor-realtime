@@ -218,7 +218,7 @@ ssize_t UDPFile::read(char * data, unsigned int length, bool write_read) {
               // retriggers the read with the new timeout
               uint32_t old_timeout_ms = timeout_ms_;
               timeout_ms_ += packet->timeout_request.timeout_us/1000;
-              ssize_t retval = _read(data, length, write_read);
+              ssize_t retval = read(data, length, write_read);
               timeout_ms_ = old_timeout_ms;
               unlock_communication();
               return retval;
