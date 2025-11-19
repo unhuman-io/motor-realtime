@@ -2,5 +2,7 @@
     "files.associations": {
         "typeinfo": "cpp"
     },
-    "C_Cpp.default.compilerPath": "/usr/bin/g++-11"
+    "files.exclude": {
+        "**/build*/**": true
+    }
 }

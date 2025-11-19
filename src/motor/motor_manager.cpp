@@ -1,6 +1,7 @@
 #include "motor_manager.h"
 #include "motor.h"
 #include "motor_ip.h"
+#include "motor_eth_l2.h"
 #include "motor_uart.h"
 #include "motor_uart_obot.h"
 #include "motor_can.h"
@@ -196,6 +197,56 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
                     std::cerr << ": " << motor->ip_alias_;
                 }
                 std::cerr << ") not connected" << std::endl;
+            }
+        }
+    }
+    m.resize(j);
+    if (connect) {
+        set_motors(m);
+    }
+    return m;
+}
+
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vector<std::string> interface_macs, bool connect, bool print_unconnected, bool allow_simulated, std::vector<std::string> ip_aliases) {
+    std::vector<std::shared_ptr<Motor>> m(interface_macs.size());
+    std::vector<std::future<std::shared_ptr<MotorSocket>>> futures(interface_macs.size());
+    for (uint8_t i=0; i<interface_macs.size(); i++) {
+        std::string& interface_mac = interface_macs[i];
+        std::string ip_alias;
+        if (ip_aliases.size() > i) {
+            ip_alias = ip_aliases[i];
+        }
+        EthL2FileMode type = EthL2FileMode::ETH_L2_RAW;
+
+        futures[i] = std::async(std::launch::async, [&interface_mac, ip_alias]
+        {
+            std::shared_ptr<MotorSocket> motor;
+            if (interface_mac.rfind("-") != std::string::npos) {
+                motor = std::make_shared<MotorEthL2<EthL2FileMode::ETH_L2_CAN>>(interface_mac, ip_alias);
+            } else {
+                motor = std::make_shared<MotorEthL2<>>(interface_mac, ip_alias);
+            }
+            return motor;
+        });
+    }
+    int j = 0;
+    for (uint8_t i=0; i<interface_macs.size(); i++) {
+        try {
+            std::shared_ptr<MotorSocket> motor = futures[i].get();
+            if (motor->connected()) {
+                m[j++] = motor;
+            } else {
+                if (print_unconnected) {
+                    std::cerr << "Motor Eth L2: " << motor->address_ << " (" << motor->interface_;
+                    if (motor->alias_.size()) {
+                        std::cerr << ": " << motor->alias_;
+                    }
+                    std::cerr << ") not connected" << std::endl;
+                }
+            }
+        } catch (const std::exception &e) {
+            if (print_unconnected) {
+                std::cerr << "Motor Eth L2 exception: " << e.what() << std::endl;
             }
         }
     }

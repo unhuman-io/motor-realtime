@@ -141,7 +141,7 @@ class CANFile : public TextFile {
                     // retriggers the read with the new timeout
                     uint32_t old_timeout_ms = timeout_ms_;
                     timeout_ms_ += packet->timeout_request.timeout_us/1000;
-                    ssize_t retval = _read(data, length);
+                    ssize_t retval = read(data, length);
                     timeout_ms_ = old_timeout_ms;
                     return retval;
                 }
