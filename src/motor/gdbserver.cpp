@@ -173,6 +173,16 @@ void GDBServer::start() {
         } else if (str.rfind("$p", 0) == 0) {
             std::cout << "gdb p command" << str.substr(1) << std::endl;
             response = writeread_(str.substr(0, str.size() - 3));
+        } else if (str.rfind("$Z", 0) == 0) {
+            std::cout << "gdb breakpoint command" << std::endl;
+            auto item = writeread_(str.substr(0, str.size() - 3));
+            std::cout << "item response: " << item << std::endl;
+            response = "OK";
+        } else if (str.rfind("$z", 0) == 0) {
+            std::cout << "gdb remove breakpoint command" << std::endl;
+            auto item = writeread_(str.substr(0, str.size() - 3));
+            std::cout << "item response: " << item << std::endl;
+            response = "OK";
         } else {
             response = "";
         }
