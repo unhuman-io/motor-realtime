@@ -74,6 +74,38 @@ void GDBServer::send_response(std::string response) {
     }
 }
 
+void GDBServer::periodically_check_status() {
+    for (;;) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        auto status = writeread_("$y"); // status
+        std::cout << "periodic status response: " << status << std::endl;
+        if (status != "continued") {
+            send_gdb_packet("S05");
+            break;
+        }
+    }
+}
+
+void GDBServer::send_gdb_packet(std::string response) {
+    uint8_t checksum = 0;
+    for (size_t i = 0; i < response.size(); i++) {
+        checksum += response[i];
+    }
+    char checksum_str[3];
+    snprintf(checksum_str, sizeof(checksum_str), "%02x", checksum);
+    std::string gdb_response = "$" + response + "#" + checksum_str;
+    std::cout << "gdb response: " << gdb_response << std::endl;
+    int n = write(connfd_, gdb_response.c_str(), gdb_response.size());
+    if (n < 0) {
+        throw RuntimeException("write error");
+    }
+    std::cout << "write result " << n << std::endl;
+    if (n == 0) {
+        std::cout << "write closed pipe" << std::endl;
+        throw RuntimeException("write closed pipe");
+    }
+}
+
 void GDBServer::start() {
     const int MAX=1000;
     char buf[MAX]; 
@@ -159,7 +191,8 @@ void GDBServer::start() {
             std::cout << "gdb c command: " << str.substr(0) << std::endl;
             auto item = writeread_("$c");
             std::cout << "item response: " << item << std::endl;
-            // no response
+            std::thread status_thread(&GDBServer::periodically_check_status, this);
+            status_thread.detach();
             continue;
         } else if (str.rfind("\x003", 0) == 0) {
             std::cout << "gdb interrupt command" << std::endl;
@@ -189,23 +222,9 @@ void GDBServer::start() {
             response = "";
         }
 
-        uint8_t checksum = 0;
-        for (size_t i = 0; i < response.size(); i++) {
-            checksum += response[i];
-        }
-        char checksum_str[3];
-        snprintf(checksum_str, sizeof(checksum_str), "%02x", checksum);
-        std::string gdb_response = "$" + response + "#" + checksum_str;
-        std::cout << "gdb response: " << gdb_response << std::endl;
-        int n = write(connfd_, gdb_response.c_str(), gdb_response.size());
-        if (n < 0) {
-            throw RuntimeException("write error");
-        }
-        std::cout << "write result " << n << std::endl;
-        if (n == 0) {
-            std::cout << "write closed pipe" << std::endl;
-            break;
-        }
+        send_gdb_packet(response);
+
+
         //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
          
