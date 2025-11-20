@@ -31,6 +31,8 @@ GDBServer::GDBServer(std::function<std::string(std::string_view)> writeread) : w
     if (sockfd == -1) { 
         throw RuntimeException("socket creation failed");
     }
+    int option = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
     std::cout << "socket created successfully" << std::endl;
     struct sockaddr_in servaddr{};
