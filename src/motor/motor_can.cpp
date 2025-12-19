@@ -119,6 +119,11 @@ class CANFile : public TextFile {
                     if (frame.can_id == (5 << 7 | devnum_)) {
                         success = true;
                         length_recv = std::min(length, (unsigned int) frame.len);
+                        if (frame.data[0] != 0) {
+                            // an ascii packet, not a special control packet
+                            // search for embedded 0 terminator
+                            length_recv = strnlen((const char*) frame.data, length_recv);
+                        }
                         std::memcpy(data, frame.data, length_recv);
                     }
                 }
