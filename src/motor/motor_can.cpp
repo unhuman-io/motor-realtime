@@ -319,17 +319,21 @@ ssize_t MotorCAN::read() {
     pollfd tmp;
     tmp.fd = fd_;
     tmp.events = POLLIN;
-    int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
-    int nbytes = 0;
-    if (poll_result > 0) {
-        nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
-        if (nbytes > 0) {
-            if (frame.can_id == 3 << 7 | devnum_) {
-                int length = std::min(nbytes, (int)sizeof(status_));
-                std::memcpy(&status_, frame.data, length);
+
+    int poll_result;
+    int nbytes;
+    do {
+        poll_result = ::poll(&tmp, 1, 0 /* ms */);
+        if (poll_result > 0) {
+            nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+            if (nbytes > 0) {
+                if (frame.can_id == 3 << 7 | devnum_) {
+                    int length = std::min(nbytes, (int)sizeof(status_));
+                    std::memcpy(&status_, frame.data, length);
+                }
             }
         }
-    }
+    } while (poll_result > 0);
     return nbytes;
 }
 
