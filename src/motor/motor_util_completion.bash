@@ -23,7 +23,6 @@ _motor_util_completion()
         case ${COMP_WORDS[$i]} in
             set) subcommand=set ; break ;; 
             read) subcommand=read ; break ;;
-            --set_api) subcommand=set_api ; break ;;
             -n|--names) subcommand=names ; break ;;
             -p|--paths) subcommand=paths ; break ;;
             -d|--devpaths) subcommand=devpaths ; break ;;
@@ -38,6 +37,7 @@ _motor_util_completion()
             impedance) subcommand=impedance ; break ;;
             tuning) subcommand=tuning_mode ; break ;;
             --set-api) subcommand=api_set ; break ;;
+            --text) subcommand=api_text ; break ;;
         esac
         (( i-- ))
     done
@@ -85,7 +85,6 @@ _motor_util_completion()
             esac
             words=$base_words ;;
         check_messages_version) words="none major minor $base_words" ;;
-        set_api) return 0 ;;
         state) words="--position --velocity --torque --torque_dot --current --kp --kd --kt --ks -h --help" ;
             case $last in
                 --position|--velocity|--torque|--torque_dot|--current|--kp|--kd|--kt|--ks) return 0 ;;
@@ -112,6 +111,7 @@ _motor_util_completion()
                 --mode) words="position velocity torque current voltage impedance" ;;
             esac ;;
         api_set) words="$(motor_util ${COMP_WORDS[@]:1:$((i-1))} --no-list --list-api)" ;;
+        api_text) words="$(motor_util ${COMP_WORDS[@]:1:$((i-2))} --no-list --list-api)" ;;
         *) words=$base_words ;;
     esac
 
