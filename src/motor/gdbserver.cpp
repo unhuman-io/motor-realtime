@@ -154,9 +154,11 @@ void GDBServer::start() {
         } else if (str.rfind("$g", 0) == 0) {
             std::cout << "gdb command: " << str.substr(1) << std::endl;
             auto item = writeread_("$g");
-            response = item;
-            //response = std::string(17*4*2, '0');
-            //response = "000000004aff7f40000000000000000000000000000000000000000000000000000000000000000044f10b000000000000000000a0fd7f400000000038ab000000000001";
+            if (item != "error") {
+                response = item;
+            } else {
+                response = std::string(17*4*2, '0');
+            }
         } else if (str.rfind("$?", 0) == 0) {
             std::cout << "gdb command: " << str.substr(1) << std::endl;
             response = "S05"; // "T05thread:pbdeab.bdeab;"
