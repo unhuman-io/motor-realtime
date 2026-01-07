@@ -34,6 +34,12 @@ endif()
 install(FILES ${PROJECT_SOURCE_DIR}/include/motor_messages/motor_messages.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/motor_messages)
 
+if(BUILD_MOTOR_SIM)
+    add_executable(motor_l2_sim motor_l2_sim.cpp ../l2/l2.cpp)
+    target_link_libraries(motor_l2_sim motor_manager cli11)
+    target_include_directories(motor_l2_sim PRIVATE ../l2)
+endif()
+
 if(BUILD_MOTOR_UTIL)
     add_executable(motor_util motor_util.cpp )
     target_link_libraries(motor_util motor_manager json)

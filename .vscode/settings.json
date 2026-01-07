@@ -4,5 +4,8 @@
     },
     "files.exclude": {
         "**/build*/**": true
-    }
+    },
+    "cSpell.words": [
+        "obot"
+    ]
 }
