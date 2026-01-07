@@ -36,14 +36,14 @@ jobs:
       with:
         name: packages-${{ matrix.distro }}
         path: packages
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./packages/*
         tag: develop
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'main')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -65,14 +65,14 @@ jobs:
       with:
         name: artifacts-${{ matrix.distro }}
         path: artifacts_${{ matrix.distro }}.tgz
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./artifacts_${{ matrix.distro }}.tgz
         tag: develop
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'main')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -144,14 +144,14 @@ jobs:
       with:
         name: packages-${{ matrix.distro }}-${{ matrix.arch }}
         path: packages
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./packages/*
         tag: develop
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'main')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -191,14 +191,14 @@ jobs:
       with:
         name: artifacts-${{ matrix.distro }}-${{ matrix.arch }}
         path: artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
         tag: develop
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'main')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}

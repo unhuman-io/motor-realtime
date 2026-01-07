@@ -331,6 +331,8 @@ MotorIP::~MotorIP() {
   if (rx_thread_.joinable()) {
     rx_thread_.join();
   }
+  ::close(fd_communication_lock_);
+  ::close(fd_);
 }
 
 bool MotorIP::connect() {
