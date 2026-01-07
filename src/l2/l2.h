@@ -26,16 +26,19 @@ class L2Socket {
     void send(const char *data, std::size_t length);
     int recv();
   protected:
+    int fd_;
+    mac_address_t mac_;
     L2Frame frame_out_;
     L2Frame frame_in_;
   private:
-    int fd_;
     std::string interface_;
 };
 
 class L2Device : public L2Socket {
   public:
     L2Device(std::string interface, std::string mac_address);
+  private:
+    void set_packet_filter();
 };
 
 } // namespace obot

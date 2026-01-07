@@ -22,7 +22,10 @@ class MotorL2Chain {
     void update() {
         std::cout << ".";
 
-        std::cout << socket_.recv();
+        int recv_length = socket_.recv();
+        if (recv_length > 0) {
+            std::cout << recv_length;
+        }
 
         uint8_t payload[MAX_ETH_L2_PAYLOAD_SIZE];
         int ptr = 0;

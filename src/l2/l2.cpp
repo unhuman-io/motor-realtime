@@ -8,6 +8,7 @@
 #include <net/if.h>
 #include <cstring>
 #include <poll.h>
+#include <linux/filter.h>
 
 namespace obot {
 
@@ -59,8 +60,45 @@ int L2Socket::recv() {
 }
 
 L2Device::L2Device(std::string interface, std::string mac_address) : L2Socket(interface) {
-  mac_address_t src_mac = mac_ascii_to_raw(mac_address);
-  std::memcpy(frame_out_.src_mac, &src_mac, 6);
+  mac_ = mac_ascii_to_raw(mac_address);
+  std::memcpy(frame_out_.src_mac, &mac_, 6);
+  set_packet_filter();
+}
+
+void L2Device::set_packet_filter() {
+    uint32_t dest_word1;
+    std::memcpy(&dest_word1, frame_out_.src_mac, 4);
+    dest_word1 = htonl(dest_word1);
+    uint16_t dest_word2;
+    std::memcpy(&dest_word2, frame_out_.src_mac+4, 2);
+    dest_word2 = htons(dest_word2);
+    // Set Berkeley Packet Filter to only receive packets with src_mac == dst_mac_
+    struct sock_filter bpf_code[] = {
+        // Load first 4 bytes of Ethernet dst MAC (offset 6)
+        { BPF_LD+BPF_W+BPF_ABS, 0, 0, 0x00000000 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 0
+        // Compare with dst_mac_[0..3]
+        { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, dest_word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+
+        // Load next 2 bytes of Ethernet dst MAC (offset 10)
+        { BPF_LD+BPF_H+BPF_ABS, 0, 0, 0x00000004 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 4
+        // Compare with dst_mac_[4..5]
+        { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, dest_word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+
+        // Accept packet
+        { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
+
+        // Reject packet
+        { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
+    };
+
+    struct sock_fprog bpf_prog = {
+        .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
+        .filter = bpf_code,
+    };
+    if (int result = setsockopt(fd_, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
+        throw RuntimeException("Failed to set BPF filter " + std::to_string(errno) + ": " + strerror(errno));
+    }
+
 }
 
 } // namespace obot
