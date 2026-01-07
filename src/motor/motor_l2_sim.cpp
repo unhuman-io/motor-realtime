@@ -9,7 +9,7 @@ namespace obot {
 class MotorL2Chain {
   public:
     MotorL2Chain(std::string interface, std::string mac_address, std::vector<std::string> names) :
-        mac_address_(mac_address), socket_(interface) {
+        mac_address_(mac_address), socket_(interface, mac_address) {
         std::cout << "Simulating motors:";
         for (const auto &name : names) {
             motors_.push_back(std::make_unique<SimulatedMotor>(name));
@@ -21,16 +21,32 @@ class MotorL2Chain {
     }
     void update() {
         std::cout << ".";
+
+        std::cout << socket_.recv();
+
+        uint8_t payload[MAX_ETH_L2_PAYLOAD_SIZE];
+        int ptr = 0;
+        struct {
+            uint16_t node_id:4 = 1;
+            uint16_t bus_id:4 = 0;
+            uint16_t type:4 = 2; // status
+        } type;
         for (auto &motor : motors_) {
-            auto status = motor->read();
-            socket_.send((const char*) motor->status(), status);
-            //std::cout << status << std::endl;
+            auto length = motor->read();
+            if (ptr + 3 + length >= sizeof(payload)) { break; }
+            std::memcpy(&payload[ptr], &type, 2);
+            ptr += 2;
+            type.node_id++;
+            payload[ptr++] = length;
+            std::memcpy(&payload[ptr], motor->status(), length);
+            ptr += length;
         }
+        socket_.send((const char *) payload, ptr);
     }
   private:
     std::vector<std::unique_ptr<SimulatedMotor>> motors_;
     std::string mac_address_;
-    L2Socket socket_;
+    L2Device socket_;
 };
 
 } // namespace obot
