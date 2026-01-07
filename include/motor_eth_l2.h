@@ -72,19 +72,22 @@ struct L2Frame {
 };
 
 struct L2CANFrame {
-    constexpr L2CANFrame() {}
+    constexpr L2CANFrame() : pad(0), mtv(0), rtr(0), eff(0), brs(0), fdf(0), esi(0) {}
     uint8_t dst_mac[6] = {};
-    union {
-        uint8_t src_mac[6] = {};
-        struct {
-            uint8_t src_mac4[4];
-            uint8_t bus_id;
-            uint8_t node_id;
-        };
-    };
+    uint8_t src_mac[6] = {};
     uint8_t ethertype[2] = {0x88, 0xB5};
-    uint8_t reserved0[8] = {};
-    uint8_t node_id2 = {};
+    uint8_t reserved0[2] = {};
+    uint32_t timestamp = {};
+    uint8_t reserved[1] = {};
+        uint8_t pad:2;
+        uint8_t mtv:1;
+        uint8_t rtr:1;
+        uint8_t eff:1;
+        uint8_t brs:1;
+        uint8_t fdf:1;
+        uint8_t esi:1;
+    uint8_t can_bus_id = {};
+    uint8_t can_id = {};
     uint8_t length = {};
     uint8_t type = {};
 
@@ -94,8 +97,11 @@ struct L2CANFrame {
 class EthL2CANFile : public EthL2RawFile {
  public:
     EthL2CANFile(std::string address) : EthL2RawFile(address) {
-        can_bus_id_ = dst_mac_[4];
-        can_id_ = dst_mac_[5];
+        if (sscanf(address.c_str(), "%*38[^-]-%hhu:%hhu",
+            &can_bus_id_, &can_id_) == 2) {
+        } else {
+            throw RuntimeException("Invalid CAN over MAC address format: " + address);
+        }
     }
     virtual void set_packet_filter() {
         uint32_t dest_word1;
@@ -128,7 +134,7 @@ class EthL2CANFile : public EthL2RawFile {
             { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, dest_word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
 
             // Load CAN ID
-            { BPF_LD+BPF_B+BPF_ABS, 0, 0, offsetof(L2CANFrame, node_id) }, // BPF_LD+BPF_B+BPF_ABS = 0x30, offset can_id
+            { BPF_LD+BPF_B+BPF_ABS, 0, 0, offsetof(L2CANFrame, can_id) }, // BPF_LD+BPF_B+BPF_ABS = 0x30, offset can_id
             // Compare with can_id_
             { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, can_id_ }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
 
@@ -193,10 +199,11 @@ class MotorEthL2 : public MotorSocket {
             EthL2CANFile * motor_txt_can = static_cast<EthL2CANFile *>(motor_txt_.get());
             devnum_ = motor_txt_can->can_id_;
             dev_path_ += "-can";
-            char s[6*3] = {};
-            std::sprintf(s, "%02x:%02x:%02x:%02x:%02x:%02x",
+            char s[6*3+4] = {};
+            std::sprintf(s, "%02x:%02x:%02x:%02x:%02x:%02x-%u",
                 motor_txt_can->dst_mac_[0], motor_txt_can->dst_mac_[1], motor_txt_can->dst_mac_[2],
-                motor_txt_can->dst_mac_[3], motor_txt_can->dst_mac_[4], motor_txt_can->dst_mac_[5]);
+                motor_txt_can->dst_mac_[3], motor_txt_can->dst_mac_[4], motor_txt_can->dst_mac_[5],
+                motor_txt_can->can_bus_id_);
             base_path_ = s;
         }
     }
