@@ -12,6 +12,8 @@ class SocketFile : public TextFile {
     SocketFile() {}
     virtual ~SocketFile() override {}
     int poll();
+    void open();
+    void connect();
     virtual void flush();
     virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false);
     virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false);
@@ -32,6 +34,7 @@ class SocketFile : public TextFile {
     static constexpr int RX_BUFFER_SIZE = 1000;
     uint8_t rx_buffer_[RX_BUFFER_SIZE];
     bool api_mode_ = false;
+    std::string interface_ = "lo";
     
 };
 

@@ -43,7 +43,7 @@ void L2Socket::open() {
 
 void L2Socket::send(const char * data, std::size_t length) {
     std::memcpy(&frame_out_.payload, data, length);
-    int send_result = ::send(fd_, &frame_out_, length+14, 0);
+    int send_result = ::send(fd_, &frame_out_, length+24, 0);
 }
 
 int L2Socket::recv(char * data, std::size_t length, int timeout_us) {

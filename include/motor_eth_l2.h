@@ -163,10 +163,9 @@ class MotorEthL2 : public MotorSocket {
     MotorEthL2(std::string address, std::string address_alias = "") : MotorSocket(get_interface(address), address, address_alias, new EthL2File(address)) {
         motor_txt_ = std::move(std::unique_ptr<EthL2File>(new EthL2File(address)));
         EthL2File * motor_txt = static_cast<EthL2File *>(motor_txt_.get());
-        open();
+        motor_txt->open();
+        fd_ = motor_txt->fd_;
         get_interface_mac_address();
-        motor_txt->fd_ = fd_;
-        motor_txt->fd_communication_lock_ = fd_communication_lock_;
         motor_txt->address_ = address;
         motor_txt->send_recv_frame_id_ = 4;
         motor_txt->recv_frame_id_ = 5;
@@ -174,14 +173,15 @@ class MotorEthL2 : public MotorSocket {
         motor_txt->set_packet_filter();
         std::memcpy(motor_txt->src_mac_, src_mac_, 6);
         motor_txt->set_api_mode();
+        motor_txt->connect();
 
-        realtime_communication_->fd_ = fd_;
-        realtime_communication_->fd_communication_lock_ = fd_communication_lock_;
+        realtime_communication_->open();
+
         realtime_communication_->address_ = address;
-        realtime_communication_->fd_communication_lock_ = fd_communication_lock_;
         realtime_communication_->set_packet_filter();
         std::memcpy(dynamic_cast<EthL2File *>(realtime_communication_)->src_mac_, src_mac_, 6);
-
+        realtime_communication_->connect();
+        
         connected_ = connect();
         if constexpr (mode == EthL2FileMode::ETH_L2_CAN) {
             EthL2CANFile * motor_txt_can = static_cast<EthL2CANFile *>(motor_txt_.get());
@@ -208,7 +208,7 @@ class MotorEthL2 : public MotorSocket {
     void get_interface_mac_address();
 
     uint8_t src_mac_[6] = {};
-    
+
 };
 
 } // namespace obot

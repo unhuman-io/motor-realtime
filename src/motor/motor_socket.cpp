@@ -11,12 +11,7 @@
 namespace obot {
 
 void MotorSocket::open() {
-    fd_ = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    if (fd_ < 0) {
-      throw RuntimeException("socket failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
-    }
 
-    //flush();
 }
 
 int MotorSocket::create_communication_lock() {
@@ -31,6 +26,13 @@ int MotorSocket::create_communication_lock() {
       throw RuntimeException("Error lseek lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     return err;
+}
+
+void SocketFile::open() {
+    fd_ = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    if (fd_ < 0) {
+      throw RuntimeException("socket failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
+    }
 }
 
 int SocketFile::lock_communication() {
@@ -103,7 +105,7 @@ ssize_t SocketFile::_read(char * data, unsigned int length, bool write_read) {
   pollfd tmp;
   tmp.fd = fd_;
   tmp.events = POLLIN;
-  int poll_result = ::poll(&tmp, 1, 0);
+  int poll_result = ::poll(&tmp, 1, timeout_ms_);
 
   if (poll_result > 0) {
     int result = recv(fd_, rx_buffer_, RX_BUFFER_SIZE, 0);
@@ -211,9 +213,7 @@ ssize_t SocketFile::writeread(const char * data_out, unsigned int length_out, ch
     return retval;
 }
 
-MotorSocket::~MotorSocket() {}
-
-bool MotorSocket::connect() {
+void SocketFile::connect() {
     sockaddr_ll server_addr = {};
     server_addr.sll_family = AF_PACKET;
     server_addr.sll_protocol = htons(0x88B5);
@@ -223,7 +223,11 @@ bool MotorSocket::connect() {
     if (retval < 0) {
       throw RuntimeException("bind failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
     }
-    
+}
+
+MotorSocket::~MotorSocket() {}
+
+bool MotorSocket::connect() {
     create_communication_lock();
 
     fd_flags_ = fcntl(fd_, F_GETFL);
