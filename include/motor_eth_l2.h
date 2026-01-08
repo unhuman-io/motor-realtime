@@ -72,26 +72,15 @@ struct L2Frame {
 };
 
 struct L2CANFrame {
-    constexpr L2CANFrame() : pad(0), mtv(0), rtr(0), eff(0), brs(0), fdf(0), esi(0) {}
+    constexpr L2CANFrame() : can_id(0), type(0) {}
     uint8_t dst_mac[6] = {};
     uint8_t src_mac[6] = {};
     uint8_t ethertype[2] = {0x88, 0xB5};
-    uint8_t reserved0[2] = {};
-    uint32_t timestamp = {};
-    uint8_t reserved[1] = {};
-        uint8_t pad:2;
-        uint8_t mtv:1;
-        uint8_t rtr:1;
-        uint8_t eff:1;
-        uint8_t brs:1;
-        uint8_t fdf:1;
-        uint8_t esi:1;
-    uint8_t can_bus_id = {};
-    uint8_t can_id = {};
+    uint8_t reserved[8] = {};
+    uint16_t can_id:7;
+    uint16_t type:4;
     uint8_t length = {};
-    uint8_t type = {};
-
-    uint8_t payload[64] = {};
+    uint8_t payload[1000] = {};
 };
 
 class EthL2CANFile : public EthL2RawFile {
@@ -134,7 +123,7 @@ class EthL2CANFile : public EthL2RawFile {
             { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, dest_word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
 
             // Load CAN ID
-            { BPF_LD+BPF_B+BPF_ABS, 0, 0, offsetof(L2CANFrame, can_id) }, // BPF_LD+BPF_B+BPF_ABS = 0x30, offset can_id
+            { BPF_LD+BPF_B+BPF_ABS, 0, 0, offsetof(L2CANFrame, length) - 2 }, // BPF_LD+BPF_B+BPF_ABS = 0x30, offset can_id
             // Compare with can_id_
             { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, can_id_ }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
 
@@ -174,10 +163,9 @@ class MotorEthL2 : public MotorSocket {
     MotorEthL2(std::string address, std::string address_alias = "") : MotorSocket(get_interface(address), address, address_alias, new EthL2File(address)) {
         motor_txt_ = std::move(std::unique_ptr<EthL2File>(new EthL2File(address)));
         EthL2File * motor_txt = static_cast<EthL2File *>(motor_txt_.get());
-        open();
+        motor_txt->open();
+        fd_ = motor_txt->fd_;
         get_interface_mac_address();
-        motor_txt->fd_ = fd_;
-        motor_txt->fd_communication_lock_ = fd_communication_lock_;
         motor_txt->address_ = address;
         motor_txt->send_recv_frame_id_ = 4;
         motor_txt->recv_frame_id_ = 5;
@@ -185,15 +173,15 @@ class MotorEthL2 : public MotorSocket {
         motor_txt->set_packet_filter();
         std::memcpy(motor_txt->src_mac_, src_mac_, 6);
         motor_txt->set_api_mode();
+        motor_txt->connect();
 
-        realtime_communication_->fd_ = fd_;
-        realtime_communication_->fd_communication_lock_ = fd_communication_lock_;
+        realtime_communication_->open();
+
         realtime_communication_->address_ = address;
-        realtime_communication_->fd_communication_lock_ = fd_communication_lock_;
         realtime_communication_->set_packet_filter();
         std::memcpy(dynamic_cast<EthL2File *>(realtime_communication_)->src_mac_, src_mac_, 6);
-        rx_thread_ = std::thread([this]{ this->rx_data(); });
-
+        realtime_communication_->connect();
+        
         connected_ = connect();
         if constexpr (mode == EthL2FileMode::ETH_L2_CAN) {
             EthL2CANFile * motor_txt_can = static_cast<EthL2CANFile *>(motor_txt_.get());
@@ -216,17 +204,11 @@ class MotorEthL2 : public MotorSocket {
             throw RuntimeException("Invalid MAC address interface format: " + std::string(address));
         }
     }
-    virtual ~MotorEthL2() {
-        terminate_ = true;
-        if (rx_thread_.joinable()) {
-            rx_thread_.join();
-        }
-    }
+    virtual ~MotorEthL2() {}
     void get_interface_mac_address();
-    virtual void rx_callback(const uint8_t*, uint16_t) override;
 
     uint8_t src_mac_[6] = {};
-    
+
 };
 
 } // namespace obot

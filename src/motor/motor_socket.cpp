@@ -11,12 +11,7 @@
 namespace obot {
 
 void MotorSocket::open() {
-    fd_ = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    if (fd_ < 0) {
-      throw RuntimeException("socket failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
-    }
 
-    //flush();
 }
 
 int MotorSocket::create_communication_lock() {
@@ -31,6 +26,13 @@ int MotorSocket::create_communication_lock() {
       throw RuntimeException("Error lseek lock file " + lock_file + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     return err;
+}
+
+void SocketFile::open() {
+    fd_ = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    if (fd_ < 0) {
+      throw RuntimeException("socket failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
+    }
 }
 
 int SocketFile::lock_communication() {
@@ -100,24 +102,24 @@ ssize_t SocketFile::_read(char * data, unsigned int length, bool write_read) {
     }
   }
 
-  {
-    std::lock_guard<std::mutex> lk(rx_data_request_cv_m_);
-    rx_data_request_ = true;
-  }
-  rx_data_request_cv_.notify_one();
-  std::unique_lock<std::mutex> lk(rx_data_cv_m_);
-  bool status = rx_data_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_received_ != false; });
+  pollfd tmp;
+  tmp.fd = fd_;
+  tmp.events = POLLIN;
+  int poll_result = ::poll(&tmp, 1, timeout_ms_);
 
-  if (status == false) {
-    errno = ETIMEDOUT;
-    return -1;
+  if (poll_result > 0) {
+    int result = recv(fd_, rx_buffer_, RX_BUFFER_SIZE, 0);
+    // std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
+    if (result < 0) {
+      throw RuntimeErrnoException("Error rx_data");
+    }
+    length = std::min(length, (unsigned int) result);
+    std::memcpy(data, rx_buffer_, length);
   } else {
-    size_t len = std::min((size_t) length, rx_len_);
-    std::memset(data, 0, length);
-    std::memcpy(data, rx_buf_, len);
-    rx_received_ = false;
-    return len;
+    length = 0;
   }
+    
+  return length;
 }
 
 ssize_t SocketFile::read(char * data, unsigned int length, bool write_read) {
@@ -211,30 +213,7 @@ ssize_t SocketFile::writeread(const char * data_out, unsigned int length_out, ch
     return retval;
 }
 
-void SocketFile::rx_callback(const uint8_t* buf, uint16_t len) {
-  std::unique_lock<std::mutex> lk(rx_data_request_cv_m_);
-  bool status = rx_data_request_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms_), [this]{ return rx_data_request_; });
-  if (status == false) {
-    throw RuntimeException("rx_callback timeout - data received without active request");
-  }
-  rx_data_request_ = false;
-  {
-    std::lock_guard<std::mutex> lk(rx_data_cv_m_);
-    std::memcpy(rx_buf_, buf, len);
-    rx_len_ = len;
-    rx_received_ = true;
-  }
-  rx_data_cv_.notify_one();
-}
-
-MotorSocket::~MotorSocket() {
-  terminate_ = true;
-  if (rx_thread_.joinable()) {
-      rx_thread_.join();
-  }
-}
-
-bool MotorSocket::connect() {
+void SocketFile::connect() {
     sockaddr_ll server_addr = {};
     server_addr.sll_family = AF_PACKET;
     server_addr.sll_protocol = htons(0x88B5);
@@ -244,7 +223,11 @@ bool MotorSocket::connect() {
     if (retval < 0) {
       throw RuntimeException("bind failed for " + address_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
     }
-    
+}
+
+MotorSocket::~MotorSocket() {}
+
+bool MotorSocket::connect() {
     create_communication_lock();
 
     fd_flags_ = fcntl(fd_, F_GETFL);
@@ -287,39 +270,5 @@ ssize_t MotorSocket::write() {
   return realtime_communication_->write((char *) &command_, sizeof(command_));
 }
 
-void MotorSocket::rx_data() {
-  //std::cout << "rx_data started, fd_ " << fd_ << std::endl;
-  try {
-    while(1) {
-      // assume blocking i/o
-      pollfd tmp;
-      tmp.fd = fd_;
-      tmp.events = POLLIN;
-      int poll_result = ::poll(&tmp, 1, 5 /* ms */);
-      if (terminate_) {
-        return;
-      }
-      if (poll_result > 0) {
-        int result = recv(fd_, rx_lin_buffer_, RX_BUFFER_SIZE, 0);
-        // std::cout << "read result " << result << ", read idx " << current_read_idx_ << std::endl;
-        if (result < 0) {
-          throw RuntimeException("Error rx_data: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
-        }
-        for (int i=0; i<result; i++) {
-          rx_buffer_[current_read_idx_] = rx_lin_buffer_[i];
-          current_read_idx_ = (current_read_idx_ + 1) % RX_BUFFER_SIZE;
-        }
-        rx_callback(rx_lin_buffer_, result);
-        //parser_.process((current_read_idx_ - 1) % RX_BUFFER_SIZE);
-      }
-      if (terminate_) {
-        return;
-      }
-    }
-  } catch (const std::exception &e) {
-    std::cerr << "rx_thread caught exception: " << e.what() << std::endl;
-    std::cerr << "rx_thread terminating" << std::endl;
-  }
-}
 
 }; // namespace obot

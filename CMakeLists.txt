@@ -44,6 +44,7 @@ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 option(BUILD_SHARED_LIBS "Build libraries shared" ON)
 option(BUILD_PYTHON_API "build a python api module" OFF)
 option(BUILD_MOTOR_UTIL "build motor util command line program" ON)
+option(BUILD_MOTOR_SIM "build simulated motors" ON)
 option(INSTALL_COMPLETION "install bash completion script" ON)
 option(INSTALL_MOTOR_EMBEDDED "install motor embedded" ON)
 

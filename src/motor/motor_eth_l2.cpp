@@ -28,8 +28,8 @@ ssize_t EthL2CANFile::_read(char *data, unsigned int length, bool write_read) {
     std::memcpy(frame.dst_mac, dst_mac_, 6);
     std::memcpy(frame.src_mac, src_mac_, 6);
     frame.type = recv_frame_id_;
-    frame.can_bus_id = can_bus_id_;
-    frame.can_id = can_id_;
+    //frame.can_bus_id = can_bus_id_;
+    frame.can_id = can_bus_id_ << 4 | can_id_;
     frame.length = 44;
     //std::memcpy(data, &frame, sizeof(frame)-64);
     ssize_t read_length = SocketFile::_read((char *) &frame, sizeof(frame), write_read);
@@ -49,8 +49,8 @@ ssize_t EthL2CANFile::write(const char *data, unsigned int length, bool write_re
     std::memcpy(frame.src_mac, src_mac_, 6);
     length = std::min(length, 64u);
     std::memcpy(frame.payload, data, length);
-    frame.can_bus_id = can_bus_id_;
-    frame.can_id = can_id_;
+    //frame.can_bus_id = can_bus_id_;
+    frame.can_id = can_bus_id_ << 4 | can_id_;
     frame.length = length+1;
     //frame.brs = 1;
     //frame.fdf = 1;
@@ -62,25 +62,13 @@ ssize_t EthL2CANFile::writeread(const char *data_out, unsigned int length_out, c
     return SocketFile::writeread(data_out, length_out, data_in, length_in);
 }
 
-template<EthL2FileMode mode>
-void MotorEthL2<mode>::rx_callback(const uint8_t* data, uint16_t length) {
-    if constexpr (mode == EthL2FileMode::ETH_L2_CAN) {
-        L2CANFrame frame;
-        std::memcpy(&frame, data, std::min((size_t) length, sizeof(L2CANFrame)));
-        if (frame.type == 5) {
-            dynamic_cast<EthL2CANFile *>(motor_txt_.get())->rx_callback(data, length);
-        } else if (frame.type == 3) {
-            realtime_communication_->rx_callback(data, length);
-        }
-    }
-}
 
 template<EthL2FileMode mode>
 void MotorEthL2<mode>::get_interface_mac_address() {
     struct ifreq ifr = {};
     std::strncpy(ifr.ifr_name, interface_.c_str(), IFNAMSIZ - 1);
     if (ioctl(fd_, SIOCGIFHWADDR, &ifr) == -1) {
-        throw RuntimeException("ioctl SIOCGIFHWADDR failed for " + interface_ + ", error: " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeErrnoException("ioctl SIOCGIFHWADDR failed for " + interface_ + ", error");
     }
     std::memcpy(src_mac_, ifr.ifr_hwaddr.sa_data, 6);
 }

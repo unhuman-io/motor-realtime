@@ -34,6 +34,12 @@ endif()
 install(FILES ${PROJECT_SOURCE_DIR}/include/motor_messages/motor_messages.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/motor_messages)
 
+if(BUILD_MOTOR_SIM)
+    add_executable(motor_l2_sim motor_l2_sim.cpp ../l2/l2.cpp)
+    target_link_libraries(motor_l2_sim motor_manager cli11)
+    target_include_directories(motor_l2_sim PRIVATE ../l2)
+endif()
+
 if(BUILD_MOTOR_UTIL)
     add_executable(motor_util motor_util.cpp )
     target_link_libraries(motor_util motor_manager json)
@@ -44,6 +50,11 @@ if(BUILD_MOTOR_UTIL)
     target_link_libraries(motor_usbmon motor_manager)
     install(TARGETS motor_usbmon DESTINATION bin)
 endif()
+
+add_custom_target(setcap
+    COMMAND sudo setcap cap_net_raw+ep motor_l2_sim
+    COMMAND sudo setcap cap_net_raw+ep motor_util)
+add_dependencies(setcap motor_l2_sim motor_util)
 
 add_executable(motor_data_echo motor_data_echo.cpp)
 target_include_directories(motor_data_echo PUBLIC ${PROJECT_SOURCE_DIR}/include)
