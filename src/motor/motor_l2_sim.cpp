@@ -2,6 +2,7 @@
 #include "l2.h"
 #include "CLI11.hpp"
 #include "realtime_thread.h"
+#include "exception.h"
 #include <cxxabi.h>
 
 namespace obot {
@@ -22,9 +23,40 @@ class MotorL2Chain {
     void update() {
         std::cout << ".";
 
-        int recv_length = socket_.recv();
-        if (recv_length > 0) {
-            std::cout << recv_length;
+        uint8_t payload_in[MAX_ETH_L2_PAYLOAD_SIZE];
+        int recv_length = socket_.recv((char *) payload_in, MAX_ETH_L2_PAYLOAD_SIZE);
+        if (recv_length > 24) {
+            recv_length -= 24;
+            std::cout << recv_length << std::endl;
+            for (auto &packet : socket_.parse_payload(payload_in, recv_length)) {
+                if (packet.type != 0)
+                    std::cout << "received packet type " << packet.type << " for node id " << packet.node_id << " length " << (int) packet.length << std::endl;
+                if (packet.node_id <= motors_.size()) {
+                    switch (packet.type) {
+                        case 0:
+                            break;
+                        case 1:
+                            std::memcpy(motors_[packet.node_id-1]->command(), &packet.data, packet.length);
+                            motors_[packet.node_id-1]->write();
+                            break;
+                        case 4: {
+                            auto item = (*motors_[packet.node_id-1])[std::string((const char *) packet.data, packet.length)].get();
+                            Packet response {
+                                .node_id = packet.node_id,
+                                .type = 5,
+                                .length = static_cast<uint8_t>(item.size())
+                            };
+                            std::cout << "sending response " << item << std::endl;
+                            std::memcpy(&response.data, item.c_str(), response.length);
+                            socket_.send((const char *) &response, response.length+3);
+                            break;
+                        }
+                        default:
+                            throw RuntimeException("invalid packet id");
+                            break;
+                    }
+                }
+            }
         }
 
         uint8_t payload[MAX_ETH_L2_PAYLOAD_SIZE];

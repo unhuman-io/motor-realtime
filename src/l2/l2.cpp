@@ -9,6 +9,7 @@
 #include <cstring>
 #include <poll.h>
 #include <linux/filter.h>
+#include <iostream>
 
 namespace obot {
 
@@ -45,18 +46,43 @@ void L2Socket::send(const char * data, std::size_t length) {
     int send_result = ::send(fd_, &frame_out_, length+14, 0);
 }
 
-int L2Socket::recv() {
+int L2Socket::recv(char * data, std::size_t length, int timeout_us) {
     pollfd tmp;
     tmp.fd = fd_;
     tmp.events = POLLIN;
     int result = ::poll(&tmp, 1, 0);
     if (result > 0) {
       result = ::recv(fd_, &frame_in_, sizeof(frame_in_), 0);
+      result -= 24;
       if (result < 0) {
         throw RuntimeErrnoException("Error recv");
       }
+      length = std::min(length, static_cast<std::size_t>(result));
+      std::memcpy(data, frame_in_.payload, length);
+    } else {
+      length = 0;
     }
-    return result;
+    return length;
+}
+
+std::vector<Packet> L2Socket::parse_payload(uint8_t *payload, std::size_t length) {
+  int ptr = 0;
+  std::vector<Packet> packets;
+  while(ptr <= length + 3) {
+    int packet_length = payload[ptr+2];
+    //std::cout << "packet " << packet_length << std::endl;
+    if (ptr + 3 + packet_length <= length) {
+      packets.push_back({});
+      std::memcpy(&packets[packets.size()-1], &payload[ptr], packet_length+3);
+      ptr += 3 + packet_length;
+    } else {
+      if (packet_length != 0) {
+        throw RuntimeException("invalid packet length");
+      }
+      break;
+    }
+  }
+  return packets;
 }
 
 L2Device::L2Device(std::string interface, std::string mac_address) : L2Socket(interface) {

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <array>
 #include "exception.h"
+#include <vector>
 
 namespace obot {
 
@@ -15,6 +16,15 @@ struct L2Frame {
     uint8_t payload[MAX_ETH_L2_PAYLOAD_SIZE] = {};
 };
 
+struct Packet {
+    struct {
+      uint16_t node_id:7;
+      uint16_t type:4;
+    };
+    uint8_t length;
+    uint8_t data[255];
+};
+
 
 using mac_address_t = std::array<uint8_t, 6>;
 mac_address_t mac_ascii_to_raw(std::string mac_ascii);
@@ -24,7 +34,8 @@ class L2Socket {
     L2Socket(std::string interface) : interface_(interface) { open(); }
     void open();
     void send(const char *data, std::size_t length);
-    int recv();
+    int recv(char * data, std::size_t length, int timeout_us = 0);
+    std::vector<Packet> parse_payload(uint8_t *payload, std::size_t length);
   protected:
     int fd_;
     mac_address_t mac_;

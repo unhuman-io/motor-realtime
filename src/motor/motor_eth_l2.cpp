@@ -28,8 +28,8 @@ ssize_t EthL2CANFile::_read(char *data, unsigned int length, bool write_read) {
     std::memcpy(frame.dst_mac, dst_mac_, 6);
     std::memcpy(frame.src_mac, src_mac_, 6);
     frame.type = recv_frame_id_;
-    frame.can_bus_id = can_bus_id_;
-    frame.can_id = can_id_;
+    //frame.can_bus_id = can_bus_id_;
+    frame.can_id = can_bus_id_ << 4 | can_id_;
     frame.length = 44;
     //std::memcpy(data, &frame, sizeof(frame)-64);
     ssize_t read_length = SocketFile::_read((char *) &frame, sizeof(frame), write_read);
@@ -49,8 +49,8 @@ ssize_t EthL2CANFile::write(const char *data, unsigned int length, bool write_re
     std::memcpy(frame.src_mac, src_mac_, 6);
     length = std::min(length, 64u);
     std::memcpy(frame.payload, data, length);
-    frame.can_bus_id = can_bus_id_;
-    frame.can_id = can_id_;
+    //frame.can_bus_id = can_bus_id_;
+    frame.can_id = can_bus_id_ << 4 | can_id_;
     frame.length = length+1;
     //frame.brs = 1;
     //frame.fdf = 1;
