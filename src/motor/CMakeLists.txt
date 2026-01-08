@@ -51,6 +51,11 @@ if(BUILD_MOTOR_UTIL)
     install(TARGETS motor_usbmon DESTINATION bin)
 endif()
 
+add_custom_target(setcap
+    COMMAND sudo setcap cap_net_raw+ep motor_l2_sim
+    COMMAND sudo setcap cap_net_raw+ep motor_util)
+add_dependencies(setcap motor_l2_sim motor_util)
+
 add_executable(motor_data_echo motor_data_echo.cpp)
 target_include_directories(motor_data_echo PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(motor_data_echo rt pthread)
