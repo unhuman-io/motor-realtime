@@ -147,7 +147,13 @@ int main(int argc, char** argv) {
     std::string vcan_interface {"vcan0"};
     std::string interface {"lo"};
     bool gateway_mode = false;
-    CLI::App app{"Utility converting ethernet l2 communication to vcan"};
+    CLI::App app{"Utility converting ethernet l2 communication to vcan\n"
+                 "    Example:\n"
+                 "    sudo modprobe vcan\n"
+                 "    sudo ip link add dev vcan0 type vcan\n"
+                 "    sudo ip link set up vcan0\n"
+                 "    eth2vcan -i eth0 -m 12:34:56:78:ab:cd\n"
+                 "    motor_util -f vcan0"};
     app.add_option("-v,--vcan", vcan_interface, "Use VCAN_INTERFACE for vcan")->type_name("VCAN_INTERFACE")->capture_default_str()->expected(1);
     app.add_option("-m,--mac", mac_address, "Use MAC address MAC_ADDRESS")->type_name("MAC_ADDRESS")->capture_default_str()->expected(1);
     app.add_option("-i,--interface", interface, "Use network interface INTERFACE")->type_name("INTERFACE")->capture_default_str()->expected(1);
