@@ -55,6 +55,18 @@ struct L2Frame {
 };
 L2Frame l2_frame_out;
 
+mac_t get_interface_mac_address(int fd, std::string interface) {
+    mac_t mac;
+    struct ifreq ifr = {};
+    std::strncpy(ifr.ifr_name, interface.c_str(), IFNAMSIZ - 1);
+    if (ioctl(fd, SIOCGIFHWADDR, &ifr) == -1) {
+        throw RuntimeErrnoException("ioctl SIOCGIFHWADDR failed for " + interface);
+    }
+    std::memcpy(mac.data(), ifr.ifr_hwaddr.sa_data, 6);
+    std::printf("interface mac: %02x:%02x:%02x:%02x:%02x:%02x\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return mac;
+}
+
 void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
         uint32_t word1;
         std::memcpy(&word1, mac.data(), 4);
@@ -66,11 +78,11 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
         uint32_t word2_loc = word1_loc + 4;
         // Set Berkeley Packet Filter to only receive packets with mac matching
         struct sock_filter bpf_code[] = {
-            // Load first 4 bytes of Ethernet src MAC (offset 6)
+            // Load first 4 bytes of Ethernet MAC
             { BPF_LD+BPF_W+BPF_ABS, 0, 0, word1_loc }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
             // Compare with dst_mac_[0..3]
             { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
-            // Load next 2 bytes of Ethernet src MAC (offset 10)
+            // Load next 2 bytes of Ethernet MAC
             { BPF_LD+BPF_H+BPF_ABS, 0, 0, word2_loc }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
             // Compare with dst_mac_[4..5]
             { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
@@ -85,12 +97,11 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
             .filter = bpf_code,
         };
         if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
-            throw RuntimeException("Failed to set BPF filter " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeErrnoException("Failed to set BPF filter");
         }
-
     }
 
-int open_eth(std::string interface, std::string mac_address, bool host_mode) {
+int open_eth(std::string interface, std::string mac_address, bool gateway_mode) {
     int fd = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (fd < 0) {
       throw RuntimeErrnoException("socket failed for " + interface);
@@ -105,15 +116,16 @@ int open_eth(std::string interface, std::string mac_address, bool host_mode) {
       throw RuntimeErrnoException("bind failed for " + interface);
     }
 
-    mac_t * this_mac = !host_mode ? &l2_frame_out.src_mac : &l2_frame_out.dst_mac;
-    mac_t * dst_mac = !host_mode ? &l2_frame_out.dst_mac : &l2_frame_out.src_mac;
+    mac_t * this_mac = !gateway_mode ? &l2_frame_out.src_mac : &l2_frame_out.dst_mac;
+    mac_t * dst_mac = !gateway_mode ? &l2_frame_out.dst_mac : &l2_frame_out.src_mac;
     if (sscanf(mac_address.c_str(), "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
         &(*dst_mac)[0], &(*dst_mac)[1], &(*dst_mac)[2],
         &(*dst_mac)[3], &(*dst_mac)[4], &(*dst_mac)[5]) == 6) {
     } else {
         throw RuntimeException("Invalid MAC address format");
     }
-    set_eth_packet_filter(fd, *dst_mac, !host_mode);
+    *this_mac = get_interface_mac_address(fd, interface);
+    set_eth_packet_filter(fd, *dst_mac, !gateway_mode);
     return fd;
 }
 
@@ -122,16 +134,16 @@ int main(int argc, char** argv) {
     std::string mac_address {"00:00:00:00:00:00"};
     std::string vcan_interface {"vcan0"};
     std::string interface {"lo"};
-    bool host_mode = false;
+    bool gateway_mode = false;
     CLI::App app{"Utility converting ethernet l2 communication to vcan"};
     app.add_option("-v,--vcan", vcan_interface, "Use VCAN_INTERFACE for vcan")->type_name("VCAN_INTERFACE")->capture_default_str()->expected(1);
     app.add_option("-m,--mac", mac_address, "Use MAC address MAC_ADDRESS")->type_name("MAC_ADDRESS")->capture_default_str()->expected(1);
     app.add_option("-i,--interface", interface, "Use network interface INTERFACE")->type_name("INTERFACE")->capture_default_str()->expected(1);
-    app.add_flag("--host", host_mode, "Host mode for simulating a gateway")->capture_default_str();
+    app.add_flag("-g,--gateway", gateway_mode, "Gateway mode for converting can to ethernet");
     CLI11_PARSE(app, argc, argv);
 
     int fd_vcan = open_vcan(vcan_interface);
-    int fd_eth = open_eth(interface, mac_address, host_mode);
+    int fd_eth = open_eth(interface, mac_address, gateway_mode);
 
     pollfd poll_fds[2];
     poll_fds[0].fd = fd_vcan;
