@@ -68,6 +68,17 @@ struct TopicId {
     uint16_t type:4;
 };
 
+mac_t str2mac(std::string mac_str) {
+    mac_t mac;
+    if (sscanf(mac_str.c_str(), "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+        &mac[0], &mac[1], &mac[2],
+        &mac[3], &mac[4], &mac[5]) == 6) {
+    } else {
+        throw RuntimeException("Invalid MAC address format");
+    }
+    return mac;
+}
+
 mac_t get_interface_mac_address(int fd, std::string interface) {
     mac_t mac;
     struct ifreq ifr = {};
@@ -114,7 +125,7 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
         }
     }
 
-int open_eth(std::string interface, std::string mac_address, bool gateway_mode) {
+int open_eth(std::string interface, std::string mac_address, bool gateway_mode, std::string gateway_mac) {
     int fd = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (fd < 0) {
       throw RuntimeErrnoException("socket failed for " + interface);
@@ -131,13 +142,13 @@ int open_eth(std::string interface, std::string mac_address, bool gateway_mode) 
 
     mac_t * this_mac = !gateway_mode ? &l2_frame_out.src_mac : &l2_frame_out.dst_mac;
     mac_t * dst_mac = !gateway_mode ? &l2_frame_out.dst_mac : &l2_frame_out.src_mac;
-    if (sscanf(mac_address.c_str(), "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
-        &(*dst_mac)[0], &(*dst_mac)[1], &(*dst_mac)[2],
-        &(*dst_mac)[3], &(*dst_mac)[4], &(*dst_mac)[5]) == 6) {
+    *dst_mac = str2mac(mac_address);
+
+    if (gateway_mode) {
+        *this_mac = str2mac(gateway_mac);
     } else {
-        throw RuntimeException("Invalid MAC address format");
+        *this_mac = get_interface_mac_address(fd, interface);
     }
-    *this_mac = get_interface_mac_address(fd, interface);
     set_eth_packet_filter(fd, *dst_mac, !gateway_mode);
     return fd;
 }
@@ -147,8 +158,8 @@ int main(int argc, char** argv) {
     std::string mac_address {"00:00:00:00:00:00"};
     std::string vcan_interface {"vcan0"};
     std::string interface {"lo"};
-    bool gateway_mode = false;
-    CLI::App app{"Utility converting ethernet l2 communication to vcan\n"
+    std::string gateway_mac {"00:00:00:00:00:00"};
+    CLI::App app{"Utility for converting ethernet l2 communication to vcan\n"
                  "    Example:\n"
                  "    sudo modprobe vcan\n"
                  "    sudo ip link add dev vcan0 type vcan\n"
@@ -158,11 +169,11 @@ int main(int argc, char** argv) {
     app.add_option("-v,--vcan", vcan_interface, "Use VCAN_INTERFACE for vcan")->type_name("VCAN_INTERFACE")->capture_default_str()->expected(1);
     app.add_option("-m,--mac", mac_address, "Use MAC address MAC_ADDRESS")->type_name("MAC_ADDRESS")->capture_default_str()->expected(1);
     app.add_option("-i,--interface", interface, "Use network interface INTERFACE")->type_name("INTERFACE")->capture_default_str()->expected(1);
-    app.add_flag("-g,--gateway", gateway_mode, "Gateway mode for converting can to ethernet");
+    auto gateway_option = app.add_option("-g,--gateway", gateway_mac, "Gateway mode for converting can to ethernet destination at MAC_ADDRESS")->type_name("MAC_ADDRESS")->capture_default_str()->expected(0,1);
     CLI11_PARSE(app, argc, argv);
 
     int fd_vcan = open_vcan(vcan_interface);
-    int fd_eth = open_eth(interface, mac_address, gateway_mode);
+    int fd_eth = open_eth(interface, mac_address, static_cast<bool>(*gateway_option), gateway_mac);
 
     pollfd poll_fds[2];
     poll_fds[0].fd = fd_vcan;
