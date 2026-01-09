@@ -195,22 +195,29 @@ int main(int argc, char** argv) {
                     throw RuntimeErrnoException("eth read error");
                 }
                 std::cout << "eth nbytes " << nbytes << std::endl;
-                Payload payload;
-                std::memcpy(&payload, (uint8_t*)(&frame)+22, 3);
-                payload.topic_id = ntohs(payload.topic_id);
-                canfd_frame frame_out {
-                    .can_id = payload.topic_id,
-                    .len = payload.length,
-                };
-                std::memcpy(frame_out.data, (uint8_t*)(&frame)+22+3, payload.length);
-                
-                int result = send(fd_vcan, &frame_out, sizeof(canfd_frame), 0);
-                if (result < 0) {
-                    throw RuntimeErrnoException("vcan write error");
+                uint8_t ptr = 0;
+                while (ptr < sizeof(frame.payload)) {
+                    Payload payload;
+                    std::memcpy(&payload, &frame.payload[ptr], 3);
+                    ptr += 3;
+                    payload.topic_id = ntohs(payload.topic_id);
+                    if (payload.topic_id == 0) {
+                        break;
+                    }
+                    canfd_frame frame_out {
+                        .can_id = payload.topic_id,
+                        .len = payload.length,
+                    };
+                    std::memcpy(frame_out.data, &frame.payload[ptr], payload.length);
+                    ptr += payload.length;
+                    
+                    int result = send(fd_vcan, &frame_out, sizeof(canfd_frame), 0);
+                    if (result < 0) {
+                        throw RuntimeErrnoException("vcan write error");
+                    }
                 }
             }
         }
-
     }
 
     return 0;
