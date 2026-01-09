@@ -36,6 +36,7 @@ install(FILES ${PROJECT_SOURCE_DIR}/include/motor_messages/motor_messages.h
 
 add_executable(eth2vcan eth2vcan.cpp)
 target_link_libraries(eth2vcan cli11 motor_manager)
+install(TARGETS eth2vcan DESTINATION bin)
 
 if(BUILD_MOTOR_UTIL)
     add_executable(motor_util motor_util.cpp )

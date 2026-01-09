@@ -173,14 +173,13 @@ int main(int argc, char** argv) {
         if (poll_result < 0) {
             throw RuntimeErrnoException("Poll error");
         } else if (poll_result > 0) {
-            std::cout << "poll result " << poll_result << std::endl;
             if (poll_fds[0].revents) {
                 canfd_frame can_frame;
                 int nbytes = read(fd_vcan, &can_frame, sizeof(canfd_frame));
                 if (nbytes <= 0) {
                     throw RuntimeErrnoException("vcan read error");
                 }
-                std::cout << "nbytes " << nbytes << std::endl;
+                std::cout << "can nbytes " << nbytes << std::endl;
                 Payload payload {
                     .topic_id = htons(can_frame.can_id),
                     .length = can_frame.len,
@@ -194,7 +193,6 @@ int main(int argc, char** argv) {
                 }
             }
             if (poll_fds[1].revents) {
-                std::cout << "eth" << std::endl;
                 L2Frame frame {};
                 int nbytes = read(fd_eth, &frame, sizeof(frame));
                 if (nbytes <= 0) {
