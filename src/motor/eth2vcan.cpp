@@ -1,6 +1,7 @@
 #include "CLI11.hpp"
 #include "exception.h"
 
+#include <unistd.h>
 #include <cstring>
 #include <net/if.h>
 #include <sys/types.h>
@@ -175,7 +176,7 @@ int main(int argc, char** argv) {
         } else if (poll_result > 0) {
             if (poll_fds[0].revents) {
                 canfd_frame can_frame;
-                int nbytes = read(fd_vcan, &can_frame, sizeof(canfd_frame));
+                int nbytes = ::read(fd_vcan, &can_frame, sizeof(canfd_frame));
                 if (nbytes <= 0) {
                     throw RuntimeErrnoException("vcan read error");
                 }
@@ -194,7 +195,7 @@ int main(int argc, char** argv) {
             }
             if (poll_fds[1].revents) {
                 L2Frame frame {};
-                int nbytes = read(fd_eth, &frame, sizeof(frame));
+                int nbytes = ::read(fd_eth, &frame, sizeof(frame));
                 if (nbytes <= 0) {
                     throw RuntimeErrnoException("eth read error");
                 }

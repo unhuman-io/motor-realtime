@@ -25,7 +25,7 @@ jobs:
     - name: cmake
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_PYTHON_API=1 .
     - name: make
-      run: make VERBOSE=1 -j2
+      run: make VERBOSE=1 -j`nproc`
     - name: make package
       run: make package
     - name: rename 22.04
@@ -53,7 +53,7 @@ jobs:
     - name: cmake2
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
     - name: make2
-      run: make VERBOSE=1 -j2
+      run: make VERBOSE=1 -j`nproc`
     - name: test
       run: make test
     - name: make install
@@ -87,7 +87,7 @@ jobs:
 
   build_arm:
     runs-on: ubuntu-22.04
-    continue-on-error: true
+    continue-on-error: false
     name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
 
     strategy:
@@ -123,7 +123,7 @@ jobs:
         run: |
           git config --global --add safe.directory /home/runner/work/motor-realtime/motor-realtime
           cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_API=1 .
-          make -j2
+          make -j`nproc`
           make package
         install: |
           apt-get update -q -y
@@ -174,7 +174,7 @@ jobs:
           # Note switched build type from RelWithDebInfo to Debug to fix pthread_create missing issued on
           # aarch64 ubuntu18.04 build
           cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
-          make -j2 VERBOSE=1
+          make -j`nproc` VERBOSE=1
           make install
         install: |
           apt-get update -q -y
