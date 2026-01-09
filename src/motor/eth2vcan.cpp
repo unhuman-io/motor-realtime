@@ -55,6 +55,18 @@ struct L2Frame {
 };
 L2Frame l2_frame_out;
 
+struct Payload {
+    uint16_t topic_id;
+    uint8_t length;
+    uint8_t* data;
+};
+
+struct TopicId {
+    uint16_t node_id:4;
+    uint16_t bus_id:3;
+    uint16_t type:4;
+};
+
 mac_t get_interface_mac_address(int fd, std::string interface) {
     mac_t mac;
     struct ifreq ifr = {};
@@ -163,8 +175,14 @@ int main(int argc, char** argv) {
                     throw RuntimeErrnoException("vcan read error");
                 }
                 std::cout << "nbytes " << nbytes << std::endl;
-                std::memcpy(l2_frame_out.payload, &can_frame, nbytes);
-                int result = send(fd_eth, &l2_frame_out, nbytes+22, 0);
+                Payload payload {
+                    .topic_id = htons(can_frame.can_id),
+                    .length = can_frame.len,
+                    .data = can_frame.data
+                };
+                std::memcpy(l2_frame_out.payload, &payload, 3);
+                std::memcpy(l2_frame_out.payload+3, payload.data, payload.length);
+                int result = send(fd_eth, &l2_frame_out, payload.length+3+22, 0);
                 if (result < 0) {
                     throw RuntimeErrnoException("eth write error");
                 }
@@ -177,9 +195,16 @@ int main(int argc, char** argv) {
                     throw RuntimeErrnoException("eth read error");
                 }
                 std::cout << "eth nbytes " << nbytes << std::endl;
-                canfd_frame frame_out {};
-                std::memcpy(&frame_out, (uint8_t *) (&frame)+22, sizeof(canfd_frame));
-                int result = send(fd_vcan, &frame_out, nbytes-22, 0);
+                Payload payload;
+                std::memcpy(&payload, (uint8_t*)(&frame)+22, 3);
+                payload.topic_id = ntohs(payload.topic_id);
+                canfd_frame frame_out {
+                    .can_id = payload.topic_id,
+                    .len = payload.length,
+                };
+                std::memcpy(frame_out.data, (uint8_t*)(&frame)+22+3, payload.length);
+                
+                int result = send(fd_vcan, &frame_out, sizeof(canfd_frame), 0);
                 if (result < 0) {
                     throw RuntimeErrnoException("vcan write error");
                 }
