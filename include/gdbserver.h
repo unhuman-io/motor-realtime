@@ -1,10 +1,11 @@
 #include <functional>
+#include <atomic>
 
 namespace obot {
 
 class GDBServer {
     public:
-        GDBServer(std::function<std::string(std::string_view)> writeread);
+        GDBServer(std::function<std::string(std::string_view)> writeread, std::atomic<bool> &signal_exit);
         ~GDBServer();
         void start();
         void send_ack() {send_response("+");}
@@ -14,8 +15,9 @@ class GDBServer {
         void periodically_check_status();
     private:
         std::function<std::string(std::string_view)> writeread_;
-        int connfd_;
-        int sockfd;
+        std::atomic<bool> &signal_exit_;
+        int connfd_ = 0;
+        int sockfd = 0;
 };
 
 }
