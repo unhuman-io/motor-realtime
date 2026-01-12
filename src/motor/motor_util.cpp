@@ -707,7 +707,7 @@ int _main(int argc, char** argv) {
         }
         GDBServer gdb([motor_text = motors[0]->motor_text()](std::string_view s) mutable {
             return motor_text->writeread(std::string(s));
-        });
+        }, signal_exit);
         gdb.start();
     }
 

@@ -12,6 +12,7 @@
 #include <thread>
 #include <chrono>
 #include "exception.h"
+#include <poll.h>
 
 // in gdb
 // set debug remote 1
@@ -23,7 +24,8 @@ const int PORT = 3293;
 
 namespace obot {
 
-GDBServer::GDBServer(std::function<std::string(std::string_view)> writeread) : writeread_(writeread) {
+GDBServer::GDBServer(std::function<std::string(std::string_view)> writeread, std::atomic<bool> &signal_exit)
+    : writeread_(writeread), signal_exit_(signal_exit) {
     int len; 
     struct sockaddr_in cli; 
     
@@ -50,6 +52,24 @@ GDBServer::GDBServer(std::function<std::string(std::string_view)> writeread) : w
         throw RuntimeException("Listen failed"); 
     } 
     std::cout << "server listening" << std::endl;
+
+    pollfd tmp {
+        .fd = sockfd,
+        .events = POLLIN
+    };
+    int retval = 0;
+    while(!signal_exit_ && retval == 0) {
+        retval = poll(&tmp, 1, 1 /* ms */);
+        if (retval < 0) {
+            if (signal_exit_) {
+                return;
+            }
+            throw RuntimeErrnoException("poll error");
+        } else if (retval > 0) {
+            std::cout << "poll continue" << std::endl;
+            break;
+        }
+    }
 
     len = sizeof(cli);
         connfd_ = accept(sockfd, (struct sockaddr*)&cli, (socklen_t*) &len); 
@@ -109,8 +129,22 @@ void GDBServer::send_gdb_packet(std::string response) {
 void GDBServer::start() {
     const int MAX=1000;
     char buf[MAX]; 
-    for (;;) {
-        bzero(buf, MAX); 
+    while (!signal_exit_) {
+        bzero(buf, MAX);
+
+        pollfd tmp {
+            .fd = connfd_,
+            .events = POLLIN
+        };
+        int retval = poll(&tmp, 1, 1 /* ms */);
+        if (retval < 0) {
+            if (signal_exit_) {
+                return;
+            }
+            throw RuntimeErrnoException("poll error");
+        } else if (retval == 0) {
+            continue;
+        }
     
         int reval = read(connfd_, buf, sizeof(buf)); 
         std::cout << "read result " << reval << std::endl;
