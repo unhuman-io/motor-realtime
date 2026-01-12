@@ -699,8 +699,7 @@ int _main(int argc, char** argv) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
-    #define PORT 8080 
-    #define SA struct sockaddr 
+
     if (*gdbserver) {
         if (motors.size() != 1) {
             std::cout << "Select one motor to use gdbserver" << std::endl;
