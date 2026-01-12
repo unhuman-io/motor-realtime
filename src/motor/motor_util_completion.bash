@@ -46,7 +46,7 @@ _motor_util_completion()
     local words
     local base_words="-l --list -c --check-messages-version --no-list --list-names-only --list-path-only 
       --list-devpath-only --list-serial-number-only --list-devnum-only --no-dfu-list -n --names -i --ips 
-      -j --json-ip-file --no-print-unconnected --get-log -e --eth-l2
+      -j --json-ip-file --no-print-unconnected --get-log -e --eth-l2 gdbserver
       -a --uart-paths --uart-raw -f --can -p --paths -d --devpaths -s --serial_numbers set read --set-api 
       --api --api-timing --run-stats --set-timeout -v --version -u --user-space --allow-simulated --lock 
       -h --help";

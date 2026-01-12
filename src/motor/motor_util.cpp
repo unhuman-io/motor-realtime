@@ -20,6 +20,7 @@
 #include <string_view>
 #include "terminal.h"
 #include <cxxabi.h>
+#include "gdbserver.h"
 
 using namespace obot;
 
@@ -327,6 +328,7 @@ int _main(int argc, char** argv) {
     app.add_flag("--list-api", list_api_names, "List all api names of first motor");
     app.add_flag("--api", api_mode, "Enter API mode");
     app.add_flag("--api-timing", api_timing, "Print API response times");
+    auto gdbserver = app.add_subcommand("gdbserver", "Use gdb protocol over api");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
@@ -696,6 +698,17 @@ int _main(int argc, char** argv) {
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
+    }
+
+    if (*gdbserver) {
+        if (motors.size() != 1) {
+            std::cout << "Select one motor to use gdbserver" << std::endl;
+            return 1;
+        }
+        GDBServer gdb([motor_text = motors[0]->motor_text()](std::string_view s) mutable {
+            return motor_text->writeread(std::string(s));
+        });
+        gdb.start();
     }
 
     if (get_log) {
