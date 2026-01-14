@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
                 }
                 std::cout << "eth nbytes " << nbytes << std::endl;
                 uint8_t ptr = 0;
-                while (ptr < sizeof(frame.payload)) {
+                while (ptr < sizeof(frame.payload)-3) {
                     Payload payload;
                     std::memcpy(&payload, &frame.payload[ptr], 3);
                     ptr += 3;
