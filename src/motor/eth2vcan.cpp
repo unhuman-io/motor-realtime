@@ -153,6 +153,31 @@ int open_eth(std::string interface, std::string mac_address, bool gateway_mode, 
     return fd;
 }
 
+std::vector<Payload> parse_eth_payload(uint8_t *frame_payload, ssize_t length) {
+    std::vector<Payload> payloads;
+    int ptr = 0;
+    while (ptr < length-2) {
+        Payload payload {};
+        std::memcpy(&payload, &frame_payload[ptr], 3);
+        ptr += 3;
+        payload.topic_id = ntohs(payload.topic_id);
+        if (payload.topic_id == 0) {
+            break;
+        }
+        if (payload.length > 0) {
+            payload.data = &frame_payload[ptr];
+        }
+        ptr += payload.length;
+        payloads.push_back(payload);
+        std::cout << "\ttopic_id: " << std::hex << payload.topic_id << std::dec << ", length: " << (int) payload.length << std::endl;
+    }
+    std::cout << "\t" << payloads.size() << " payloads" << std::endl;
+    if (ptr != length) {
+        throw RuntimeException("payload sum error, " + std::to_string(payloads.size()) + " messages, total length " + std::to_string(ptr));
+    }
+    return payloads;
+}
+
 
 int main(int argc, char** argv) {
     std::string mac_address {"00:00:00:00:00:00"};
@@ -211,21 +236,12 @@ int main(int argc, char** argv) {
                     throw RuntimeErrnoException("eth read error");
                 }
                 std::cout << "eth nbytes " << nbytes << std::endl;
-                uint8_t ptr = 0;
-                while (ptr < sizeof(frame.payload)-3) {
-                    Payload payload;
-                    std::memcpy(&payload, &frame.payload[ptr], 3);
-                    ptr += 3;
-                    payload.topic_id = ntohs(payload.topic_id);
-                    if (payload.topic_id == 0) {
-                        break;
-                    }
+                for (auto &payload : parse_eth_payload(frame.payload, nbytes-22)) {
                     canfd_frame frame_out {
                         .can_id = payload.topic_id,
                         .len = payload.length,
                     };
-                    std::memcpy(frame_out.data, &frame.payload[ptr], payload.length);
-                    ptr += payload.length;
+                    std::memcpy(frame_out.data, payload.data, payload.length);
                     
                     int result = send(fd_vcan, &frame_out, sizeof(canfd_frame), 0);
                     if (result < 0) {
