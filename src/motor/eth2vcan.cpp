@@ -54,6 +54,8 @@ struct L2Frame {
     uint8_t reserved[8] = {};
     uint8_t payload[MAX_ETH_L2_PAYLOAD_SIZE] = {};
 };
+constexpr int L2_HEADER_SIZE = sizeof(L2Frame) - sizeof(L2Frame::payload);
+static_assert(L2_HEADER_SIZE == 22);
 L2Frame l2_frame_out;
 
 struct Payload {
@@ -61,6 +63,8 @@ struct Payload {
     uint8_t length;
     uint8_t* data;
 };
+constexpr int PAYLOAD_HEADER_SIZE = sizeof(Payload::topic_id) + sizeof(Payload::length);
+static_assert(PAYLOAD_HEADER_SIZE == 3);
 
 struct TopicId {
     uint16_t node_id:4;
@@ -156,9 +160,9 @@ int open_eth(std::string interface, std::string mac_address, bool gateway_mode, 
 std::vector<Payload> parse_eth_payload(uint8_t *frame_payload, ssize_t length) {
     std::vector<Payload> payloads;
     int ptr = 0;
-    while (ptr < length-2) {
+    while (ptr < length-(PAYLOAD_HEADER_SIZE-1)) {
         Payload payload {};
-        std::memcpy(&payload, &frame_payload[ptr], 3);
+        std::memcpy(&payload, &frame_payload[ptr], PAYLOAD_HEADER_SIZE);
         ptr += 3;
         payload.topic_id = ntohs(payload.topic_id);
         if (payload.topic_id == 0) {
@@ -222,9 +226,9 @@ int main(int argc, char** argv) {
                     .length = can_frame.len,
                     .data = can_frame.data
                 };
-                std::memcpy(l2_frame_out.payload, &payload, 3);
-                std::memcpy(l2_frame_out.payload+3, payload.data, payload.length);
-                int result = send(fd_eth, &l2_frame_out, payload.length+3+22, 0);
+                std::memcpy(l2_frame_out.payload, &payload, PAYLOAD_HEADER_SIZE);
+                std::memcpy(l2_frame_out.payload+PAYLOAD_HEADER_SIZE, payload.data, payload.length);
+                int result = send(fd_eth, &l2_frame_out, payload.length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, 0);
                 if (result < 0) {
                     throw RuntimeErrnoException("eth write error");
                 }
@@ -236,7 +240,7 @@ int main(int argc, char** argv) {
                     throw RuntimeErrnoException("eth read error");
                 }
                 std::cout << "eth nbytes " << nbytes << std::endl;
-                for (auto &payload : parse_eth_payload(frame.payload, nbytes-22)) {
+                for (auto &payload : parse_eth_payload(frame.payload, nbytes-L2_HEADER_SIZE)) {
                     canfd_frame frame_out {
                         .can_id = payload.topic_id,
                         .len = payload.length,
