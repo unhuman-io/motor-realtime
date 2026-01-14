@@ -210,7 +210,7 @@ int main(int argc, char** argv) {
     poll_fds[1].fd = fd_eth;
     poll_fds[1].events = POLLIN;
     while(1) {
-        int poll_result = poll(poll_fds, 2, 10);
+        int poll_result = poll(poll_fds, 2, 1);
         if (poll_result < 0) {
             throw RuntimeErrnoException("Poll error");
         } else if (poll_result > 0) {
