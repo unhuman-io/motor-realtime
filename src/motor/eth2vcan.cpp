@@ -176,7 +176,7 @@ std::vector<Payload> parse_eth_payload(uint8_t *frame_payload, ssize_t length) {
         std::cout << "\ttopic_id: " << std::hex << payload.topic_id << std::dec << ", length: " << (int) payload.length << std::endl;
     }
     std::cout << "\t" << payloads.size() << " payloads" << std::endl;
-    if (ptr != length) {
+    if (ptr > length) {
         throw RuntimeException("payload sum error, " + std::to_string(payloads.size()) + " messages, total length " + std::to_string(ptr));
     }
     return payloads;
