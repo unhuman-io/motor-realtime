@@ -111,29 +111,25 @@ class CANFile : public TextFile {
         int nbytes = 0;
         bool success = false;
         int length_recv = 0;
-        int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
-        int can_id = 5 << 7 | devnum_;
-        if (poll_result > 0) {
-            nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
-            if (nbytes > 0) {
-                if (frame.can_id == can_id) {
-                    success = true;
-                    length_recv = std::min(length, (unsigned int) frame.len);
-                    if (frame.data[0] != 0) {
-                        // an ascii packet, not a special control packet
-                        // search for embedded 0 terminator
-                        length_recv = strnlen((const char*) frame.data, length_recv);
+        do {
+            int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
+            if (poll_result > 0) {
+                nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+                if (nbytes > 0) {
+                    if (frame.can_id == (5 << 7 | devnum_)) {
+                        success = true;
+                        length_recv = std::min(length, (unsigned int) frame.len);
+                        if (frame.data[0] != 0) {
+                            // an ascii packet, not a special control packet
+                            // search for embedded 0 terminator
+                            length_recv = strnlen((const char*) frame.data, length_recv);
+                        }
+                        std::memcpy(data, frame.data, length_recv);
                     }
-                    std::memcpy(data, frame.data, length_recv);
                 }
             }
-        } else {
-            if (poll_result == 0) {
-                throw RuntimeException("poll timeout on can id: " + std::to_string(devnum_));
-            } else {
-                throw RuntimeErrnoException("poll error on can id: " + std::to_string(devnum_));
-            }
-        }
+            count++;
+        } while (!success && count < 1);
         return length_recv;
     }
 
