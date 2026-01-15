@@ -250,7 +250,8 @@ MotorCAN::MotorCAN(std::string address) {
            devnum_ = 1;
         } else {
             try {
-                devnum_ = std::stoi(tmp);
+                // base 0 for auto-detect base
+                devnum_ = std::stoi(tmp, nullptr, 0);
             } catch (std::exception &e) {
                 throw RuntimeException("Error parsing address " + address + ": " + e.what());
             }
