@@ -51,11 +51,11 @@ struct L2Frame {
     mac_t dst_mac = {};
     mac_t src_mac = {};
     uint8_t ethertype[2] = {0x88, 0xB5};
-    uint8_t reserved[8] = {};
+    uint8_t reserved[6] = {};
     uint8_t payload[MAX_ETH_L2_PAYLOAD_SIZE] = {};
 };
 constexpr int L2_HEADER_SIZE = sizeof(L2Frame) - sizeof(L2Frame::payload);
-static_assert(L2_HEADER_SIZE == 22);
+static_assert(L2_HEADER_SIZE == 20);
 L2Frame l2_frame_out;
 
 struct Payload {
