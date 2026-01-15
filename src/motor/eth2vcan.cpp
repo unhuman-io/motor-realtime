@@ -51,20 +51,20 @@ struct L2Frame {
     mac_t dst_mac = {};
     mac_t src_mac = {};
     uint8_t ethertype[2] = {0x88, 0xB5};
-    uint8_t reserved[8] = {};
+    uint8_t reserved[6] = {};
     uint8_t payload[MAX_ETH_L2_PAYLOAD_SIZE] = {};
 };
 constexpr int L2_HEADER_SIZE = sizeof(L2Frame) - sizeof(L2Frame::payload);
-static_assert(L2_HEADER_SIZE == 22);
+static_assert(L2_HEADER_SIZE == 20);
 L2Frame l2_frame_out;
 
 struct Payload {
     uint16_t topic_id;
-    uint8_t length;
+    uint16_t length;
     uint8_t* data;
 };
 constexpr int PAYLOAD_HEADER_SIZE = sizeof(Payload::topic_id) + sizeof(Payload::length);
-static_assert(PAYLOAD_HEADER_SIZE == 3);
+static_assert(PAYLOAD_HEADER_SIZE == 4);
 
 struct TopicId {
     uint16_t node_id:4;
@@ -241,11 +241,12 @@ int main(int argc, char** argv) {
                 }
                 std::cout << "eth nbytes " << nbytes << std::endl;
                 for (auto &payload : parse_eth_payload(frame.payload, nbytes-L2_HEADER_SIZE)) {
+                    uint8_t length_uint8 {static_cast<uint8_t>(payload.length)};
                     canfd_frame frame_out {
                         .can_id = payload.topic_id,
-                        .len = payload.length,
+                        .len = length_uint8,
                     };
-                    std::memcpy(frame_out.data, payload.data, payload.length);
+                    std::memcpy(frame_out.data, payload.data, length_uint8);
                     
                     int result = send(fd_vcan, &frame_out, sizeof(canfd_frame), 0);
                     if (result < 0) {
