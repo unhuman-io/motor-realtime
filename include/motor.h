@@ -15,7 +15,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <stdexcept>
+#include "exception.h"
 #include <cstring>
 #include "motor_messages.h"
 #include <time.h>
@@ -35,10 +35,10 @@ class TextFile {
     virtual ssize_t write(const char * /* data */, unsigned int /* length */) { return 0; }
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) { return 0; }
     std::string writeread(const std::string str) {
-        char str_in[MAX_API_DATA_SIZE+1];
-        ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_DATA_SIZE);
+        char str_in[MAX_API_LONG_DATA_SIZE+1]; // 3x for some long packets
+        ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_LONG_DATA_SIZE);
         if (s < 0) {
-            throw std::runtime_error("text writeread failure " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("text writeread failure " + std::to_string(errno) + ": " + strerror(errno));
         }
         str_in[s] = 0;
         std::string s_out(str_in, s);
@@ -67,7 +67,7 @@ class SysfsFile : public TextFile {
         path_ = path;
         fd_ = ::open(path_.c_str(), O_RDWR);
         if (fd_ < 0) {
-            throw std::runtime_error("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + path_.c_str());
+            throw RuntimeException("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + path_.c_str());
         }
     }
     virtual ~SysfsFile() override;
@@ -95,14 +95,14 @@ class SysfsFile : public TextFile {
         auto retval = ::read(fd_, data, length);
 
         if (retval < 0) {
-            throw std::runtime_error("Sysfs read error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Sysfs read error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
     virtual ssize_t write(const char *data, unsigned int length) override {
         auto retval = ::write(fd_, data, length);
         if (retval < 0) {
-            throw std::runtime_error("Sysfs write error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Sysfs write error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
@@ -131,12 +131,13 @@ class USBFile : public TextFile {
         lockf(fd_, F_ULOCK, 0);
         return retval;
     }
+    uint32_t timeout_ms_ = 100;
  private:
     ssize_t read(char *data, unsigned int length) override { 
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_IN,
             .len = length,
-            .timeout = 1000,
+            .timeout = timeout_ms_,
             .data = data
         };
 
@@ -145,9 +146,65 @@ class USBFile : public TextFile {
             if (errno == ETIMEDOUT) {
                 return 0;
             } else {
-                throw std::runtime_error("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+                throw RuntimeException("USB read error " + std::to_string(errno) + ": " + strerror(errno));
             }
         }
+        // retval is count received
+        // same parsing used in usb_rt_driver
+        if (retval > 1) {
+            if (data[0] == 0) {
+                // a control packet
+                if (data[1] == 1) {
+                    // timeout request
+                    if (retval == 8) {
+                        // timeout request
+                        // retriggers the read with the new timeout
+                        __u32 timeout_us = 0;
+                        timeout_us = data[4] | (data[5] << 8) | (data[6] << 16) | (data[7] << 24);
+                        transfer.timeout = timeout_ms_ + timeout_us / 1000;
+                        transfer.len = length;
+                        retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+                        if (retval < 0) {
+                            if (errno == ETIMEDOUT) {
+                                return 0;
+                            } else {
+                                throw RuntimeException("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+                            }
+                        }
+                    }
+                } else if (data[1] == 2) {
+                    // long packet
+                    uint16_t total_length = (uint8_t) data[4] | (data[5] << 8);
+                    uint16_t packet_number = (uint8_t) data[6] | (data[7] << 8);
+                    const uint8_t header_size = 8;
+                    uint16_t total_count_received = retval - header_size;
+                    // std::cout << "long packet: " << total_length << " " << packet_number << " " << total_count_received << " " << length << std::endl;
+                    if (total_length > length) {
+                        // too long
+                        return -EINVAL;
+                    }
+                    memmove(data, data + header_size, total_count_received);
+                    while (total_length > total_count_received) {
+                        // assemble multiple packets
+                        char * data_ptr = data + total_count_received;
+                        transfer.data = data_ptr;
+                        retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
+                        if (retval < 0) {
+                            if (errno == ETIMEDOUT) {
+                                return 0;
+                            } else {
+                                throw RuntimeException("USB read error " + std::to_string(errno) + ": " + strerror(errno));
+                            }
+                        }
+                        total_count_received += retval - header_size;
+                        memmove(data_ptr, data_ptr+header_size, retval-header_size);
+                        // ignoring packet_number
+                    }
+                    retval = total_count_received;
+                }
+            }
+        } // else always fall back to just returning the data
+
         return retval;
     }
     virtual ssize_t write(const char *data, unsigned int length) override { 
@@ -156,13 +213,13 @@ class USBFile : public TextFile {
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_OUT,
             .len = length,
-            .timeout = 100,
+            .timeout = timeout_ms_,
             .data = buf
         };
 
         int retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
-            throw std::runtime_error("USB write error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("USB write error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
@@ -180,7 +237,7 @@ class TextAPIItem {
         auto nbytes = motor_txt_->writeread(s2.c_str(), s2.size(), c, 64);
         if (nbytes < 0) {
             if (!no_throw_) {
-                throw std::runtime_error("text api set error " + std::to_string(errno) + ": " + strerror(errno));
+                throw RuntimeException("text api set error " + std::to_string(errno) + ": " + strerror(errno));
             } else {
                 return "";
             } 
@@ -189,11 +246,11 @@ class TextAPIItem {
         return c;
     }
     std::string get() const {     
-        char c[MAX_API_DATA_SIZE+1] = {};
-        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_DATA_SIZE);
+        char c[MAX_API_LONG_DATA_SIZE+1] = {};
+        auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_LONG_DATA_SIZE);
         if (nbytes < 0) {
             if (!no_throw_) {
-                throw std::runtime_error("text api get error " + std::to_string(errno) + ": " + strerror(errno));
+                throw RuntimeException("text api get error " + std::to_string(errno) + ": " + strerror(errno));
             } else {
                 return "";
             } 
@@ -305,6 +362,8 @@ class Motor : public MotorDescription {
     Command * command() { return &command_; }
     TextFile* motor_text() { return motor_txt_.get(); }
     std::string get_fast_log();
+    std::string get_fast_log2();
+    std::string get_log();
     virtual std::vector<std::string> get_api_options();
     uint32_t get_cpu_frequency() { return std::stoi((*this)["cpu_frequency"].get()); }
  protected:
@@ -425,7 +484,7 @@ class UserSpaceMotor : public Motor {
         struct udev *udev = udev_new();
         struct stat st;
         if (stat(dev_path.c_str(), &st) < 0) {
-            throw std::runtime_error("Motor stat error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Motor stat error " + std::to_string(errno) + ": " + strerror(errno));
         }
         struct udev_device *dev = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
         const char * sysname = udev_device_get_sysname(dev);
@@ -476,7 +535,7 @@ class UserSpaceMotor : public Motor {
             struct usbdevfs_bulktransfer transfer = {
                 .ep = static_cast<uint8_t>(ep_num_ | USB_DIR_IN),
                 .len = sizeof(status_),
-                .timeout = 100,
+                .timeout = timeout_ms_,
                 .data = &status_
             };
 
@@ -493,7 +552,7 @@ class UserSpaceMotor : public Motor {
             aread_in_progress_ = false;
         }
         if (retval < 0) {
-            throw std::runtime_error("Motor read error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Motor read error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
@@ -509,25 +568,30 @@ class UserSpaceMotor : public Motor {
 
         int retval = ::ioctl(fd_, USBDEVFS_SUBMITURB, &transfer);
         if (retval < 0) {
-            throw std::runtime_error("Motor write error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Motor write error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
     virtual ssize_t aread() override {
         int retval = ::ioctl(fd_, USBDEVFS_SUBMITURB, &aread_transfer_);
         if (retval < 0) {
-            throw std::runtime_error("Motor aread error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Motor aread error " + std::to_string(errno) + ": " + strerror(errno));
         }
         aread_in_progress_ = true;
         return retval;
     }
+    virtual void set_timeout_ms(int timeout_ms) override {
+        timeout_ms_ = timeout_ms;
+        static_cast<USBFile *>(motor_txt_.get())->timeout_ms_ = timeout_ms;
+    }
+    virtual int get_timeout_ms() const override { return timeout_ms_; }
  private:
     int open() {
         int retval = Motor::open();
         struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
         int ioval = ::ioctl(fd_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
         if (ioval < 0) {
-            throw std::runtime_error("Motor open error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Motor open error " + std::to_string(errno) + ": " + strerror(errno));
         }
         return retval;
     }
@@ -535,16 +599,17 @@ class UserSpaceMotor : public Motor {
         int interface_num = 0;
         int ioval = ::ioctl(fd_, USBDEVFS_RELEASEINTERFACE, &interface_num); 
         if (ioval < 0) {
-            throw std::runtime_error("Motor release interface error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Motor release interface error " + std::to_string(errno) + ": " + strerror(errno));
         }
         struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
         ioval = ::ioctl(fd_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
         if (ioval < 0) {
-            throw std::runtime_error("Motor close error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Motor close error " + std::to_string(errno) + ": " + strerror(errno));
         }
         // fd_ closed by base
         return 0;
     }
+    uint32_t timeout_ms_ = 100;
     uint8_t ep_num_;
     bool aread_in_progress_ = false;
     usbdevfs_urb aread_transfer_{

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sstream>
 #include <iomanip>
+#include <unistd.h>
 
 
 namespace obot {
@@ -67,7 +68,7 @@ DFUDevice::DFUDevice(std::string dev_path) {
     struct udev *udev = udev_new();
     struct stat st;
     if (stat(dev_path.c_str(), &st) < 0) {
-        throw std::runtime_error("Motor stat error " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Motor stat error " + std::to_string(errno) + ": " + strerror(errno));
     }
     struct udev_device *dev = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
     const char * sysname = udev_device_get_sysname(dev);
@@ -110,6 +111,28 @@ std::string short_status(const std::vector<Status> status) {
         os << std::setw(6) << s.torque << ", ";
     }
     return os.str();
+}
+
+std::string get_config_dir() {
+    std::string config_dir;
+    char * config_dir_env = getenv("MOTOR_UTIL_CONFIG_DIR");
+    if (config_dir_env == NULL) {
+        // right now the only thing in the config directory is the device_ip_map.json
+        // will have to figure out the search path implementation later if other files are added
+        config_dir = std::string(getenv("HOME")) + "/.config/motor_util/";
+        if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
+            config_dir = "/etc/motor_util/";
+            if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
+                config_dir = "/usr/share/motor-realtime/";
+            }
+        }
+    } else {
+        config_dir = std::string(config_dir_env);
+        if (config_dir.back() != '/') {
+            config_dir += "/";
+        }
+    }
+    return config_dir;
 }
 
 }; // namespace obot

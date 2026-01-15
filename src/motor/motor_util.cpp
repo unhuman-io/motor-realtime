@@ -15,8 +15,16 @@
 #include "keyboard.h"
 #include "motor_util_fun.h"
 #include <json.hpp>
+#include "protocol_parser.h"
+#include <atomic>
+#include <string_view>
+#include "terminal.h"
+#include <cxxabi.h>
+#include "gdbserver.h"
 
 using namespace obot;
+
+std::atomic<bool> signal_exit{false};
 
 struct cstr{char s[100];};
 class Statistics {
@@ -56,6 +64,91 @@ class Statistics {
     std::deque<double> queue_;
 };
 
+void raw_packet_printer(bool set_api, bool set, bool ip_option, std::vector<std::string> &set_api_data, Command &command) {
+    uint8_t packet_id;
+    uint8_t *packet_data;
+    uint8_t length;
+    if (set_api) {
+        // ascii packet
+        packet_id = 4;
+        packet_data = (uint8_t*)set_api_data[0].c_str();
+        length = set_api_data[0].size();
+    } else if (set) {
+        // command packet
+        packet_id = 1;
+        packet_data = (uint8_t*)&command;
+        length = sizeof(command);
+    } else {
+        std::cerr << "Error: --print-raw-packet requires set or --set-api" << std::endl;
+        exit(1);
+    }
+    if (ip_option) {
+        uint8_t length_out;
+        uint8_t buffer[128];
+        figure::ProtocolParser parser(buffer, sizeof(buffer));
+        packet_data = parser.generatePacket(packet_data, length, packet_id, &length_out);
+        length = length_out;
+    }
+    write(1, packet_data, length);
+    exit(0);
+}
+
+void raw_packet_parser() {
+    uint8_t buffer[128];
+    figure::ProtocolParser parser(buffer, sizeof(buffer));
+    parser.registerCallback(1, [](const uint8_t* packet, uint16_t length){
+        std::vector<Command> commands;
+        commands.push_back(*reinterpret_cast<const Command*>(packet));
+        std::cout << "command: " << commands << std::endl;
+    });
+    parser.registerCallback(2, [](const uint8_t* packet, uint16_t length){
+        std::vector<Status> statuses;
+        statuses.push_back(*reinterpret_cast<const Status*>(packet));
+        std::cout << "status: " << statuses << std::endl;
+    });
+    parser.registerCallback(3, [](const uint8_t* packet, uint16_t length){
+        std::vector<Command> commands;
+        commands.push_back(*reinterpret_cast<const Command*>(packet));
+        std::cout << "command_status: " << commands << std::endl;
+    });
+    parser.registerCallback(4, [](const uint8_t* packet, uint16_t length){
+        std::string s(reinterpret_cast<const char*>(packet), length);
+        std::cout << "api command: " << s << std::endl;
+    });
+    parser.registerCallback(5, [](const uint8_t* packet, uint16_t length){
+        std::string s(reinterpret_cast<const char*>(packet), length);
+        std::cout << "api response: " << s << std::endl;
+    });
+    int current_idx = 0;
+    while(signal_exit == false) {
+        // fill and parse a circular buffer
+        if (current_idx == sizeof(buffer)) {
+            current_idx = 0;
+        }
+        struct pollfd fds[1];
+        fds[0].fd = 0;
+        ssize_t retval = poll(fds, 1, 10);
+        if (retval < 0) {
+            std::cerr << "Error: poll failed" << std::endl;
+            exit(1);
+        } else if (retval == 0) {
+            continue;
+        }
+        retval = read(0, buffer, sizeof(buffer) - current_idx);
+        if (retval < 0) {
+            std::cerr << "Error: read failed" << std::endl;
+            exit(1);
+        } else if (retval == 0) {
+            // closed pipe
+            break;
+        } else {
+            current_idx += retval;
+            parser.process(current_idx);
+        }
+    }
+    exit(0);
+}
+
 struct ReadOptions {
     bool poll;
     bool ppoll;
@@ -75,10 +168,11 @@ struct ReadOptions {
     int precision;
     bool mini;
     bool fastlog;
+    bool fastlog2;
+    bool print_reserved;
 };
 
-bool signal_exit = false;
-int main(int argc, char** argv) {
+int _main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers\n"
                  "\n"
                  "Use the environment variable MOTOR_UTIL_CONFIG_DIR to set the configuration directory\n"
@@ -96,26 +190,13 @@ int main(int argc, char** argv) {
     std::vector<std::string> uart_paths = {};
     std::vector<std::string> can_devs = {"any"};
     bool uart_raw = false;
+    bool list_api_names = false;
+    bool print_raw_packet = false;
+    bool parse_raw_packet = false;
     std::vector<std::string> ips = {};
+    std::vector<std::string> macs = {};
     
-    std::string config_dir;
-    char * config_dir_env = getenv("MOTOR_UTIL_CONFIG_DIR");
-    if (config_dir_env == NULL) {
-        // right now the only thing in the config directory is the device_ip_map.json
-        // will have to figure out the search path implementation later if other files are added
-        config_dir = std::string(getenv("HOME")) + "/.config/motor_util/";
-        if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
-            config_dir = "/etc/motor_util/";
-            if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
-                config_dir = "/usr/share/motor-realtime/";
-            }
-        }
-    } else {
-        config_dir = std::string(config_dir_env);
-        if (config_dir.back() != '/') {
-            config_dir += "/";
-        }
-    }
+    std::string config_dir = get_config_dir();
     std::string json_ip_file_default = config_dir + "device_ip_map.json";
     std::string json_ip_file = json_ip_file_default;
     bool no_print_unconnected = false;
@@ -125,11 +206,12 @@ int main(int argc, char** argv) {
         mode_map.push_back({pair.second, pair.first});
     }
     std::vector<std::pair<std::string, ModeDesired>> tuning_mode_options_map{
-        {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"torque", ModeDesired::TORQUE}
+        {"position", ModeDesired::POSITION}, {"velocity", ModeDesired::VELOCITY}, {"torque", ModeDesired::TORQUE},
+        {"current", ModeDesired::CURRENT}, {"voltage", ModeDesired::VOLTAGE}, {"impedance", ModeDesired::IMPEDANCE}
     };    
     std::vector<std::pair<std::string, TuningMode>> tuning_mode_map{
         {"sine", TuningMode::SINE}, {"square", TuningMode::SQUARE}, {"triangle", TuningMode::TRIANGLE}, 
-        {"chirp", TuningMode::CHIRP}};
+        {"chirp", TuningMode::CHIRP}, {"random", TuningMode::RANDOM}};
     std::vector<std::pair<std::string, StepperMode>> stepper_mode_map{
         {"current", StepperMode::STEPPER_CURRENT}, {"voltage", StepperMode::STEPPER_VOLTAGE}
     };
@@ -149,6 +231,7 @@ int main(int argc, char** argv) {
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .csv = false, .reconnect = false, .read_write_statistics = false,
         .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
+    bool get_log = false;
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -164,20 +247,23 @@ int main(int argc, char** argv) {
     state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
     state_mode->add_option("--kt", command.state.kt, "Torque error gain");
     state_mode->add_option("--ks", command.state.ks, "Torque dot error gain");
+    auto impedance_mode = set->add_subcommand("impedance", "Impedance control mode")->final_callback([&](){command.mode_desired = ModeDesired::IMPEDANCE;})->fallthrough();
+    impedance_mode->add_option("--stiffness", command.impedance.stiffness, "Stiffness (Nm/rad)");
+    impedance_mode->add_option("--damping", command.impedance.damping, "Damping (Nm/(rad/s))");
     auto stepper_tuning_mode = set->add_subcommand("stepper_tuning", "Stepper tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_TUNING;});
     stepper_tuning_mode->add_option("--amplitude", command.stepper_tuning.amplitude, "Phase position tuning amplitude");
-    stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp");
+    stepper_tuning_mode->add_option("--frequency", command.stepper_tuning.frequency, "Phase tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     stepper_tuning_mode->add_option("--mode", command.stepper_tuning.mode, "Phase tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     stepper_tuning_mode->add_option("--kv", command.stepper_tuning.kv, "Motor kv (rad/s)");
     stepper_tuning_mode->add_option("--stepper_mode", command.stepper_tuning.stepper_mode, "Current/voltage mode")->transform(CLI::CheckedTransformer(stepper_mode_map, CLI::ignore_case));
     auto position_tuning_mode = set->add_subcommand("position_tuning", "Position tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::POSITION_TUNING;});
     position_tuning_mode->add_option("--amplitude", command.position_tuning.amplitude, "Position tuning amplitude");
-    position_tuning_mode->add_option("--frequency", command.position_tuning.frequency, "Position tuning frequency hz, or hz/s for chirp");
+    position_tuning_mode->add_option("--frequency", command.position_tuning.frequency, "Position tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     position_tuning_mode->add_option("--mode", command.position_tuning.mode, "Position tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     position_tuning_mode->add_option("--bias", command.position_tuning.bias, "Position trajectory offset");
     auto current_tuning_mode = set->add_subcommand("current_tuning", "Current tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::CURRENT_TUNING;});
     current_tuning_mode->add_option("--amplitude", command.current_tuning.amplitude, "Current tuning amplitude");
-    current_tuning_mode->add_option("--frequency", command.current_tuning.frequency, "Current tuning frequency hz, or hz/s for chirp");
+    current_tuning_mode->add_option("--frequency", command.current_tuning.frequency, "Current tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     current_tuning_mode->add_option("--mode", command.current_tuning.mode, "Current tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     current_tuning_mode->add_option("--bias", command.current_tuning.bias, "Current trajectory offset");
     auto stepper_velocity_mode = set->add_subcommand("stepper_velocity", "Stepper velocity mode")->final_callback([&](){command.mode_desired = ModeDesired::STEPPER_VELOCITY;});
@@ -187,7 +273,7 @@ int main(int argc, char** argv) {
     stepper_velocity_mode->add_option("--stepper_mode", command.stepper_velocity.stepper_mode, "Current/voltage mode")->transform(CLI::CheckedTransformer(stepper_mode_map, CLI::ignore_case));
     auto tuning_mode = set->add_subcommand("tuning", "Tuning mode")->final_callback([&](){command.mode_desired = ModeDesired::TUNING;});
     tuning_mode->add_option("--amplitude", command.tuning_command.amplitude, "Tuning amplitude");
-    tuning_mode->add_option("--frequency", command.tuning_command.frequency, "Tuning frequency hz, or hz/s for chirp");
+    tuning_mode->add_option("--frequency", command.tuning_command.frequency, "Tuning frequency hz, or hz/s for chirp, or low pass cutoff for random");
     tuning_mode->add_option("--tuning_mode", command.tuning_command.tuning_mode, "Tuning mode")->transform(CLI::CheckedTransformer(tuning_mode_map, CLI::ignore_case));
     tuning_mode->add_option("--mode", command.tuning_command.mode, "Main Mode")->transform(CLI::CheckedTransformer(tuning_mode_options_map, CLI::ignore_case));
     tuning_mode->add_option("--bias", command.tuning_command.bias, "Trajectory offset");
@@ -208,8 +294,11 @@ int main(int argc, char** argv) {
     read_option->add_flag("-r,--reconnect", read_opts.reconnect, "Try to reconnect by usb path");
     read_option->add_flag("-v,--compute-velocity", read_opts.compute_velocity, "Compute velocity from motor and joint position");
     read_option->add_option("-p,--precision", read_opts.precision, "floating point precision output")->expected(1);
-    read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
+    auto read_mini = read_option->add_flag("-m,--short", read_opts.mini, "Shorter output");
     read_option->add_flag("--fast_log", read_opts.fastlog, "Print the fast log");
+    read_option->add_flag("--fast_log2", read_opts.fastlog2, "Print the fast log2");
+    app.add_flag("--get-log", get_log, "Print the log");
+    read_option->add_flag("--print-reserved", read_opts.print_reserved, "Print reserved fields")->excludes(read_mini);
     auto timestamp_frequency_option = read_option->add_option("--timestamp-frequency", read_opts.timestamp_frequency_hz, "Override timestamp frequency in hz");
     auto bits_option = read_option->add_option("--bits", read_opts.bits, "Process noise and display bits, ±3σ window 100 [experimental]")->type_name("NUM_SAMPLES RANGE")->expected(0,2)->capture_default_str();
     app.add_flag("-l,--list", verbose_list, "Verbose list connected motors");
@@ -228,6 +317,7 @@ int main(int argc, char** argv) {
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
+    auto eth_l2_option = app.add_option("-e,--eth-l2", macs, "Connect to motor eth l2 MAC(S)")->type_name("MAC")->expected(0,-1)->default_str("{}");
     auto ip_option = app.add_option("-i,--ips", ips, "Connect to IP(S). If left empty, connect to all ips specified in --json-ip-file")->type_name("IP")->expected(0,-1)->default_str("{}");
     app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     app.add_flag("--no-print-unconnected", no_print_unconnected, "Don't print unconnected motors, currently only used with --ips");
@@ -235,11 +325,15 @@ int main(int argc, char** argv) {
     app.add_flag("--uart-raw", uart_raw, "Use raw protocol for UART")->needs(uart_paths_option);
     app.add_flag("--lock", lock_motors, "Lock write access to motors");
     auto set_api = app.add_option("--set-api", set_api_data, "Send API data (to set parameters)")->expected(1,-1);
+    app.add_flag("--list-api", list_api_names, "List all api names of first motor");
     app.add_flag("--api", api_mode, "Enter API mode");
     app.add_flag("--api-timing", api_timing, "Print API response times");
+    auto gdbserver = app.add_subcommand("gdbserver", "Use gdb protocol over api");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
+    app.add_flag("--print-raw-packet", print_raw_packet, "Print raw packet only. Doesn't connect to motors");
+    app.add_flag("--parse-raw-packet", parse_raw_packet, "Parse raw packet only from stdin. Doesn't connect to motors")->needs(ip_option);
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });
@@ -253,6 +347,22 @@ int main(int argc, char** argv) {
         read_opts.host_time = true;
         no_list = true;
         no_print_unconnected = true;
+    }
+
+    if (print_raw_packet) {
+        // todo move ip specific stuff to motor_ip.cpp
+        raw_packet_printer(static_cast<bool>(*set_api), static_cast<bool>(*set), static_cast<bool>(*ip_option),
+            set_api_data, command);
+    }
+
+    if (parse_raw_packet) {
+        // only makes sense with the ip option
+        if (!*ip_option) {
+            std::cerr << "Error: --parse-raw-packet requires --ips" << std::endl;
+            exit(1);
+        }
+        raw_packet_parser(); // doesn't exit without signal
+        exit(1);
     }
 
     MotorManager m(user_space_driver, check_messages_version);
@@ -273,10 +383,11 @@ int main(int argc, char** argv) {
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
     if (*ip_option) {
+        std::vector<std::string> ip_aliases;
         // translate name aliases to ips via json file
         if (access(json_ip_file.c_str(), F_OK) == 0) {
             try {
-                auto motor_ips = nlohmann::json::parse(std::ifstream(json_ip_file));
+                auto motor_ips = nlohmann::ordered_json::parse(std::ifstream(json_ip_file));
                 if (ips.size() == 0) {
                     // connect to all ips
                     for(auto &ip : motor_ips.items()) {
@@ -285,7 +396,11 @@ int main(int argc, char** argv) {
                 }
                 for (auto &address : ips) {
                     if (motor_ips.find(address) != motor_ips.end()) {
+                        ip_aliases.push_back(address);
                         address = motor_ips[address].get<std::string>();
+                        
+                    } else {
+                        ip_aliases.push_back("");
                     }
                 }
                 
@@ -298,7 +413,11 @@ int main(int argc, char** argv) {
             }
         }
 
-        auto tmp_motors = m.get_motors_by_ip(ips, true, !no_print_unconnected);
+        auto tmp_motors = m.get_motors_by_ip(ips, true, !no_print_unconnected, false, ip_aliases);
+        motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
+    }
+    if (*eth_l2_option) {
+        auto tmp_motors = m.get_motors_by_eth_l2(macs, true, !no_print_unconnected);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
     if (uart_paths.size()) {
@@ -341,7 +460,7 @@ int main(int argc, char** argv) {
         if (motors.size() > 0) {
             try {
                 m.set_motors(motors);
-            } catch (std::runtime_error &e) {
+            } catch (RuntimeException &e) {
                 messages_mismatch = true;
                 messages_mismatch_error = e.what();
                 m.check_messages_version(Motor::MessagesCheck::NONE);
@@ -350,10 +469,10 @@ int main(int argc, char** argv) {
         }
     }
     
-    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !*ip_option && !*can_option) {
+    if (!names.size() && !paths.size() && !devpaths.size() && !serial_numbers.size() && !uart_paths.size() && !*ip_option && !*can_option && !*eth_l2_option) {
         try {
             motors = m.get_connected_motors();
-        } catch (std::runtime_error &e) {
+        } catch (RuntimeException &e) {
             messages_mismatch = true;
             messages_mismatch_error = e.what();
             m.check_messages_version(Motor::MessagesCheck::NONE);
@@ -434,12 +553,15 @@ int main(int argc, char** argv) {
                     }
               }
         } else {
+            std::cout << (motors.size() == 0 ? ANSI_YELLOW : ANSI_GREEN);
             std::cout << motors.size() << " connected motor" << (motors.size() == 1 ? "" : "s");
+            std::cout << ANSI_RESET;
             if (dfu_devices.size() > 0) {
                 std::cout << ", " << dfu_devices.size() << " connected dfu device" << (dfu_devices.size() == 1 ? "" : "s");
             }
             std::cout << std::endl;
             if (motor_list.size() > 0) {
+                std::cout << ANSI_BOLD;
                 std::cout << std::setw(dev_path_width) << "Dev" << std::setw(name_width) << "Name"
                             << std::setw(serial_number_width) << " Serial number"
                             << std::setw(version_width) << "Version" << std::setw(path_width) << std::left << "  Path" << std::right << std::setw(device_num_width) << "Devnum";
@@ -449,7 +571,7 @@ int main(int argc, char** argv) {
                         << std::setw(board_num_width) << "Board num"
                         << std::setw(config_width) << "Config";
                 }             
-                std::cout << std::endl;
+                std::cout << ANSI_RESET << std::endl;
                 std::cout << std::setw(dev_path_width + name_width + serial_number_width + version_width + path_width + device_num_width + board_name_width + board_rev_width + board_num_width + config_width) << std::setfill('-') << "" << std::setfill(' ') << std::endl;
                 for (auto m : motor_list) {
                     std::cout << std::setw(dev_path_width) << m->dev_path()
@@ -509,33 +631,47 @@ int main(int argc, char** argv) {
 
     if (*set && motors.size()) {
         m.set_commands(std::vector<Command>(motors.size(), command));
-        std::cout << "Writing commands: \n" << m.command_headers() << std::endl << m.commands() << std::endl;
+        std::cout << ANSI_BOLD << "Writing commands: \n" << m.command_headers() << ANSI_RESET << std::endl << m.commands() << std::endl;
         m.write_saved_commands();
     }
 
-    if (api_mode || (*read_option && *text_read || (*read_option && read_opts.fastlog))) {
+    if (api_mode || (*read_option && *text_read || (*read_option && (read_opts.fastlog || read_opts.fastlog2)))) {
         if (motors.size() != 1) {
             std::cout << "Select one motor to use api mode" << std::endl;
             return 1;
         }
     }
 
+    if (list_api_names && motors.size()) {
+        std::vector<std::string> api_names = motors[0]->get_api_options();
+        for (auto &api_str : api_names) {
+            std::cout << api_str << " ";
+        }
+        std::cout << std::endl;
+    }
+
     if (*set_api && motors.size()) {
-        char c[MAX_API_DATA_SIZE+1];
+        char c[MAX_API_LONG_DATA_SIZE+1];
         for (auto &api_str : set_api_data) {
-            std::cout << api_str << std::endl;
+            if (!no_list) {
+                std::cout << ANSI_BOLD << api_str << ANSI_RESET << std::endl;
+            }
             for (auto motor : m.motors()) {
                 auto tstart = std::chrono::steady_clock::now();
-                auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_DATA_SIZE);
+                auto nbytes = motor->motor_text()->writeread(api_str.c_str(), api_str.size(), c, MAX_API_LONG_DATA_SIZE);
                 auto tend = std::chrono::steady_clock::now();
                 if (api_timing) {
                     std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
                 }
-                if (nbytes < 0) {
-                    std::cout << motor->name() << ": api_error" << std::endl;
+                if (no_list) {
+                    std::cout << std::string_view(c,nbytes);
                 } else {
-                    c[nbytes] = 0;
-                    std::cout << motor->name() << ": " << c << std::endl;
+                    if (nbytes < 0) {
+                        std::cout << motor->name() << ": api_error" << std::endl;
+                    } else {
+                        c[nbytes] = 0;
+                        std::cout << motor->name() << ": " << std::string_view(c,nbytes) << std::endl;
+                    }
                 }
             }
         }
@@ -543,18 +679,18 @@ int main(int argc, char** argv) {
 
     if (api_mode) {
         Keyboard k;
-        char data[MAX_API_DATA_SIZE+1];
+        char data[MAX_API_LONG_DATA_SIZE+1];
         while(!signal_exit) {
             if (k.new_key()) {
                 char c = k.get_char();
                 auto tstart = std::chrono::steady_clock::now();
-                auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_DATA_SIZE);
+                auto nbytes = m.motors()[0]->motor_text()->writeread(&c, 1, data, MAX_API_LONG_DATA_SIZE);
                 auto tend = std::chrono::steady_clock::now();
                 if (api_timing && c == '\n') {
                     std::cout << "(" << std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count() << " us) ";
                 }
                 if (nbytes < 0) {
-                    std::cout << "api_error" << std::endl;
+                    std::cout << "api_error : " << nbytes << std::endl;
                 } else {
                     data[nbytes] = 0;
                     std::cout << data << std::flush;
@@ -564,11 +700,29 @@ int main(int argc, char** argv) {
         }
     }
 
+    if (*gdbserver) {
+        if (motors.size() != 1) {
+            std::cout << "Select one motor to use gdbserver" << std::endl;
+            return 1;
+        }
+        GDBServer gdb([motor_text = motors[0]->motor_text()](std::string_view s) mutable {
+            return motor_text->writeread(std::string(s));
+        }, signal_exit);
+        gdb.start();
+    }
+
+    if (get_log) {
+        for(auto &m : m.motors()) {
+            std::cout << "Log for motor " << m->name() << std::endl;
+            std::cout << m->get_log();
+        }
+    }
+
     try {
 
     if (*read_option) {
         if (m.motors().size() == 0) {
-            throw std::runtime_error("No motors connected");
+            throw RuntimeException("No motors connected");
         }
         
         m.set_reconnect(read_opts.reconnect);
@@ -577,11 +731,19 @@ int main(int argc, char** argv) {
             std::cout << m.motors()[0]->get_fast_log();
             return 0;
         }
+
+        if (read_opts.fastlog2) {
+            std::cout << m.motors()[0]->get_fast_log2();
+            return 0;
+        }
         
         if (*text_read) {
             std::vector<TextAPIItem> log;
             for (auto &s : read_opts.text) {
                 if (s == "log") {
+                    // issue a log reset command
+                    (*m.motors()[0])["log_reset"].get();
+
                     // only log
                     log = {(*m.motors()[0])[s]};
                     break;
@@ -625,18 +787,21 @@ int main(int argc, char** argv) {
             }
             text_thread.done();
         } else {
+            if (read_opts.print_reserved) {
+                std::cout << reserved_print_on;
+            }
+            std::cout << ANSI_BOLD;
             std::vector<double> cpu_frequency_hz(motors.size());
             if (read_opts.statistics || read_opts.read_write_statistics) {
                 std::cout << "host_time_ns period_avg_ns period_std_dev_ns period_min_ns period_max_ns read_time_avg_ns read_time_std_dev_ns read_time_min_ns read_time_max_ns";
                 if (read_opts.read_write_statistics) {
                    std::cout << " avg_hops";
                 }
-                std::cout << std::endl;
             } else if (*bits_option) {
                 std::cout << "motor_encoder, output_encoder, iq" << std::endl;
             } else {
                 if (read_opts.host_time) {
-                    std::cout << "t_host,";
+                    std::cout << "t_host, ";
                 }
                 if (read_opts.timestamp_in_seconds || read_opts.compute_velocity) {
                     for (int i=0;i<motors.size();i++) {
@@ -653,7 +818,7 @@ int main(int argc, char** argv) {
                         std::cout << "t_seconds" << i << ", ";
                     }
                 }
-                std::cout << m.status_headers(read_opts.mini);
+                std::cout << m.status_headers(read_opts.mini, read_opts.print_reserved);
                 if (read_opts.compute_velocity) {
                     for (int i=0;i<motors.size();i++) {
                         std::cout << "motor_velocity_computed" << i << ", ";
@@ -662,8 +827,8 @@ int main(int argc, char** argv) {
                         std::cout << "joint_velocity_computed" << i << ", ";
                     }
                 }
-                std::cout << std::endl;
             }
+            std::cout << ANSI_RESET << std::endl;
             auto start_time = std::chrono::steady_clock::now();
             auto next_time = start_time;
             auto loop_start_time = start_time;
@@ -784,4 +949,19 @@ int main(int argc, char** argv) {
     }
 
     return 0;
+}
+
+int main(int argc, char** argv) {
+    try {
+        return _main(argc, argv);
+    } catch (const RuntimeException &e) {
+        std::cerr << "Caught RuntimeException" << std::endl;
+        std::cerr << " what(): " << e.what() << std::endl;
+        std::cerr << e.location_print() << std::endl;    
+    } catch (const std::exception &e) {
+        int status;
+        std::cerr << "Caught exception of type " << abi::__cxa_demangle(typeid(e).name(), NULL, NULL, &status) << std::endl;
+        std::cerr << "  what():  " << e.what() << std::endl;
+        return 1;
+    }
 }

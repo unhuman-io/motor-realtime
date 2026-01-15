@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
+        distro: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.distro }}
     
     steps:
@@ -25,25 +25,25 @@ jobs:
     - name: cmake
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_PYTHON_API=1 .
     - name: make
-      run: make VERBOSE=1 -j2
+      run: make VERBOSE=1 -j`nproc`
     - name: make package
       run: make package
-    - name: rename
+    - name: rename 22.04
       if: ${{ !(matrix.distro == 'ubuntu-22.04') }}
       run: for f in packages/*.deb; do mv $f ${f%.deb}_${{ matrix.distro }}.deb; done
     - name: Archive production artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: packages
+        name: packages-${{ matrix.distro }}
         path: packages
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./packages/*
         tag: develop
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'main')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -53,7 +53,7 @@ jobs:
     - name: cmake2
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
     - name: make2
-      run: make VERBOSE=1 -j2
+      run: make VERBOSE=1 -j`nproc`
     - name: test
       run: make test
     - name: make install
@@ -61,27 +61,33 @@ jobs:
     - name: archive
       run: tar -czf artifacts_${{ matrix.distro }}.tgz artifacts/ 
     - name: Archive production artifacts2
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: artifacts
+        name: artifacts-${{ matrix.distro }}
         path: artifacts_${{ matrix.distro }}.tgz
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./artifacts_${{ matrix.distro }}.tgz
         tag: develop
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'main')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./artifacts_${{ matrix.distro }}.tgz
         tag: main
+    - name: make python_pub_sub example
+      run: |
+        cd example/python/pub_sub
+        cmake .
+        make
 
   build_arm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    continue-on-error: false
     name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
 
     strategy:
@@ -117,7 +123,7 @@ jobs:
         run: |
           git config --global --add safe.directory /home/runner/work/motor-realtime/motor-realtime
           cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_API=1 .
-          make -j2
+          make -j`nproc`
           make package
         install: |
           apt-get update -q -y
@@ -134,18 +140,18 @@ jobs:
       if: ${{ matrix.distro == 'ubuntu20.04' }}
       run: for f in packages/*.deb; do mv $f ${f%.deb}_ubuntu-20.04.deb; done
     - name: Archive production artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: packages
+        name: packages-${{ matrix.distro }}-${{ matrix.arch }}
         path: packages
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./packages/*
         tag: develop
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'main')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -168,7 +174,7 @@ jobs:
           # Note switched build type from RelWithDebInfo to Debug to fix pthread_create missing issued on
           # aarch64 ubuntu18.04 build
           cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
-          make -j2 VERBOSE=1
+          make -j`nproc` VERBOSE=1
           make install
         install: |
           apt-get update -q -y
@@ -181,18 +187,18 @@ jobs:
     - name: archive2
       run: tar -czf artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz artifacts/ 
     - name: Archive production artifacts2
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: artifacts
+        name: artifacts-${{ matrix.distro }}-${{ matrix.arch }}
         path: artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
         tag: develop
-    - uses: pyTooling/Actions/releaser@main
+    - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'main')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -200,18 +206,36 @@ jobs:
           ./artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
         tag: main
 
+  merge_artifacts:
+    runs-on: ubuntu-latest
+    needs: [build, build_arm]
+    steps:
+    - name: Merge packages
+      uses: actions/upload-artifact/merge@v4
+      with:
+        delete-merged: true
+        name: packages
+        pattern: packages-*
+    - name: Merge artifacts
+      uses: actions/upload-artifact/merge@v4
+      with:
+        delete-merged: true
+        name: artifacts
+        pattern: artifacts-*
+
+
   test:
     timeout-minutes: 10
-    needs: [build]
+    needs: [build, merge_artifacts]
     runs-on: [self-hosted, motor_enc]
 
     strategy:
       fail-fast: false
       matrix:
-        distro: [ubuntu-20.04, ubuntu-22.04]
+        distro: [ubuntu-22.04]
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: artifacts
     - name: test

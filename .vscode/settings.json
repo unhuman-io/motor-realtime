@@ -1,5 +1,8 @@
 {
     "files.associations": {
         "typeinfo": "cpp"
+    },
+    "files.exclude": {
+        "**/build*/**": true
     }
 }

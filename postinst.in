@@ -1,0 +1,4 @@
+#!/bin/bash
+
+setcap cap_net_raw+ep ${CMAKE_INSTALL_BINDIR}/motor_util
+setcap cap_net_raw+ep ${CMAKE_INSTALL_BINDIR}/eth2vcan

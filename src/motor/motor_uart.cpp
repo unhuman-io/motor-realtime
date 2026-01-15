@@ -12,7 +12,7 @@ MotorUARTRaw::MotorUARTRaw(std::string dev_path, uint32_t baud_rate) {
   dev_path_ = dev_path;
   int result = open();
   if (result < 0) {
-    throw std::runtime_error("Error opening " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    throw RuntimeException("Error opening " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
   realtime_mailbox_.fd_ = fd_;
   motor_txt_ = std::move(std::unique_ptr<Mailbox>(new Mailbox()));
@@ -24,11 +24,11 @@ MotorUARTRaw::MotorUARTRaw(std::string dev_path, uint32_t baud_rate) {
   // only one item can access uart devices due to protocol
   result = lock();
   if (result < 0) {
-    throw std::runtime_error("Error locking: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    throw RuntimeException("Error locking: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   }
   set_baud_rate(baud_rate);
   // if (sync() < 0) {
-  //   throw std::runtime_error("Error syncing: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+  //   throw RuntimeException("Error syncing: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
   // }
   
   version_ = operator[]("version").get();
@@ -43,13 +43,17 @@ MotorUARTRaw::MotorUARTRaw(std::string dev_path, uint32_t baud_rate) {
 }
 
 void MotorUARTRaw::set_timeout_ms(int timeout_ms) {
+  timeout_ms_ = timeout_ms;
 }
 
 void MotorUARTRaw::set_baud_rate(uint32_t baud_rate) {
   int result;
   struct termios2 tio2 = {};
 
-  ioctl(fd_, TCGETS2, &tio2);
+  result = ioctl(fd_, TCGETS2, &tio2);
+  if (result < 0) {
+    throw RuntimeException("Error tcgets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+  }
   tio2.c_cflag = CS8 | CREAD | CLOCAL | CBAUDEX;
   tio2.c_lflag = 0;
   tio2.c_iflag = 0;
@@ -61,7 +65,15 @@ void MotorUARTRaw::set_baud_rate(uint32_t baud_rate) {
   result = ioctl(fd_, TCSETS2, &tio2);
 
   if (result < 0) {
-    throw std::runtime_error("Error tcsets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+    throw RuntimeException("Error tcsets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+  }
+
+  result = ioctl(fd_, TCGETS2, &tio2);
+  if (result < 0) {
+    throw RuntimeException("Error tcgets2: " + dev_path_ + " error " + std::to_string(errno) + ": " + strerror(errno));
+  }
+  if (tio2.c_ispeed != baud_rate || tio2.c_ospeed != baud_rate) {
+    throw RuntimeException("Error setting baud rate " + std::to_string(baud_rate) + " on " + dev_path_);
   }
 }
 

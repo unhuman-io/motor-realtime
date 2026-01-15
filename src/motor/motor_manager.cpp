@@ -1,7 +1,9 @@
 #include "motor_manager.h"
 #include "motor.h"
 #include "motor_ip.h"
+#include "motor_eth_l2.h"
 #include "motor_uart.h"
+#include "motor_uart_obot.h"
 #include "motor_can.h"
 
 #include <libudev.h>
@@ -79,7 +81,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
             } else {
                 m.push_back(std::make_shared<Motor>(dev_path));
             }
-        } catch (std::runtime_error &e) {
+        } catch (RuntimeException &e) {
             // There is a runtime_error if the motor is disconnected during this function
             std::cout << "get_connected_motors error: " << e.what() << std::endl;
         }
@@ -100,13 +102,13 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(st
             m[i] = found_motors[0];
         } else {
             if (found_motors.size() > 1) {
-                throw std::runtime_error("Found too many motors matching: " + names[i]);
+                throw RuntimeException("Found too many motors matching: " + names[i]);
             }
             if (allow_simulated) {
                 std::cout << "Warning: found no motors matching \"" << names[i] << "\", using simulated motor" << std::endl;
                 m[i] = std::make_shared<SimulatedMotor>(names[i]);
             } else {
-                throw std::runtime_error("Found no motors matching: " + names[i]);
+                throw RuntimeException("Found no motors matching: " + names[i]);
             }
         }
     }
@@ -136,7 +138,7 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
     if (check_messages_version_) {
         for (auto &motor : motors) {
             if (motor->check_messages_version(check_messages_version_) == false) {
-                  throw std::runtime_error("Motor messages version mismatch " + motor->name() + 
+                  throw RuntimeException("Motor messages version mismatch " + motor->name() + 
                      ": " + motor->messages_version()  + ", motor-realtime: " + MOTOR_MESSAGES_VERSION);
             }
         }
@@ -159,7 +161,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std
         if (raw) {
             m[i] = std::make_shared<MotorUARTRaw>(devpaths[i], baud_rate);
         } else {
-            throw std::runtime_error("motor uart not raw");
+            m[i] = std::make_shared<MotorUARTObot>(devpaths[i], baud_rate);
         }
     }
     if (connect) {
@@ -168,14 +170,18 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std
     return m;
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated) {
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated, std::vector<std::string> ip_aliases) {
     std::vector<std::shared_ptr<Motor>> m(ips.size());
     std::vector<std::future<std::shared_ptr<MotorIP>>> futures(ips.size());
     for (uint8_t i=0; i<ips.size(); i++) {
         std::string& ip = ips[i];
-        futures[i] = std::async(std::launch::async, [&ip]
+        std::string ip_alias;
+        if (ip_aliases.size() > i) {
+            ip_alias = ip_aliases[i];
+        }
+        futures[i] = std::async(std::launch::async, [&ip, ip_alias]
         {
-            std::shared_ptr<MotorIP> motor = std::make_shared<MotorIP>(ip);
+            std::shared_ptr<MotorIP> motor = std::make_shared<MotorIP>(ip, ip_alias);
             return motor;
         });
     }
@@ -186,7 +192,61 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
             m[j++] = motor;
         } else {
             if (print_unconnected) {
-                std::cerr << "Motor IP: " << motor->addrstr_ << "(" << motor->hostname_ << ") not connected" << std::endl;
+                std::cerr << "Motor IP: " << motor->addrstr_ << "(" << motor->hostname_;
+                if (motor->ip_alias_.size()) {
+                    std::cerr << ": " << motor->ip_alias_;
+                }
+                std::cerr << ") not connected" << std::endl;
+            }
+        }
+    }
+    m.resize(j);
+    if (connect) {
+        set_motors(m);
+    }
+    return m;
+}
+
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vector<std::string> interface_macs, bool connect, bool print_unconnected, bool allow_simulated, std::vector<std::string> ip_aliases) {
+    std::vector<std::shared_ptr<Motor>> m(interface_macs.size());
+    std::vector<std::future<std::shared_ptr<MotorSocket>>> futures(interface_macs.size());
+    for (uint8_t i=0; i<interface_macs.size(); i++) {
+        std::string& interface_mac = interface_macs[i];
+        std::string ip_alias;
+        if (ip_aliases.size() > i) {
+            ip_alias = ip_aliases[i];
+        }
+        EthL2FileMode type = EthL2FileMode::ETH_L2_RAW;
+
+        futures[i] = std::async(std::launch::async, [&interface_mac, ip_alias]
+        {
+            std::shared_ptr<MotorSocket> motor;
+            if (interface_mac.rfind("-") != std::string::npos) {
+                motor = std::make_shared<MotorEthL2<EthL2FileMode::ETH_L2_CAN>>(interface_mac, ip_alias);
+            } else {
+                motor = std::make_shared<MotorEthL2<>>(interface_mac, ip_alias);
+            }
+            return motor;
+        });
+    }
+    int j = 0;
+    for (uint8_t i=0; i<interface_macs.size(); i++) {
+        try {
+            std::shared_ptr<MotorSocket> motor = futures[i].get();
+            if (motor->connected()) {
+                m[j++] = motor;
+            } else {
+                if (print_unconnected) {
+                    std::cerr << "Motor Eth L2: " << motor->address_ << " (" << motor->interface_;
+                    if (motor->alias_.size()) {
+                        std::cerr << ": " << motor->alias_;
+                    }
+                    std::cerr << ") not connected" << std::endl;
+                }
+            }
+        } catch (const std::exception &e) {
+            if (print_unconnected) {
+                std::cerr << "Motor Eth L2 exception: " << e.what() << std::endl;
             }
         }
     }
@@ -263,7 +323,7 @@ std::vector<Status> &MotorManager::read() {
                                 std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
                                 motors_[i] = motors[0];
                             }
-                        } catch (std::runtime_error &e) {
+                        } catch (RuntimeException &e) {
                             std::cerr << e.what() << std::endl;
                         }
                     }
@@ -276,7 +336,7 @@ std::vector<Status> &MotorManager::read() {
         statuses_[i] = *motors_[i]->status();
     }
     if (should_throw) {
-        throw std::runtime_error(err_msg);
+        throw RuntimeException(err_msg);
     }
     return statuses_;
 }
@@ -315,7 +375,7 @@ void MotorManager::lock() {
     for (uint8_t i=0; i<motors_.size(); i++) {
         int err = motors_[i]->lock();
         if (err) {
-            throw std::runtime_error("Error locking: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error locking: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
         }
     }
 }
@@ -331,7 +391,7 @@ void MotorManager::write(std::vector<Command> &commands) {
     for (uint8_t i=0; i<motors_.size(); i++) {
         *motors_[i]->command() = commands[i];
         if (motors_[i]->write() < 0) {
-            throw std::runtime_error("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
         }
     }
 }
@@ -554,7 +614,7 @@ std::string MotorManager::command_headers() const {
     return ss.str();
 }
 
-std::string MotorManager::status_headers(bool mini) const {
+std::string MotorManager::status_headers(bool mini, bool print_reserved) const {
     std::stringstream ss;
     int length = motors_.size();
     if (!mini) {
@@ -612,6 +672,13 @@ std::string MotorManager::status_headers(bool mini) const {
             ss << "mode_error_text" << i << ", ";
         }
     }
+    for (int i=0;i<length;i++) {
+        if (print_reserved) {
+            for (int j=0;j<sizeof(MotorStatus::large.reserved)/sizeof(MotorStatus::large.reserved[0]);j++) {
+                ss << "reserved" << j << i << ", ";
+            }
+        }
+    }
     return ss.str();
 }
 
@@ -626,7 +693,7 @@ const std::map<const ModeDesired, const std::string> MotorManager::mode_map{
         {ModeDesired::PHASE_LOCK, "phase_lock"}, {ModeDesired::STEPPER_TUNING, "stepper_tuning"},
         {ModeDesired::STEPPER_VELOCITY, "stepper_velocity"}, {ModeDesired::HARDWARE_BRAKE, "hardware_brake"},
         {ModeDesired::JOINT_POSITION, "joint_position"}, {ModeDesired::ADMITTANCE, "admittance"}, 
-        {ModeDesired::FIND_LIMITS, "find_limits"},
+        {ModeDesired::FIND_LIMITS, "find_limits"}, {ModeDesired::TUNING, "tuning"},
         {ModeDesired::DRIVER_ENABLE, "driver_enable"}, {ModeDesired::DRIVER_DISABLE, "driver_disable"},
         {ModeDesired::CLEAR_FAULTS, "clear_faults"},
         {ModeDesired::FAULT, "fault"}, {ModeDesired::SLEEP, "sleep"},

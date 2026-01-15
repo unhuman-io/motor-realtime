@@ -35,11 +35,17 @@ class UDPFile : public TextFile {
     virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false);
     virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false);
     virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */);
+
+    void set_api_mode() { api_mode_ = true; }
+    int lock_communication();
+    int unlock_communication();
     uint8_t send_frame_id_ = 1; // command
     uint8_t recv_frame_id_ = 2; // status
     uint8_t send_recv_frame_id_ = 3; // command_status
     int fd_;
     int timeout_ms_ = 50;
+    int fd_communication_lock_;
+    std::atomic<int> communication_lock_count_{};
 
     void register_parser_callbacks() {
         parser_.registerCallback(recv_frame_id_, [this](const uint8_t* buf, uint16_t len){ 
@@ -50,16 +56,22 @@ class UDPFile : public TextFile {
     void rx_callback(const uint8_t*, uint16_t);
     sockaddr_in addr_ = {};
  private:
+    ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false);
     figure::ProtocolParser &parser_;
     std::condition_variable rx_data_cv_;
-    std::mutex rx_data_cv_m_;
+    std::mutex rx_data_cv_m_; // protects rx_data_cv_, rx_buf_, rx_received_ and rx_len_
     uint8_t rx_buf_[1024];
     size_t rx_len_ = 0;
+    bool rx_received_ = false;
+    std::condition_variable rx_data_request_cv_;
+    std::mutex rx_data_request_cv_m_; // protects rx_data_request_
+    bool rx_data_request_ = false;
+    bool api_mode_ = false;
 };
 
 class MotorIP : public Motor {
  public:
-    MotorIP(std::string address) : realtime_communication_(parser_) {
+    MotorIP(std::string address, std::string ip_alias = "") : realtime_communication_(parser_) {
 
         int n = address.find(":");
         if (n == std::string::npos) {
@@ -73,6 +85,8 @@ class MotorIP : public Motor {
             }
         }
 
+        ip_alias_ = ip_alias;
+
         motor_txt_ = std::move(std::unique_ptr<UDPFile>(new UDPFile(parser_)));
         UDPFile * motor_txt = static_cast<UDPFile *>(motor_txt_.get());
         motor_txt->send_recv_frame_id_ = 4;
@@ -82,15 +96,18 @@ class MotorIP : public Motor {
         realtime_communication_.register_parser_callbacks();
         open();
         motor_txt->fd_ = fd_;
+        motor_txt->fd_communication_lock_ = fd_communication_lock_;
         motor_txt->addr_ = addr_;
+        motor_txt->set_api_mode();
         realtime_communication_.fd_ = fd_;
         realtime_communication_.addr_ = addr_;
+        realtime_communication_.fd_communication_lock_ = fd_communication_lock_;
         rx_thread_ = std::thread([this]{ this->rx_data(); });
         connected_ = connect();
     }
     virtual ~MotorIP();
     
-    virtual int lock();
+    int create_communication_lock();
     virtual void set_timeout_ms(int timeout_ms) override;
     void open();
     bool connect();
@@ -105,6 +122,7 @@ class MotorIP : public Motor {
 
     std::string port_;
     std::string ip_;
+    std::string ip_alias_;
     std::string addrstr_;
     sockaddr_in addr_ = {};
     char hostname_[64];
@@ -123,6 +141,7 @@ class MotorIP : public Motor {
     std::atomic<bool> terminate_{false};
     bool connected_ = false;
     UDPFile realtime_communication_; // relies on parser_
+    int fd_communication_lock_;
 };
 
 }; // namespace obot

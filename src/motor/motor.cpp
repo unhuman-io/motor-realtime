@@ -15,7 +15,7 @@ Motor::Motor(std::string dev_path) {
     struct udev *udev = udev_new();
     struct udev_device *dev = udev_device_new_from_subsystem_sysname(udev, "usbmisc", basename(const_cast<char *>(dev_path.c_str())));
     if (!dev) {
-        throw std::runtime_error("No device: " + dev_path);
+        throw RuntimeException("No device: " + dev_path);
     }
     name_ = udev_device_check_and_get_sysattr_value(dev, "device/interface");
 
@@ -47,30 +47,67 @@ Motor::~Motor() { close(); }
 
 std::string Motor::get_fast_log() {
     std::string s_read, s_out;
-    s_out += "timestamp, position, iq_des, iq_meas_filt, ia, ib, ic, va, vb, vc, vbus\n";
-
-    for(int j=0; j<10; j++) {
-        s_read = motor_txt_->writeread("fast_log");
-        for(int i=0; i<10; i++) {
-            if (s_read.length() >= (i+1)*sizeof(FastLog)) {
-                FastLog log = *(FastLog *) (s_read.c_str() + i*sizeof(FastLog));
-                s_out += 
-                    std::to_string(log.timestamp) + ", " +
-                    std::to_string(log.measured_motor_position) + ", " +
-                    std::to_string(log.command_iq) + ", " +
-                    std::to_string(log.measured_iq) + ", " +
-                    std::to_string(log.measured_ia) + ", " +
-                    std::to_string(log.measured_ib) + ", " +
-                    std::to_string(log.measured_ic) + ", " +
-                    std::to_string(log.command_va) + ", " +
-                    std::to_string(log.command_vb) + ", " +
-                    std::to_string(log.command_vc) + ", " +
-                    std::to_string(log.vbus) + "\n";
-            }
+    s_out += "timestamp, electrical_position, command_iq, command_id, measured_iq, measured_id, command_vq, command_vd,"
+             " vbus, ibus\n";
+    s_read = motor_txt_->writeread("fast_log");
+    for(int i=0; i<FAST_LOG_LENGTH; i++) {
+        if (s_read.length() >= (i+1)*sizeof(FastLog)) {
+            FastLog log = *(FastLog *) (s_read.c_str() + i*sizeof(FastLog));
+            s_out += 
+                std::to_string(log.timestamp) + ", " +
+                std::to_string(log.electrical_position) + ", " +
+                std::to_string(log.command_iq) + ", " +
+                std::to_string(log.command_id) + ", " +
+                std::to_string(log.measured_iq) + ", " +
+                std::to_string(log.measured_id) + ", " +
+                std::to_string(log.command_vq) + ", " +
+                std::to_string(log.command_vd) + ", " +
+                std::to_string(log.vbus) + ", " +
+                std::to_string(log.ibus) + "\n";
         }
     }
     return s_out;
 }
+
+std::string Motor::get_fast_log2() {
+    std::string s_read, s_out;
+    s_out += "timestamp, electrical_position, measured_ia, measured_ib, measured_ic, command_va, command_vb, command_vc,"
+             " motor_encoder_flags, mode\n";
+    s_read = motor_txt_->writeread("fast_log2");
+    for(int i=0; i<FAST_LOG_LENGTH; i++) {
+        if (s_read.length() >= (i+1)*sizeof(FastLog2)) {
+            FastLog2 log = *(FastLog2 *) (s_read.c_str() + i*sizeof(FastLog2));
+            s_out += 
+                std::to_string(log.timestamp) + ", " +
+                std::to_string(log.electrical_position) + ", " +
+                std::to_string(log.measured_ia) + ", " +
+                std::to_string(log.measured_ib) + ", " +
+                std::to_string(log.measured_ic) + ", " +
+                std::to_string(log.command_va) + ", " +
+                std::to_string(log.command_vb) + ", " +
+                std::to_string(log.command_vc) + ", " +
+                std::to_string(log.motor_encoder_flags) + ", " +
+                std::to_string(log.mode) + "\n";
+        }
+    }
+    return s_out;
+}
+
+std::string Motor::get_log() {
+    std::string s_read {}, s_out {};
+    motor_txt_->writeread("log_reset");
+
+    while (true) {
+        s_read = motor_txt_->writeread("log");
+        if (s_read.length() > 0 && s_read != "log end") {
+            s_out += s_read + "\n";
+        } else {
+            break;
+        }
+    }
+    return s_out;
+}
+
 
 std::vector<std::string> Motor::get_api_options() {
     std::vector<std::string> v;
@@ -94,12 +131,12 @@ void Motor::set_timeout_ms(int timeout_ms) {
     std::string timeout_path = attr_path_ + "/timeout_ms";
     int fd = ::open(timeout_path.c_str(), O_RDWR);
     if (fd < 0) {
-        throw std::runtime_error("timeout_ms open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + timeout_path);
+        throw RuntimeException("timeout_ms open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + timeout_path);
     }
     std::string s = std::to_string(timeout_ms);
     int retval = ::write(fd, s.c_str(), s.size());
     if (retval < 0) {
-        throw std::runtime_error("set timeout error " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("set timeout error " + std::to_string(errno) + ": " + strerror(errno));
     }
     ::close(fd);
 }
@@ -108,12 +145,12 @@ int Motor::get_timeout_ms() const {
     std::string timeout_path = attr_path_ + "/timeout_ms";
     int fd = ::open(timeout_path.c_str(), O_RDWR);
     if (fd < 0) {
-        throw std::runtime_error("timeout_ms open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + timeout_path);
+        throw RuntimeException("timeout_ms open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + timeout_path);
     }
     char c[64];
     int retval = ::read(fd, c, 64);
     if (retval < 0) {
-        throw std::runtime_error("get timeout error " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("get timeout error " + std::to_string(errno) + ": " + strerror(errno));
     }
     ::close(fd);
     return std::atoi(c);

@@ -47,9 +47,11 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> get_motors_by_path(std::vector<std::string> paths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_devpath(std::vector<std::string> devpaths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_uart_by_devpath(std::vector<std::string> devpaths, bool raw = false, uint32_t baud_rate = 4000000, bool connect = true, bool allow_simulated = false);
-    std::vector<std::shared_ptr<Motor>> get_motors_by_ip(std::vector<std::string> ips, bool connect = true, bool print_unconnected = true, bool allow_simulated = false);
+    std::vector<std::shared_ptr<Motor>> get_motors_by_ip(std::vector<std::string> ips, bool connect = true, bool print_unconnected = true, bool allow_simulated = false, std::vector<std::string> ip_aliases = {});
+    std::vector<std::shared_ptr<Motor>> get_motors_by_eth_l2(std::vector<std::string> ips, bool connect, bool print_unconnected = true, bool allow_simulated = false, std::vector<std::string> ip_aliases = {});
     std::vector<std::shared_ptr<Motor>> get_motors_can(std::vector<std::string> can_interfaces, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
+    int size() const { return motors_.size(); }
     void free_motors() {
       for(auto &m : motors_) {
          m.reset();
@@ -91,7 +93,7 @@ class MotorManager {
     void set_command_stepper_velocity(double current,  double velocity, double voltage = 0, StepperMode mode = StepperMode::STEPPER_CURRENT);
 
     std::string command_headers() const;
-    std::string status_headers(bool mini = false) const;
+    std::string status_headers(bool mini = false, bool print_reserved = false) const;
     int serialize_command_size() const;
     int serialize_saved_commands(char *data) const;
     bool deserialize_saved_commands(char *data);
@@ -231,6 +233,7 @@ inline std::ostream& operator<<(std::ostream& os, const MotorError &error)
       PRINT_FLAG(encoder_disagreement);
       PRINT_FLAG(torque_sensor_disagreement);
       PRINT_FLAG(init_failure);
+      PRINT_FLAG(invalid_command);
       PRINT_FLAG(motor_encoder_warning);
       PRINT_FLAG(output_encoder_warning);
       PRINT_FLAG(torque_sensor_warning);
@@ -239,6 +242,21 @@ inline std::ostream& operator<<(std::ostream& os, const MotorError &error)
       PRINT_FLAG(motor_soft_limit);
       PRINT_FLAG(fault);
    }
+   return os;
+}
+
+inline int reserved_print_index() {
+   static int index = std::ios_base::xalloc();
+   return index;
+}
+
+inline std::ostream& reserved_print_on(std::ostream& os) {
+   os.iword(reserved_print_index()) = 1;
+   return os;
+}
+
+inline std::ostream& reserved_print_off(std::ostream& os) {
+   os.iword(reserved_print_index()) = 0;
    return os;
 }
 
@@ -306,6 +324,13 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<Status> &sta
    for (auto s : status) {
       os << MotorManager::mode_map.at(static_cast<ModeDesired>(s.flags.mode)) << " ";
       os << s.flags.error << ", ";
+   }
+   if (os.iword(reserved_print_index())) {
+      for (auto s : status) {
+         for (int i=0; i < sizeof(s.large.reserved)/sizeof(s.large.reserved[0]); i++) {
+            os << s.large.reserved[i] << ", ";
+         }
+      }
    }
    return os;
 }
