@@ -349,7 +349,7 @@ ssize_t MotorCAN::read() {
 
 ssize_t MotorCAN::write() {
     struct canfd_frame frame = {};
-	frame.can_id  = 2 << 7 | devnum_; // 1 : command, 2: command/req status
+	frame.can_id  = 1 << 7 | devnum_; // 1 : command, 2: command/req status
 	frame.len = 48; //sizeof(command_);
     frame.flags = CANFD_BRS;
 	std::memcpy(frame.data, &command_, sizeof(command_));
@@ -359,6 +359,25 @@ ssize_t MotorCAN::write() {
         throw RuntimeException("Error writing can " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     return nbytes;
+}
+
+ssize_t MotorCAN::aread() {
+    // two options, if just motor_util read --aread, then this will set a status request
+    // if it's motor_util read --aread --read-write-statistics then commands will be cmd_status, and 
+    //     this function will not do anything
+    if (cmd_status_mode_ && command_sent_) {
+        return 0;
+    }
+    canfd_frame frame = {};
+	frame.can_id  = 3 << 7 | devnum_;
+	frame.len = 0;
+    frame.flags = CANFD_BRS;
+    int nbytes = ::write(fd_, &frame, sizeof(canfd_frame));
+    if (nbytes < 0) {
+        throw RuntimeErrnoException("aread error");
+    }
+    cmd_status_mode_ = true;
+    return 0;
 }
 
 

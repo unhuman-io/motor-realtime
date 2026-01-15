@@ -20,9 +20,14 @@ class MotorCAN : public Motor {
     static std::vector<std::string> enumerate_can_devices(std::string interface);
     static int open_socket(std::string if_name);
 
+    // will send a get status command or a cmd_status command before calling read
+    virtual ssize_t aread() override;
+
  private:
     std::string intf_;
     static uint32_t timeout_ms_;
+    bool command_sent_ = false;
+    bool cmd_status_mode_ = false;
 };
 
 }; // namespace obot
