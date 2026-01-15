@@ -419,7 +419,7 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
         int write_fd = open_socket(interface);
 
         struct canfd_frame frame = {};
-        frame.can_id  = 0xf << 7 | CAN_RTR_FLAG;
+        frame.can_id  = 0xf << 7 | 0x7f | CAN_RTR_FLAG;
         frame.len = 0;
 
         int nbytes = ::write(write_fd, &frame, sizeof(struct canfd_frame));
