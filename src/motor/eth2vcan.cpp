@@ -163,11 +163,12 @@ std::vector<Payload> parse_eth_payload(uint8_t *frame_payload, ssize_t length) {
     while (ptr < length-(PAYLOAD_HEADER_SIZE-1)) {
         Payload payload {};
         std::memcpy(&payload, &frame_payload[ptr], PAYLOAD_HEADER_SIZE);
-        ptr += 3;
+        ptr += PAYLOAD_HEADER_SIZE;
         payload.topic_id = ntohs(payload.topic_id);
         if (payload.topic_id == 0) {
             break;
         }
+        payload.length = ntohs(payload.length);
         if (payload.length > 0) {
             payload.data = &frame_payload[ptr];
         }
@@ -221,14 +222,15 @@ int main(int argc, char** argv) {
                     throw RuntimeErrnoException("vcan read error");
                 }
                 std::cout << "can nbytes " << nbytes << std::endl;
+                uint16_t length = can_frame.len;
                 Payload payload {
                     .topic_id = htons(can_frame.can_id),
-                    .length = can_frame.len,
+                    .length = htons(length),
                     .data = can_frame.data
                 };
                 std::memcpy(l2_frame_out.payload, &payload, PAYLOAD_HEADER_SIZE);
-                std::memcpy(l2_frame_out.payload+PAYLOAD_HEADER_SIZE, payload.data, payload.length);
-                int result = send(fd_eth, &l2_frame_out, payload.length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, 0);
+                std::memcpy(l2_frame_out.payload+PAYLOAD_HEADER_SIZE, payload.data, length);
+                int result = send(fd_eth, &l2_frame_out, length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, 0);
                 if (result < 0) {
                     throw RuntimeErrnoException("eth write error");
                 }
