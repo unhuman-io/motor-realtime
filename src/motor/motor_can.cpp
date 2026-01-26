@@ -111,20 +111,29 @@ class CANFile : public TextFile {
         int nbytes = 0;
         bool success = false;
         int length_recv = 0;
-        do {
-            int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
-            if (poll_result > 0) {
-                nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
-                if (nbytes > 0) {
-                    if (frame.can_id == (5 << 7 | devnum_)) {
-                        success = true;
-                        length_recv = std::min(length, (unsigned int) frame.len);
-                        std::memcpy(data, frame.data, length_recv);
+        int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
+        int can_id = 5 << 7 | devnum_;
+        if (poll_result > 0) {
+            nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+            if (nbytes > 0) {
+                if (frame.can_id == can_id) {
+                    success = true;
+                    length_recv = std::min(length, (unsigned int) frame.len);
+                    if (frame.data[0] != 0) {
+                        // an ascii packet, not a special control packet
+                        // search for embedded 0 terminator
+                        length_recv = strnlen((const char*) frame.data, length_recv);
                     }
+                    std::memcpy(data, frame.data, length_recv);
                 }
             }
-            count++;
-        } while (!success && count < 1);
+        } else {
+            if (poll_result == 0) {
+                throw RuntimeException("poll timeout on can id: " + std::to_string(devnum_));
+            } else {
+                throw RuntimeErrnoException("poll error on can id: " + std::to_string(devnum_));
+            }
+        }
         return length_recv;
     }
 
@@ -141,7 +150,7 @@ class CANFile : public TextFile {
                     // retriggers the read with the new timeout
                     uint32_t old_timeout_ms = timeout_ms_;
                     timeout_ms_ += packet->timeout_request.timeout_us/1000;
-                    ssize_t retval = _read(data, length);
+                    ssize_t retval = read(data, length);
                     timeout_ms_ = old_timeout_ms;
                     return retval;
                 }
@@ -241,7 +250,8 @@ MotorCAN::MotorCAN(std::string address) {
            devnum_ = 1;
         } else {
             try {
-                devnum_ = std::stoi(tmp);
+                // base 0 for auto-detect base
+                devnum_ = std::stoi(tmp, nullptr, 0);
             } catch (std::exception &e) {
                 throw RuntimeException("Error parsing address " + address + ": " + e.what());
             }
@@ -319,17 +329,21 @@ ssize_t MotorCAN::read() {
     pollfd tmp;
     tmp.fd = fd_;
     tmp.events = POLLIN;
-    int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
-    int nbytes = 0;
-    if (poll_result > 0) {
-        nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
-        if (nbytes > 0) {
-            if (frame.can_id == 3 << 7 | devnum_) {
-                int length = std::min(nbytes, (int)sizeof(status_));
-                std::memcpy(&status_, frame.data, length);
+
+    int poll_result;
+    int nbytes;
+    do {
+        poll_result = ::poll(&tmp, 1, 0 /* ms */);
+        if (poll_result > 0) {
+            nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+            if (nbytes > 0) {
+                if (frame.can_id == 3 << 7 | devnum_) {
+                    int length = std::min(nbytes, (int)sizeof(status_));
+                    std::memcpy(&status_, frame.data, length);
+                }
             }
         }
-    }
+    } while (poll_result > 0);
     return nbytes;
 }
 
@@ -406,7 +420,7 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
         int write_fd = open_socket(interface);
 
         struct canfd_frame frame = {};
-        frame.can_id  = 0xf << 7 | CAN_RTR_FLAG;
+        frame.can_id  = 0xf << 7 | 0x7f | CAN_RTR_FLAG;
         frame.len = 0;
 
         int nbytes = ::write(write_fd, &frame, sizeof(struct canfd_frame));
