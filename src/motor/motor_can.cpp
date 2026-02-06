@@ -326,7 +326,7 @@ int MotorCAN::open_socket(std::string if_name) {
 
 ssize_t MotorCAN::read() {
     canfd_frame frame_out = {
-        .can_id = 3, // status
+        .can_id = 3 << 7 | devnum_, // status
     };
 
 	int nbytes = ::write(fd_, &frame_out, sizeof(canfd_frame));
