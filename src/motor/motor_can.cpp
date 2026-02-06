@@ -325,13 +325,15 @@ int MotorCAN::open_socket(std::string if_name) {
 }
 
 ssize_t MotorCAN::read() {
-    canfd_frame frame_out = {
-        .can_id = 3 << 7 | devnum_, // status
-    };
+    if (!aread_requested_) {
+        canfd_frame frame_out = {
+            .can_id = 3 << 7 | devnum_, // status
+        };
 
-	int nbytes = ::write(fd_, &frame_out, sizeof(canfd_frame));
-    if (nbytes < 0) {
-        throw RuntimeErrnoException("Error writing can status request " + dev_path_);
+        int nbytes = ::write(fd_, &frame_out, sizeof(canfd_frame));
+        if (nbytes < 0) {
+            throw RuntimeErrnoException("Error writing can status request " + dev_path_);
+        }
     }
 
     canfd_frame frame;
@@ -341,13 +343,19 @@ ssize_t MotorCAN::read() {
     };
 
     int poll_result;
+    int nbytes;
     int timeout_ms = timeout_ms_;
+    if (aread_requested_) {
+        timeout_ms = 0;
+        aread_requested_ = false;
+    }
+
     do {
         poll_result = ::poll(&tmp, 1, timeout_ms);
         if (poll_result > 0) {
             timeout_ms = 0; // first read is allowed timeout. Subsequent non blocking reads to flush buffer
-            if (int nbytes = ::read(fd_, &frame, sizeof(canfd_frame));
-                nbytes > 0) {
+            nbytes = ::read(fd_, &frame, sizeof(canfd_frame));
+            if (nbytes > 0) {
                 if (frame.can_id == 3 << 7 | devnum_) {
                     int length = std::min(nbytes, (int)sizeof(status_));
                     std::memcpy(&status_, frame.data, length);
