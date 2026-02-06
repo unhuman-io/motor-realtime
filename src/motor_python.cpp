@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/operators.h>
 #include "motor_manager.h"
+#include "rt_version.h"
 #include <sstream>
 
 namespace py = pybind11;
@@ -101,6 +102,8 @@ py::object cast_rr_data(const RoundRobinData &rrd) {
 PYBIND11_MODULE(motor, m)
 {
     m.doc() = "Motor interface";
+
+    m.def("version", []{ return RT_VERSION_STRING; });
 
     py::enum_<ModeDesired>(m, "ModeDesired")
         .value("Open", ModeDesired::OPEN)
