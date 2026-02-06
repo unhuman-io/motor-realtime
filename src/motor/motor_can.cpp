@@ -325,7 +325,12 @@ int MotorCAN::open_socket(std::string if_name) {
 }
 
 ssize_t MotorCAN::read() {
-    if (!aread_requested_) {
+    if (aread_requested_) {
+        // don't send a status request
+    } else if (cmd_status_requested_) {
+        // also don't send a status request
+        cmd_status_requested_ = false;
+    } else {
         canfd_frame frame_out = {
             .can_id = 3 << 7 | devnum_, // status
         };
@@ -378,6 +383,7 @@ ssize_t MotorCAN::write() {
     if (nbytes < 0) {
         throw RuntimeException("Error writing can " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
+    cmd_status_requested_ = true;
     return nbytes;
 }
 

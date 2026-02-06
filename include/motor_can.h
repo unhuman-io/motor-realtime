@@ -25,6 +25,7 @@ class MotorCAN : public Motor {
     std::string intf_;
     static uint32_t timeout_ms_;
     bool aread_requested_ = false;
+    bool cmd_status_requested_ = false;
 };
 
 }; // namespace obot
