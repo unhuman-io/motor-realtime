@@ -18,6 +18,28 @@
 
 using namespace obot;
 
+class RuntimeHexDumpException : public RuntimeException {
+  public:
+    RuntimeHexDumpException(const std::string& msg, uint8_t *data_ptr, int length) :
+        RuntimeException(
+            msg + "\n" + hex_dump(data_ptr, length)
+        ) {}
+  private:
+    static std::string hex_dump(uint8_t *data_ptr, int length) {
+        std::stringstream stream;
+        stream << "    hex dump length: " << length;
+        stream << std::hex << std::setfill('0') << std::setw(2);
+        for (int i = 0; i < length; i++ ) {
+            if (i % 16 == 0) {
+                stream << "\n    ";
+            }
+            stream << (int) data_ptr[i] << " ";
+            
+        }
+        return stream.str();
+    }
+};
+
 int open_vcan(std::string interface) {
     struct sockaddr_can addr;
 	struct ifreq ifr;
@@ -45,7 +67,8 @@ int open_vcan(std::string interface) {
     return fd;
 }
 
-constexpr int MAX_ETH_L2_PAYLOAD_SIZE = 1000;
+constexpr int MAX_ETH_L2_PAYLOAD_SIZE = 3000;
+constexpr int MAX_PAYLOAD_LENGTH = 64;
 using mac_t = std::array<uint8_t, 6>;
 struct L2Frame {
     mac_t dst_mac = {};
@@ -172,6 +195,10 @@ std::vector<Payload> parse_eth_payload(uint8_t *frame_payload, ssize_t length) {
             break;
         }
         payload.length = ntohs(payload.length);
+        if (payload.length > MAX_PAYLOAD_LENGTH) {
+            throw RuntimeHexDumpException("payload length: " + std::to_string(payload.length) +
+                ", max allowed: " + std::to_string(MAX_PAYLOAD_LENGTH), frame_payload, length);
+        }
         if (payload.length > 0) {
             payload.data = &frame_payload[ptr];
         }
@@ -181,7 +208,8 @@ std::vector<Payload> parse_eth_payload(uint8_t *frame_payload, ssize_t length) {
     }
     std::cout << "\t" << payloads.size() << " payloads" << std::endl;
     if (ptr > length) {
-        throw RuntimeException("payload sum error, " + std::to_string(payloads.size()) + " messages, total length " + std::to_string(ptr));
+        throw RuntimeHexDumpException("payload sum error, " + std::to_string(payloads.size()) +
+            " messages, total length " + std::to_string(ptr), frame_payload, length);
     }
     return payloads;
 }
