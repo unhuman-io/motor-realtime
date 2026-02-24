@@ -260,7 +260,8 @@ int main(int argc, char** argv) {
                 std::memcpy(l2_frame_out.payload+PAYLOAD_HEADER_SIZE, payload.data, length);
                 int result = send(fd_eth, &l2_frame_out, length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, 0);
                 if (result < 0) {
-                    throw RuntimeErrnoException("eth write error");
+                    throw RuntimeErrnoException("eth write error, trying to write topic_id: " +
+                        std::to_string(can_frame.can_id) + ", length: " + std::to_string(length));
                 }
             }
             if (poll_fds[1].revents) {
