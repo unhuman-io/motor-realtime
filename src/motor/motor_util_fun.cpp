@@ -44,9 +44,8 @@ std::vector<std::string> udev_list_dfu()
 		// path in /sys/devices/pci*
 		const char *path = udev_list_entry_get_name(dev_list_entry);
 		struct udev_device *dev = udev_device_new_from_syspath(udev, path);
-        const char * devpath = udev_device_get_devpath(dev);
-
-        devpath = udev_device_get_devnode(dev);
+        // const char * devpath = udev_device_get_devpath(dev);
+        const char * devpath = udev_device_get_devnode(dev);
         if (devpath) {
             dev_paths.push_back(devpath);
         }
@@ -119,11 +118,13 @@ std::string get_config_dir() {
     if (config_dir_env == NULL) {
         // right now the only thing in the config directory is the device_ip_map.json
         // will have to figure out the search path implementation later if other files are added
-        config_dir = std::string(getenv("HOME")) + "/.config/motor_util/";
-        if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
-            config_dir = "/etc/motor_util/";
+        if (char * home_dir = getenv("HOME"); home_dir != NULL) {
+            config_dir = std::string() + "/.config/motor_util/";
             if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
-                config_dir = "/usr/share/motor-realtime/";
+                config_dir = "/etc/motor_util/";
+                if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
+                    config_dir = "/usr/share/motor-realtime/";
+                }
             }
         }
     } else {

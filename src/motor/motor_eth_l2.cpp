@@ -33,6 +33,9 @@ ssize_t EthL2CANFile::_read(char *data, unsigned int length, bool write_read) {
     frame.length = 44;
     //std::memcpy(data, &frame, sizeof(frame)-64);
     ssize_t read_length = SocketFile::_read((char *) &frame, sizeof(frame), write_read);
+    if (read_length < 0) {
+        throw RuntimeErrnoException("SocketFile read");
+    }
     length = std::min((size_t) length, sizeof(frame.payload));
     std::memcpy(data, &frame.payload, length);
     ssize_t frame_read_length = frame.length;
