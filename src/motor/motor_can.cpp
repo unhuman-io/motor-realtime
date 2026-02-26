@@ -63,8 +63,14 @@ class CANFile : public TextFile {
             poll_result = ::poll(&tmp, 1,0);
             if (poll_result > 0) {
                 int nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+                if (nbytes < 0) {
+                    throw RuntimeErrnoException("Read error during flush");
+                }
             }
         } while(poll_result > 0);
+        if (poll_result < 0) {
+            throw RuntimeErrnoException("Poll error durning flush");
+        }
     }
 
     // use a lock file to provide exclusive access to the CAN device during a 
@@ -109,7 +115,6 @@ class CANFile : public TextFile {
         tmp.events = POLLIN;
         int count = 0;
         int nbytes = 0;
-        bool success = false;
         int length_recv = 0;
         int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
         int can_id = 5 << 7 | devnum_;
@@ -117,7 +122,6 @@ class CANFile : public TextFile {
             nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
             if (nbytes > 0) {
                 if (frame.can_id == can_id) {
-                    success = true;
                     length_recv = std::min(length, (unsigned int) frame.len);
                     if (frame.data[0] != 0) {
                         // an ascii packet, not a special control packet
@@ -331,7 +335,7 @@ ssize_t MotorCAN::read() {
     tmp.events = POLLIN;
 
     int poll_result;
-    int nbytes;
+    int nbytes = 0;
     do {
         poll_result = ::poll(&tmp, 1, 0 /* ms */);
         if (poll_result > 0) {

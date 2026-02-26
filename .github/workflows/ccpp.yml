@@ -85,6 +85,23 @@ jobs:
         cmake .
         make
 
+  scan_build:
+    runs-on: ubuntu-24.04
+    continue-on-error: false
+    steps:
+    - uses: actions/checkout@main
+      with:
+        submodules: true
+        fetch-depth: 0
+    - name: dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libudev-dev clang-tools
+    - name: cmake
+      run: scan-build cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_PYTHON_API=1 .
+    - name: make
+      run: scan-build --status-bugs make -j`nproc`
+
   build_arm:
     runs-on: ubuntu-22.04
     continue-on-error: false
