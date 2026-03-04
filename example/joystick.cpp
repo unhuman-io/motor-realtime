@@ -52,7 +52,7 @@ class Task : public MotorThread {
             //double enable = (joystick.buttons[0] & 0x200) ? 1.0 : 0.0;
             double enable = (joystick.buttons[3] & 0x8) ? 1.0 : 0.0;
             current_desired_[0] = enable*current_gain*(ud2 + lr2);
-            double j2 = current_gain*(ud2 - lr2);
+            // double j2 = current_gain*(ud2 - lr2);
             //std::cout << "ud: " << std::setw(12) << ud2 << ", lr:" << lr2 << std::endl;
            // std::cout << current_desired_[0] << std::endl;
             motor_manager_.set_command_count(x_++);

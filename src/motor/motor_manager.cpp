@@ -49,11 +49,11 @@ static std::vector<std::string> udev (bool user_space_driver=false)
 		// path in /sys/devices/pci*
 		const char *path = udev_list_entry_get_name(dev_list_entry);
 		struct udev_device *dev = udev_device_new_from_syspath(udev, path);
-        const char * devpath = udev_device_get_devpath(dev);
+        // const char * devpath = udev_device_get_devpath(dev);
 
         // TODO better way of identifying other than interface number 0
 		//if (std::string("00") == udev_device_get_sysattr_value(dev, "device/bInterfaceNumber")) {
-			devpath = udev_device_get_devnode(dev);
+			const char * devpath = udev_device_get_devnode(dev);
             if (devpath) {
                 dev_paths.push_back(devpath);
             }

@@ -1,5 +1,6 @@
 #include "CLI11.hpp"
 #include "exception.h"
+#include <cxxabi.h>
 
 #include <unistd.h>
 #include <cstring>
@@ -17,6 +18,27 @@
 #include <linux/filter.h>
 
 using namespace obot;
+
+class RuntimeHexDumpException : public RuntimeException {
+  public:
+    RuntimeHexDumpException(const std::string& msg, uint8_t *data_ptr, int length) :
+        RuntimeException(
+            msg + "\n" + hex_dump(data_ptr, length)
+        ) {}
+    static std::string hex_dump(uint8_t *data_ptr, int length) {
+        std::stringstream stream;
+        stream << "    hex dump length: " << length;
+        stream << std::hex << std::setfill('0') << std::setw(2);
+        for (int i = 0; i < length; i++ ) {
+            if (i % 16 == 0) {
+                stream << "\n    ";
+            }
+            stream << std::setw(2) << (int) data_ptr[i] << " ";
+            
+        }
+        return stream.str();
+    }
+};
 
 int open_vcan(std::string interface) {
     struct sockaddr_can addr;
@@ -45,7 +67,8 @@ int open_vcan(std::string interface) {
     return fd;
 }
 
-constexpr int MAX_ETH_L2_PAYLOAD_SIZE = 1000;
+constexpr int MAX_ETH_L2_PAYLOAD_SIZE = 3000;
+constexpr int MAX_PAYLOAD_LENGTH = 64;
 using mac_t = std::array<uint8_t, 6>;
 struct L2Frame {
     mac_t dst_mac = {};
@@ -109,11 +132,14 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
             // Load first 4 bytes of Ethernet MAC
             { BPF_LD+BPF_W+BPF_ABS, 0, 0, word1_loc }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
             // Compare with dst_mac_[0..3]
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
             // Load next 2 bytes of Ethernet MAC
             { BPF_LD+BPF_H+BPF_ABS, 0, 0, word2_loc }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
             // Compare with dst_mac_[4..5]
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+            // Check first 4 bytes of payload accept zero
+            { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, 0 },
             // Accept packet
             { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
             // Reject packet
@@ -169,6 +195,10 @@ std::vector<Payload> parse_eth_payload(uint8_t *frame_payload, ssize_t length) {
             break;
         }
         payload.length = ntohs(payload.length);
+        if (payload.length > MAX_PAYLOAD_LENGTH) {
+            throw RuntimeHexDumpException("payload length: " + std::to_string(payload.length) +
+                ", max allowed: " + std::to_string(MAX_PAYLOAD_LENGTH), frame_payload, length);
+        }
         if (payload.length > 0) {
             payload.data = &frame_payload[ptr];
         }
@@ -178,24 +208,27 @@ std::vector<Payload> parse_eth_payload(uint8_t *frame_payload, ssize_t length) {
     }
     std::cout << "\t" << payloads.size() << " payloads" << std::endl;
     if (ptr > length) {
-        throw RuntimeException("payload sum error, " + std::to_string(payloads.size()) + " messages, total length " + std::to_string(ptr));
+        throw RuntimeHexDumpException("payload sum error, " + std::to_string(payloads.size()) +
+            " messages, total length " + std::to_string(ptr), frame_payload, length);
     }
     return payloads;
 }
 
 
-int main(int argc, char** argv) {
+int _main(int argc, char** argv) {
     std::string mac_address {"00:00:00:00:00:00"};
     std::string vcan_interface {"vcan0"};
     std::string interface {"lo"};
     std::string gateway_mac {"00:00:00:00:00:00"};
     CLI::App app{"Utility for converting ethernet l2 communication to vcan\n"
-                 "    Example:\n"
-                 "    sudo modprobe vcan\n"
-                 "    sudo ip link add dev vcan0 type vcan\n"
-                 "    sudo ip link set up vcan0\n"
-                 "    eth2vcan -i eth0 -m 12:34:56:78:ab:cd\n"
-                 "    motor_util -f vcan0"};
+                 "\n"
+                 "Example:\n"
+                 "sudo modprobe vcan\n"
+                 "sudo ip link add dev vcan0 type vcan\n"
+                 "sudo ip link set up vcan0\n"
+                 "eth2vcan -i eth0 -m 12:34:56:78:ab:cd\n"
+                 "# another terminal\n"
+                 "motor_util -f vcan0"};
     app.add_option("-v,--vcan", vcan_interface, "Use VCAN_INTERFACE for vcan")->type_name("VCAN_INTERFACE")->capture_default_str()->expected(1);
     app.add_option("-m,--mac", mac_address, "Use MAC address MAC_ADDRESS")->type_name("MAC_ADDRESS")->capture_default_str()->expected(1);
     app.add_option("-i,--interface", interface, "Use network interface INTERFACE")->type_name("INTERFACE")->capture_default_str()->expected(1);
@@ -228,10 +261,14 @@ int main(int argc, char** argv) {
                     .length = htons(length),
                     .data = can_frame.data
                 };
+                std::memset(&l2_frame_out.payload, 0, 64-L2_HEADER_SIZE);
                 std::memcpy(l2_frame_out.payload, &payload, PAYLOAD_HEADER_SIZE);
                 std::memcpy(l2_frame_out.payload+PAYLOAD_HEADER_SIZE, payload.data, length);
-                int result = send(fd_eth, &l2_frame_out, length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, 0);
+                int length_out = std::max(length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, 64);
+                int result = send(fd_eth, &l2_frame_out, length_out, 0);
                 if (result < 0) {
+                    std::cout << "fd eth " << fd_eth << std::endl;
+                    std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out, length_out) << std::endl;
                     throw RuntimeErrnoException("eth write error");
                 }
             }
@@ -260,4 +297,19 @@ int main(int argc, char** argv) {
     }
 
     return 0;
+}
+
+int main(int argc, char** argv) {
+    try {
+        return _main(argc, argv);
+    } catch (const RuntimeException &e) {
+        std::cerr << "Caught RuntimeException" << std::endl;
+        std::cerr << " what(): " << e.what() << std::endl;
+        std::cerr << e.location_print() << std::endl;    
+    } catch (const std::exception &e) {
+        int status;
+        std::cerr << "Caught exception of type " << abi::__cxa_demangle(typeid(e).name(), NULL, NULL, &status) << std::endl;
+        std::cerr << "  what():  " << e.what() << std::endl;
+        return 1;
+    }
 }
