@@ -137,8 +137,8 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
             { BPF_LD+BPF_H+BPF_ABS, 0, 0, word2_loc }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
             // Compare with dst_mac_[4..5]
             { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
-            // Check first byte of payload accept zero
-            { BPF_LD+BPF_B+BPF_ABS, 0, 0, 14 },
+            // Check first 4 bytes of payload accept zero
+            { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
             { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, 0 },
             // Accept packet
             { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
