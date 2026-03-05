@@ -189,6 +189,17 @@ int open_eth(std::string interface, std::string mac_address, bool gateway_mode, 
         char buf[MAX_ETH_L2_PAYLOAD_SIZE];
         ::read(fd, buf, MAX_ETH_L2_PAYLOAD_SIZE);
     }
+
+    // still need to bind in order to send, I guess
+    sockaddr_ll server_addr = {};
+    server_addr.sll_family = AF_PACKET;
+    server_addr.sll_protocol = htons(0x88B5);
+    server_addr.sll_ifindex = if_nametoindex(interface.c_str());
+ 
+    int retval = bind(fd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    if (retval < 0) {
+      throw RuntimeErrnoException("bind failed for " + interface);
+    }
     return fd;
 }
 
