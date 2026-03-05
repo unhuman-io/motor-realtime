@@ -156,18 +156,13 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
     }
 
 int open_eth(std::string interface, std::string mac_address, bool gateway_mode, std::string gateway_mac) {
-    int fd = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    int fd = ::socket(AF_PACKET, SOCK_RAW, htons(0x88b5));
     if (fd < 0) {
       throw RuntimeErrnoException("socket failed for " + interface);
     }
-    sockaddr_ll server_addr = {};
-    server_addr.sll_family = AF_PACKET;
-    server_addr.sll_protocol = htons(0x88B5);
-    server_addr.sll_ifindex = if_nametoindex(interface.c_str());
 
-    int retval = bind(fd, (struct sockaddr *)&server_addr, sizeof(server_addr));
-    if (retval < 0) {
-      throw RuntimeErrnoException("bind failed for " + interface);
+    if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, interface.c_str(), interface.size()) < 0) {
+        throw RuntimeErrnoException("setsockopt SO_BINDTODEVICE error");
     }
 
     mac_t * this_mac = !gateway_mode ? &l2_frame_out.src_mac : &l2_frame_out.dst_mac;
@@ -180,6 +175,20 @@ int open_eth(std::string interface, std::string mac_address, bool gateway_mode, 
         *this_mac = get_interface_mac_address(fd, interface);
     }
     set_eth_packet_filter(fd, *dst_mac, !gateway_mode);
+
+    // flush frames received before filter
+    pollfd poll_fd {
+        .fd = fd,
+        .events = POLLIN
+    };
+    
+    for (int result = ::poll(&poll_fd, 1, 0); result > 0; result = ::poll(&poll_fd, 1, 0)) {
+        if (result < 0) {
+            throw RuntimeErrnoException("poll error during flush");
+        }
+        char buf[MAX_ETH_L2_PAYLOAD_SIZE];
+        ::read(fd, buf, MAX_ETH_L2_PAYLOAD_SIZE);
+    }
     return fd;
 }
 
