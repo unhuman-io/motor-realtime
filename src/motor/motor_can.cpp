@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#if __has_include(<charconv>)
+#include <charconv>
+#endif
 
 #include <net/if.h>
 #include <sys/types.h>
@@ -280,6 +283,12 @@ MotorCAN::MotorCAN(std::string address) {
     board_num_ = operator[]("board_num").get();
     config_ = operator[]("config").get();
     serial_number_ = operator[]("serial").get();
+    // hex in base_path_ for convenience
+#if __has_include(<charconv>)
+    char buffer[5] = {"0x"};
+    std::to_chars(buffer+2, buffer+4, devnum_, 16);
+    base_path_ = buffer;
+#endif
 }
 
 uint32_t MotorCAN::timeout_ms_ = 10;
