@@ -252,6 +252,16 @@ class L2File : public TextFile {
     }
 
     ssize_t _read(char * data, unsigned int length) {
+        pollfd poll_fd {
+            .fd = fd_,
+            .events = POLLIN
+        };
+        if (int poll_result = poll(&poll_fd, 1, timeout_ms_); poll_result < 0) {
+            throw RuntimeErrnoException("poll error in read");
+        } else if (poll_result == 0) {
+            throw RuntimeException("poll timeout in read");
+        }
+
         L2Frame frame {};
         int nbytes = ::read(fd_, &frame, sizeof(frame));
         if (nbytes <= 0) {
@@ -272,11 +282,6 @@ class L2File : public TextFile {
 
     virtual ssize_t read(char * data, unsigned int length) {
         ssize_t retval = _read(data, length);
-        pollfd poll_fd {
-            .fd = fd_,
-            .events = POLLIN
-        };
-        int poll_result = poll(&poll_fd, 1, timeout_ms_);
 
         if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
             // a control packet
