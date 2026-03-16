@@ -13,6 +13,7 @@
 #include <linux/if_packet.h>
 #include <net/ethernet.h>
 #include <linux/filter.h>
+#include <net/if_arp.h>
 
 #include <ifaddrs.h>
 #include <array>
@@ -66,7 +67,6 @@ struct L2Frame {
 };
 constexpr int L2_HEADER_SIZE = sizeof(L2Frame) - sizeof(L2Frame::payload);
 static_assert(L2_HEADER_SIZE == 20);
-L2Frame l2_frame_out;
 
 struct Payload {
     uint16_t topic_id;
@@ -101,15 +101,50 @@ std::string mac2str(const mac_t &mac) {
 }
 
 mac_t get_interface_mac_address(int fd, std::string interface) {
-    mac_t mac;
-    struct ifreq ifr = {};
-    std::strncpy(ifr.ifr_name, interface.c_str(), IFNAMSIZ - 1);
-    if (ioctl(fd, SIOCGIFHWADDR, &ifr) == -1) {
-        throw RuntimeErrnoException("ioctl SIOCGIFHWADDR failed for " + interface);
+    mac_t mac {};
+    if (interface != "any" ) {
+        struct ifreq ifr = {};
+        std::strncpy(ifr.ifr_name, interface.c_str(), IFNAMSIZ - 1);
+        if (ioctl(fd, SIOCGIFHWADDR, &ifr) == -1) {
+            throw RuntimeErrnoException("ioctl SIOCGIFHWADDR failed for " + interface);
+        }
+        std::memcpy(mac.data(), ifr.ifr_hwaddr.sa_data, 6);
     }
-    std::memcpy(mac.data(), ifr.ifr_hwaddr.sa_data, 6);
-    std::printf("interface mac: %02x:%02x:%02x:%02x:%02x:%02x\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     return mac;
+}
+
+static std::vector<std::string> get_eth_interfaces() {
+    std::vector<std::string> interfaces;
+    struct ifaddrs *addrs,*tmp;
+
+    if (getifaddrs(&addrs)) {
+        throw RuntimeException("Error getting interfaces: " + std::to_string(errno) + ": " + strerror(errno));
+    }
+    tmp = addrs;
+
+    while (tmp) {
+        //std::cout << "interface: " << tmp->ifa_name << " flags " << tmp->ifa_flags << std::endl;
+        // test if interface is ethernet
+        if (tmp->ifa_flags & IFF_UP) {
+            struct sockaddr_ll *sll = (struct sockaddr_ll *)tmp->ifa_addr;
+            if (sll && sll->sll_hatype == ARPHRD_ETHER) {
+                //printf("Interface %s is Ethernet-compatible\n", tmp->ifa_name);
+                interfaces.push_back(tmp->ifa_name);
+            }
+        }
+        tmp = tmp->ifa_next;
+    }
+    if (interfaces.empty()) {
+        throw RuntimeException("No valid ETH interfaces found");
+    } else {
+        // std::cout << "Found ETH interfaces: ";
+        // for (auto &s : interfaces) {
+        //     std::cout << s << " ";
+        // }
+        // std::cout << std::endl;
+    }
+    freeifaddrs(addrs);
+    return interfaces;
 }
 
 class L2File : public TextFile {
@@ -138,22 +173,41 @@ class L2File : public TextFile {
         throw RuntimeErrnoException("socket failed for " + interface_);
         }
 
-        if (setsockopt(fd_, SOL_SOCKET, SO_BINDTODEVICE, interface_.c_str(), interface_.size()) < 0) {
-            throw RuntimeErrnoException("setsockopt SO_BINDTODEVICE error");
+        if (interface_ != "any") {
+            if (setsockopt(fd_, SOL_SOCKET, SO_BINDTODEVICE, interface_.c_str(), interface_.size()) < 0) {
+                throw RuntimeErrnoException("setsockopt SO_BINDTODEVICE error");
+            }
         }
 
-        set_eth_packet_filter(fd_, dst_mac_, static_cast<uint8_t>(status_type_));
+        node_id_ = dst_mac_[5];
+        TopicId topic_id {
+            .node_id = node_id_ ,
+            .type = static_cast<uint16_t>(status_type_)
+        };
+        uint16_t topic_id_uint;
+        std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id_uint));
+
+        set_eth_packet_filter(fd_, dst_mac_, htons(topic_id_uint));
         flush();
                 // still need to bind in order to send, I guess
         sockaddr_ll server_addr = {};
         server_addr.sll_family = AF_PACKET;
         server_addr.sll_protocol = htons(0x88B5);
-        server_addr.sll_ifindex = if_nametoindex(interface_.c_str());
+        if (interface_ != "any") {
+            get_eth_interfaces();
+            server_addr.sll_ifindex = if_nametoindex(interface_.c_str());
+        }
     
         int retval = bind(fd_, (struct sockaddr *)&server_addr, sizeof(server_addr));
         if (retval < 0) {
             throw RuntimeErrnoException("bind failed for " + interface_);
         }
+
+        std::memcpy(&l2_frame_out_.dst_mac, &dst_mac_, sizeof(dst_mac_));
+        mac_t src_mac = get_interface_mac_address(fd_, interface_);
+        std::memcpy(&l2_frame_out_.src_mac, &src_mac, sizeof(src_mac));
+
+        
     }
 
     void close() {
@@ -176,7 +230,7 @@ class L2File : public TextFile {
         }
     }
 
-    void set_eth_packet_filter(int fd, mac_t mac, uint8_t packet_type) {
+    void set_eth_packet_filter(int fd, mac_t mac, uint16_t topic_id) {
         uint32_t word1;
         std::memcpy(&word1, mac.data(), 4);
         word1 = htonl(word1);
@@ -186,20 +240,19 @@ class L2File : public TextFile {
         // Set Berkeley Packet Filter to only receive packets with mac matching
         struct sock_filter bpf_code[] = {
             // Load first 4 bytes of Ethernet MAC
-            { BPF_LD+BPF_W+BPF_ABS, 0, 0, 0 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
+            { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
             // Compare with dst_mac_[0..3]
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 8, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 7, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
             // Load next 2 bytes of Ethernet MAC
-            { BPF_LD+BPF_H+BPF_ABS, 0, 0, 6 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
+            { BPF_LD+BPF_H+BPF_ABS, 0, 0, 10 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
             // Compare with dst_mac_[4..5]
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 6, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
             // Check first 4 bytes of payload accept zero
             { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 4, 0 },
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, 0 },
             // Check packet type field
-            { BPF_LD+BPF_B+BPF_ABS, 0, 0, L2_HEADER_SIZE },
-            { BPF_RSH+BPF_ALU+BPF_K, 0, 0, 4 },
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, packet_type },
+            { BPF_LD+BPF_H+BPF_ABS, 0, 0, L2_HEADER_SIZE },
+            { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, htons(topic_id) },
 
             // Accept packet
             { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
@@ -343,18 +396,24 @@ class L2File : public TextFile {
     virtual ssize_t write(const char * data, unsigned int length, bool writeread = false) {
         lock();
         L2MessageType cmd_type = writeread ? cmd_status_type_ : cmd_type_;
+        TopicId topic_id {
+            .node_id = node_id_ ,
+            .type = static_cast<uint16_t>(cmd_type)
+        };
+        uint16_t topic_id_uint;
+        std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id));
         Payload payload {
-            .topic_id = htons(static_cast<uint16_t>(cmd_type)),
+            .topic_id = htons(topic_id_uint),
             .length = htons(length),
         };
-        std::memset(&l2_frame_out.payload, 0, 64-L2_HEADER_SIZE);
-        std::memcpy(l2_frame_out.payload, &payload, PAYLOAD_HEADER_SIZE);
+        std::memset(&l2_frame_out_.payload, 0, 64-L2_HEADER_SIZE);
+        std::memcpy(l2_frame_out_.payload, &payload, PAYLOAD_HEADER_SIZE);
         length = std::min(length, static_cast<unsigned int>(MAX_ETH_L2_PAYLOAD_SIZE));
-        std::memcpy(l2_frame_out.payload+PAYLOAD_HEADER_SIZE, data, length);
-        int length_out = length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE;
-        int result = send(fd_, &l2_frame_out, length_out, 0);
+        std::memcpy(l2_frame_out_.payload+PAYLOAD_HEADER_SIZE, data, length);
+        int length_out = std::max(length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, 64u);
+        int result = send(fd_, &l2_frame_out_, length_out, 0);
         if (result < 0) {
-            std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out, length_out) << std::endl;
+            std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out_, length_out) << std::endl;
             throw RuntimeErrnoException("eth write error");
         }
         return length_out;
@@ -383,6 +442,8 @@ class L2File : public TextFile {
     mac_t dst_mac_;
     int timeout_ms_ = 10;
     int fd_lock_;
+    L2Frame l2_frame_out_;
+    uint8_t node_id_;
     
     std::string lock_file_;
 };
@@ -397,7 +458,7 @@ MotorEthL2::MotorEthL2(std::string address, std::string alias) {
         interface = address.substr(0, n);
         mac = address.substr(n+1,-1);
     }
-    mac_t dst_mac = str2mac(address);
+    mac_t dst_mac = str2mac(mac);
     realtime_file_ = std::unique_ptr<L2File>(new L2File(interface, dst_mac, L2MessageType::OBOT_CMD, L2MessageType::OBOT_CMD_STATUS, L2MessageType::OBOT_STATUS));
     open();
 
@@ -452,40 +513,6 @@ ssize_t MotorEthL2::write() {
 }
 
 
-// static std::vector<std::string> get_can_interfaces() {
-//     std::vector<std::string> interfaces;
-//     struct ifaddrs *addrs,*tmp;
-
-//     if (getifaddrs(&addrs)) {
-//         throw RuntimeException("Error getting interfaces: " + std::to_string(errno) + ": " + strerror(errno));
-//     }
-//     tmp = addrs;
-
-//     while (tmp) {
-//         // std::cout << "interface: " << tmp->ifa_name << " flags " << tmp->ifa_flags << std::endl;
-//         try {
-//             // test if interface supports can
-//             if (tmp->ifa_flags & IFF_UP) {
-//                 int fd = MotorCAN::open_socket(tmp->ifa_name);
-//                 interfaces.push_back(tmp->ifa_name);
-//                 ::close(fd);
-//             }
-//         } catch (RuntimeException &e) {}
-        
-//         tmp = tmp->ifa_next;
-//     }
-//     if (interfaces.empty()) {
-//         throw RuntimeException("No valid CAN interfaces found");
-//     } else {
-//         std::cout << "Found CAN interfaces: ";
-//         for (auto &s : interfaces) {
-//             std::cout << s << " ";
-//         }
-//         std::cout << std::endl;
-//     }
-//     freeifaddrs(addrs);
-//     return interfaces;
-// }
 
 // std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) {
 //     std::vector<std::string> devices;
