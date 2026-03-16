@@ -304,7 +304,27 @@ class L2File : public TextFile {
         return err;
     }
 
-    ssize_t _read(char * data, unsigned int length) {
+    ssize_t _read(char * data, unsigned int length, bool request = false) {
+        if (request) {
+            TopicId topic_id {
+                .node_id = node_id_ ,
+                .type = static_cast<uint16_t>(status_type_)
+            };
+            std::cout << "type " << topic_id.type << std::endl;
+            uint16_t topic_id_uint;
+            std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id));
+            Payload payload {
+                .topic_id = htons(topic_id_uint),
+            };
+            std::memset(&l2_frame_out_.payload, 0, 64-L2_HEADER_SIZE);
+            std::memcpy(l2_frame_out_.payload, &payload, PAYLOAD_HEADER_SIZE);
+            int length_out = 64;
+            int result = send(fd_, &l2_frame_out_, length_out, 0);
+            if (result < 0) {
+                std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out_, length_out) << std::endl;
+                throw RuntimeErrnoException("eth write error");
+            }
+        }
         pollfd poll_fd {
             .fd = fd_,
             .events = POLLIN
@@ -491,7 +511,7 @@ void MotorEthL2::open() {
 ssize_t MotorEthL2::read() {
     L2Frame frame_in;
     int nbytes = 0;
-    if (int retval = realtime_file_->read(reinterpret_cast<char *>(&frame_in), sizeof(frame_in));
+    if (int retval = realtime_file_->_read(reinterpret_cast<char *>(&frame_in), sizeof(frame_in), true);
         retval < 0) {
         throw RuntimeErrnoException("Error on EthL2 read");
     } else {
