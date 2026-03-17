@@ -310,7 +310,6 @@ class L2File : public TextFile {
                 .node_id = node_id_ ,
                 .type = static_cast<uint16_t>(status_type_)
             };
-            std::cout << "type " << topic_id.type << std::endl;
             uint16_t topic_id_uint;
             std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id));
             Payload payload {
