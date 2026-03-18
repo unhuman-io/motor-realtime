@@ -300,6 +300,7 @@ class L2File : public TextFile {
 
     ssize_t _read(char * data, unsigned int length, bool request = false) {
         if (request) {
+            lock();
             TopicId topic_id {
                 .node_id = node_id_ ,
                 .bus_id = 0,
@@ -331,6 +332,9 @@ class L2File : public TextFile {
 
         L2Frame frame {};
         int nbytes = ::read(fd_, &frame, sizeof(frame));
+        if (request) {
+            unlock();
+        }
         if (nbytes <= 0) {
             throw RuntimeErrnoException("eth read error");
         }
