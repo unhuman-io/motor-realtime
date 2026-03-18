@@ -6,6 +6,8 @@
 
 namespace obot {
 
+std::vector<std::string> get_eth_interfaces();
+
 class L2File;
 
 class MotorEthL2 : public Motor {

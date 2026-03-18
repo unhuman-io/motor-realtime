@@ -113,7 +113,7 @@ mac_t get_interface_mac_address(int fd, std::string interface) {
     return mac;
 }
 
-static std::vector<std::string> get_eth_interfaces() {
+std::vector<std::string> get_eth_interfaces() {
     std::vector<std::string> interfaces;
     struct ifaddrs *addrs,*tmp;
 
