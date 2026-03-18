@@ -280,10 +280,6 @@ class L2File : public TextFile {
             }
             std::cerr << std::endl;
         }
-        // option 1: open and close the socket - throughput at 600 packets/second
-        // option 2: flush the socket - throughput at 620 packets/second
-        // open();
-        flush();
         return err;
     }
 
