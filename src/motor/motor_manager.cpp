@@ -234,7 +234,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
             }
         } catch (const std::exception &e) {
             if (print_unconnected) {
-                std::cerr << "Motor Eth L2 exception: " << e.what() << std::endl;
+                std::cerr << interface_macs[i] << " exception: " << e.what() << std::endl;
             }
         }
     }

@@ -173,11 +173,11 @@ class L2File : public TextFile {
         throw RuntimeErrnoException("socket failed for " + interface_);
         }
 
-        if (interface_ != "any") {
-            if (setsockopt(fd_, SOL_SOCKET, SO_BINDTODEVICE, interface_.c_str(), interface_.size()) < 0) {
-                throw RuntimeErrnoException("setsockopt SO_BINDTODEVICE error");
-            }
-        }
+        // if (interface_ != "any") {
+        //     if (setsockopt(fd_, SOL_SOCKET, SO_BINDTODEVICE, interface_.c_str(), interface_.size()) < 0) {
+        //         throw RuntimeErrnoException("setsockopt SO_BINDTODEVICE error");
+        //     }
+        // }
 
         node_id_ = dst_mac_[5];
         TopicId topic_id {
@@ -193,10 +193,7 @@ class L2File : public TextFile {
         sockaddr_ll server_addr = {};
         server_addr.sll_family = AF_PACKET;
         server_addr.sll_protocol = htons(0x88B5);
-        if (interface_ != "any") {
-            get_eth_interfaces();
-            server_addr.sll_ifindex = if_nametoindex(interface_.c_str());
-        }
+        server_addr.sll_ifindex = if_nametoindex(interface_.c_str());
     
         int retval = bind(fd_, (struct sockaddr *)&server_addr, sizeof(server_addr));
         if (retval < 0) {
@@ -478,6 +475,28 @@ MotorEthL2::MotorEthL2(std::string address, std::string alias) {
         mac = address.substr(n+1,-1);
     }
     mac_t dst_mac = str2mac(mac);
+    devnum_ = dst_mac[5];
+    dev_path_ = mac;
+
+    if (interface == "any") {
+        auto interfaces = get_eth_interfaces();
+        for (auto & tmp_interface : interfaces) {
+            auto motor_txt = L2File(tmp_interface, dst_mac, L2MessageType::OBOT_ASCII_CMD, L2MessageType::OBOT_ASCII_CMD, L2MessageType::OBOT_ASCII_RESPONSE);
+            try {
+                std::string str_out = "messages_version";
+                char str_in[64];
+                motor_txt.writeread(str_out.c_str(), str_out.length(), str_in, 64);
+                interface = tmp_interface;
+                break;
+            } catch (RuntimeException &e) {}
+        }
+        if (interface == "any") {
+            throw RuntimeException(mac + " not found");
+        }
+    }
+
+    base_path_ = interface;
+
     realtime_file_ = std::unique_ptr<L2File>(new L2File(interface, dst_mac, L2MessageType::OBOT_CMD, L2MessageType::OBOT_CMD_STATUS, L2MessageType::OBOT_STATUS));
     open();
 
