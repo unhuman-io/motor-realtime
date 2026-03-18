@@ -180,9 +180,10 @@ class L2File : public TextFile {
         // }
 
         node_id_ = dst_mac_[5];
+        uint16_t status_type_uint = static_cast<uint16_t>(status_type_);
         TopicId topic_id {
             .node_id = node_id_ ,
-            .type = static_cast<uint16_t>(status_type_)
+            .type = status_type_uint
         };
         uint16_t topic_id_uint;
         std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id_uint));
@@ -309,8 +310,9 @@ class L2File : public TextFile {
             };
             uint16_t topic_id_uint;
             std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id));
+            uint16_t network_topic_id = htons(topic_id_uint);
             Payload payload {
-                .topic_id = htons(topic_id_uint),
+                .topic_id = network_topic_id,
             };
             std::memset(&l2_frame_out_.payload, 0, 64-L2_HEADER_SIZE);
             std::memcpy(l2_frame_out_.payload, &payload, PAYLOAD_HEADER_SIZE);
@@ -412,9 +414,10 @@ class L2File : public TextFile {
     virtual ssize_t write(const char * data, unsigned int length, bool writeread = false) {
         lock();
         L2MessageType cmd_type = writeread ? cmd_status_type_ : cmd_type_;
+        uint16_t cmd_type_uint = static_cast<uint16_t>(cmd_type);
         TopicId topic_id {
             .node_id = node_id_ ,
-            .type = static_cast<uint16_t>(cmd_type)
+            .type = cmd_type_uint
         };
         uint16_t topic_id_uint;
         std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id));
