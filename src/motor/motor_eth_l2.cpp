@@ -182,6 +182,7 @@ class L2File : public TextFile {
         node_id_ = dst_mac_[5];
         TopicId topic_id {
             .node_id = node_id_ ,
+            .bus_id = 0,
             .type = static_cast<uint16_t>(status_type_)
         };
         uint16_t topic_id_uint;
@@ -301,6 +302,7 @@ class L2File : public TextFile {
         if (request) {
             TopicId topic_id {
                 .node_id = node_id_ ,
+                .bus_id = 0,
                 .type = static_cast<uint16_t>(status_type_)
             };
             uint16_t topic_id_uint;
@@ -410,6 +412,7 @@ class L2File : public TextFile {
         L2MessageType cmd_type = writeread ? cmd_status_type_ : cmd_type_;
         TopicId topic_id {
             .node_id = node_id_ ,
+            .bus_id = 0,
             .type = static_cast<uint16_t>(cmd_type)
         };
         uint16_t topic_id_uint;
