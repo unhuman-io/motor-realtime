@@ -368,7 +368,8 @@ PYBIND11_MODULE(motor, m)
                 py::print("Error: json file " + json_ip_file + " not accessible");
             }
             return m.get_motors_by_ip(ips, connect, print_unconnected, allow_simulated);
-        }, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false);
+        }, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false)
+        .def("get_motors_by_eth_l2", &MotorManager::get_motors_by_eth_l2, py::arg("l2_string"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false, py::arg("ip_aliases") = py::list());
 
     m.def("get_config_dir", &get_config_dir);
     m.def("diff_mcu_time", [](uint32_t t1, uint32_t t2)
