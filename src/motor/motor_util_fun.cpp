@@ -136,4 +136,23 @@ std::string get_config_dir() {
     return config_dir;
 }
 
+void interruptible_sleep_until(std::chrono::steady_clock::time_point next_time) {
+    auto duration = next_time.time_since_epoch();
+    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration);
+    auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - seconds);
+
+    struct timespec ts {
+        .tv_sec = seconds.count(),
+        .tv_nsec = nanoseconds.count()
+    };
+
+    // using std::this_thread::sleep_until does not exit when there is a ctrl-c signal
+    // but clock_nanosleep will
+    int result = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL);
+
+    if (result < 0) {
+        throw RuntimeErrnoException("clock_nanosleep error");
+    }
+}
+
 }; // namespace obot

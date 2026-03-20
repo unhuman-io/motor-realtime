@@ -5,6 +5,7 @@
 #include "exception.h"
 #include <vector>
 #include "motor_messages.h"
+#include <chrono>
 
 namespace obot {
 
@@ -76,5 +77,6 @@ class DFUDevice : public MotorDescription {
 
 std::string short_status(std::vector<Status> statuses);
 std::string get_config_dir();
+void interruptible_sleep_until(std::chrono::steady_clock::time_point next_time);
 
 }  // namespace obot

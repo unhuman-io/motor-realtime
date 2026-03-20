@@ -951,7 +951,7 @@ int _main(int argc, char** argv) {
 
                 // option to not sleep
                 // while (std::chrono::steady_clock::now() < next_time);
-                std::this_thread::sleep_until(next_time);
+                interruptible_sleep_until(next_time);
             }
         }
     }
