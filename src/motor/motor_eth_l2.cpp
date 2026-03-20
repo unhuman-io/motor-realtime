@@ -280,6 +280,8 @@ class L2File : public TextFile {
             }
             std::cerr << std::endl;
         }
+        // remove all extra packets from other processes
+        flush();
         return err;
     }
 
