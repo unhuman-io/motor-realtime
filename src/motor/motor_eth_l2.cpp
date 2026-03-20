@@ -170,8 +170,13 @@ class L2File : public TextFile {
     void open() {
         fd_ = ::socket(AF_PACKET, SOCK_RAW, htons(0x88b5));
         if (fd_ < 0) {
-        throw RuntimeErrnoException("socket failed for " + interface_);
+            throw RuntimeErrnoException("socket failed for " + interface_);
         }
+
+        if (fcntl(fd_, F_SETFL, O_NONBLOCK) < 0) {
+            throw RuntimeErrnoException("socket set non-block failed for " + interface_);
+        }
+
 
         // if (interface_ != "any") {
         //     if (setsockopt(fd_, SOL_SOCKET, SO_BINDTODEVICE, interface_.c_str(), interface_.size()) < 0) {
@@ -214,17 +219,16 @@ class L2File : public TextFile {
 
     void flush() {
         // flush frames received before filter
-        pollfd poll_fd {
-            .fd = fd_,
-            .events = POLLIN
-        };
-        
-        for (int result = ::poll(&poll_fd, 1, 0); result > 0; result = ::poll(&poll_fd, 1, 0)) {
-            if (result < 0) {
-                throw RuntimeErrnoException("poll error during flush");
+        char buf[MAX_ETH_L2_PAYLOAD_SIZE];
+        while (true) {
+            int retval = ::read(fd_, buf, MAX_ETH_L2_PAYLOAD_SIZE);
+            if (retval < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    break;
+                } else {
+                    throw RuntimeErrnoException("read error during flush");
+                }
             }
-            char buf[MAX_ETH_L2_PAYLOAD_SIZE];
-            ::read(fd_, buf, MAX_ETH_L2_PAYLOAD_SIZE);
         }
     }
 
@@ -326,14 +330,33 @@ class L2File : public TextFile {
             .fd = fd_,
             .events = POLLIN
         };
-        if (int poll_result = poll(&poll_fd, 1, timeout_ms_); poll_result < 0) {
-            throw RuntimeErrnoException("poll error in read");
-        } else if (poll_result == 0) {
-            throw RuntimeException("poll timeout in read");
+
+        int nbytes = 0;
+        int poll_result;
+        L2Frame frame {};
+        // do a no timeout flush/read
+        while (true) {
+            int nbytes = ::read(fd_, &frame, sizeof(frame));
+            if (nbytes < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    break;
+                } else {
+                    throw RuntimeErrnoException("read error during flush");
+                }
+            }
         }
 
-        L2Frame frame {};
-        int nbytes = ::read(fd_, &frame, sizeof(frame));
+        // if nothing from the no timeout flush/read, then do a timeout read
+        if (nbytes == 0) {
+            if (int poll_result = poll(&poll_fd, 1, timeout_ms_); poll_result < 0) {
+                throw RuntimeErrnoException("poll error in read");
+            } else if (poll_result == 0) {
+                throw RuntimeException("poll timeout in read");
+            }
+
+            nbytes = ::read(fd_, &frame, sizeof(frame));
+        }
+
         if (request) {
             unlock();
         }
@@ -534,7 +557,7 @@ void MotorEthL2::open() {
 ssize_t MotorEthL2::read() {
     L2Frame frame_in;
     int nbytes = 0;
-    if (int retval = realtime_file_->_read(reinterpret_cast<char *>(&frame_in), sizeof(frame_in), true);
+    if (int retval = realtime_file_->_read(reinterpret_cast<char *>(&frame_in), sizeof(frame_in), send_read_request_);
         retval < 0) {
         throw RuntimeErrnoException("Error on EthL2 read");
     } else {
