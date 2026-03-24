@@ -569,7 +569,7 @@ ssize_t MotorEthL2::read() {
 
 ssize_t MotorEthL2::write() {
     int nbytes = 0;
-    if (int retval = realtime_file_->write(reinterpret_cast<const char*>(&command_), sizeof(command_));
+    if (int retval = realtime_file_->write(reinterpret_cast<const char*>(&command_), sizeof(command_), cmd_status_req_);
         retval < 0) {
         throw RuntimeErrnoException("Error on EthL2 write");
     } else {
@@ -577,73 +577,5 @@ ssize_t MotorEthL2::write() {
     }
     return nbytes;
 }
-
-
-
-// std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) {
-//     std::vector<std::string> devices;
-//     std::vector<std::string> interfaces;
-//     if (interface == "any") {
-//         interfaces = get_can_interfaces();
-//     } else {
-//         interfaces.push_back(interface);
-//     }
-
-//     int fd = open_socket(interface);
-//     struct can_filter rfilter[1];
-//     rfilter[0].can_id   = 0x780;
-//     rfilter[0].can_mask = 0x780 | CAN_EFF_FLAG | CAN_RTR_FLAG;
-
-//     if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
-//         throw RuntimeException("Error setting filter for " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
-//     }
-
-
-//     for (std::string &interface : interfaces) {
-//         int write_fd = open_socket(interface);
-
-//         struct canfd_frame frame = {};
-//         frame.can_id  = 0xf << 7 | 0x7f | CAN_RTR_FLAG;
-//         frame.len = 0;
-
-//         int nbytes = ::write(write_fd, &frame, sizeof(struct canfd_frame));
-//         if (nbytes < 0) {
-//             throw RuntimeException("Error writing can " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
-//         }
-//     }
-
-//     pollfd tmp;
-//     tmp.fd = fd;
-//     tmp.events = POLLIN;
-//     Timer t(timeout_ms_ * 1000 * 1000); // 10 ms
-//     do {
-//         struct timespec timeout = {};
-//         timeout.tv_nsec = t.get_time_remaining_ns();
-//         if (timeout.tv_nsec == 0) {
-//             break;
-//         }
-//         int poll_result = ::ppoll(&tmp, 1, &timeout, nullptr /*sigmask*/);
-//         if (poll_result > 0) {
-//             struct canfd_frame frame;
-//             struct sockaddr_can addr;
-//             socklen_t len = sizeof(addr);
-//             int nbytes = recvfrom(fd, &frame, sizeof(struct can_frame),
-//                   0, (struct sockaddr*)&addr, &len);
-//             struct ifreq ifr = {};
-//             ifr.ifr_ifindex = addr.can_ifindex;
-//             ioctl(fd, SIOCGIFNAME, &ifr);
-//             if (nbytes >= 0) {
-//                 int devnum = frame.can_id & 0x7F;
-//                 devices.push_back(std::string(ifr.ifr_name) + ":" + std::to_string(devnum));
-//             } else {
-//                 throw RuntimeException("Error reading " + interface + "(" + std::string(ifr.ifr_name) + ")" ": " + std::to_string(errno) + ": " + strerror(errno));
-//             }
-//         } else if (poll_result < 0) {
-//             throw RuntimeException("Error polling " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
-//         }
-//     } while (t.get_time_remaining_ns() > 0);
-
-//     return devices;
-// }
 
 }; // namespace obot
