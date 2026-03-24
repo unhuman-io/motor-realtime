@@ -338,6 +338,18 @@ int MotorCAN::open_socket(std::string if_name) {
 }
 
 ssize_t MotorCAN::read() {
+    if (send_read_request_) {
+        struct canfd_frame frame = {
+            .can_id = 3 << 7 | devnum_,
+            .len = 0,
+            .flags = CANFD_BRS
+        };
+        if (int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
+            nbytes < 0) {
+            throw RuntimeErrnoException("write read request error");
+        }
+    }
+
     struct canfd_frame frame;
     pollfd tmp;
     tmp.fd = fd_;
@@ -361,10 +373,12 @@ ssize_t MotorCAN::read() {
 }
 
 ssize_t MotorCAN::write() {
-    struct canfd_frame frame = {};
-	frame.can_id  = 2 << 7 | devnum_; // 1 : command, 2: command/req status
-	frame.len = 48; //sizeof(command_);
-    frame.flags = CANFD_BRS;
+    struct canfd_frame frame = {
+        // 1 : command, 2: command/req status
+        .can_id = ((cmd_status_req_ ? 2 : 1) << 7) | devnum_,
+	    .len = 48, //sizeof(command_);
+        .flags = CANFD_BRS
+    };
 	std::memcpy(frame.data, &command_, sizeof(command_));
 
 	int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));

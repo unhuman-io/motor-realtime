@@ -223,6 +223,7 @@ int _main(int argc, char** argv) {
     int run_stats = 100;
     int timeout_ms = 10;
     bool allow_simulated = false;
+    bool use_cmd_status_req = false;
     Motor::MessagesCheck check_messages_version = Motor::MessagesCheck::MAJOR;
     std::vector<std::pair<std::string, Motor::MessagesCheck>> messages_check_map {
         {"none", Motor::MessagesCheck::NONE}, {"major", Motor::MessagesCheck::MAJOR},
@@ -244,6 +245,7 @@ int _main(int argc, char** argv) {
     set->add_option("--torque_dot", command.torque_dot_desired, "Torque dot desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
     set->add_option("--gpio", command_gpio, "GPIO output");
+    set->add_flag("--cmd-status-req", use_cmd_status_req, "Request status on set");
     auto state_mode = set->add_subcommand("state", "State control mode")->final_callback([&](){command.mode_desired = ModeDesired::STATE;})->fallthrough();
     state_mode->add_option("--kp", command.state.kp, "Position error gain");
     state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
@@ -644,6 +646,11 @@ int _main(int argc, char** argv) {
     if (*set && motors.size()) {
         m.set_commands(std::vector<Command>(motors.size(), command));
         std::cout << ANSI_BOLD << "Writing commands: \n" << m.command_headers() << ANSI_RESET << std::endl << m.commands() << std::endl;
+        if (use_cmd_status_req) {
+            for (auto &m : motors) {
+                m->set_cmd_status_req();
+            }
+        }
         m.write_saved_commands();
     }
 
