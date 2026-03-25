@@ -21,6 +21,7 @@
 #include "terminal.h"
 #include <cxxabi.h>
 #include "gdbserver.h"
+#include "motor_eth_l2.h"
 
 using namespace obot;
 
@@ -181,6 +182,7 @@ int _main(int argc, char** argv) {
                  "    /etc/motor_util/\n"
                  "    /usr/share/motor-realtime/\n"};
     bool verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false, list_devnum=false;
+    bool list_ethernet_interfaces = false;
     bool no_dfu_list = false;
     bool user_space_driver = false;
     std::vector<std::string> names = {};
@@ -221,6 +223,7 @@ int _main(int argc, char** argv) {
     int run_stats = 100;
     int timeout_ms = 10;
     bool allow_simulated = false;
+    bool use_cmd_status_req = false;
     Motor::MessagesCheck check_messages_version = Motor::MessagesCheck::MAJOR;
     std::vector<std::pair<std::string, Motor::MessagesCheck>> messages_check_map {
         {"none", Motor::MessagesCheck::NONE}, {"major", Motor::MessagesCheck::MAJOR},
@@ -242,6 +245,7 @@ int _main(int argc, char** argv) {
     set->add_option("--torque_dot", command.torque_dot_desired, "Torque dot desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
     set->add_option("--gpio", command_gpio, "GPIO output");
+    set->add_flag("--cmd-status-req", use_cmd_status_req, "Request status on set");
     auto state_mode = set->add_subcommand("state", "State control mode")->final_callback([&](){command.mode_desired = ModeDesired::STATE;})->fallthrough();
     state_mode->add_option("--kp", command.state.kp, "Position error gain");
     state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
@@ -310,6 +314,7 @@ int _main(int argc, char** argv) {
     app.add_flag("--list-devpath-only", list_devpath, "Print only connected motor devpaths");
     app.add_flag("--list-serial-number-only", list_serial_number, "Print only connected motor serial numbers");
     app.add_flag("--list-devnum-only", list_devnum, "Print only usb device numbers");
+    app.add_flag("--list-ethernet-interfaces-only", list_ethernet_interfaces, "Print the system ethernet interfaces");
     app.add_flag("--no-dfu-list", no_dfu_list, "Don't list stm devices in dfu mode");
     app.add_flag("-u,--user-space", user_space_driver, "Connect through user space usb");
     auto name_option = app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
@@ -317,7 +322,7 @@ int _main(int argc, char** argv) {
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
-    auto eth_l2_option = app.add_option("-e,--eth-l2", macs, "Connect to motor eth l2 MAC(S)")->type_name("MAC")->expected(0,-1)->default_str("{}");
+    auto eth_l2_option = app.add_option("-e,--eth-l2", macs, "Connect to motor eth l2 [INTERFACE-]MAC(S)")->type_name("[INTERFACE-]MAC")->expected(0,-1)->default_str("{}");
     auto ip_option = app.add_option("-i,--ips", ips, "Connect to IP(S). If left empty, connect to all ips specified in --json-ip-file")->type_name("IP")->expected(0,-1)->default_str("{}");
     app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     app.add_flag("--no-print-unconnected", no_print_unconnected, "Don't print unconnected motors, currently only used with --ips");
@@ -363,6 +368,15 @@ int _main(int argc, char** argv) {
         }
         raw_packet_parser(); // doesn't exit without signal
         exit(1);
+    }
+
+    if (list_ethernet_interfaces) {
+        auto e = get_eth_interfaces();
+        for (auto &i : e) {
+            std::cout << i << " ";
+        }
+        std:: cout << std::endl;
+        return 0;
     }
 
     MotorManager m(user_space_driver, check_messages_version);
@@ -632,6 +646,11 @@ int _main(int argc, char** argv) {
     if (*set && motors.size()) {
         m.set_commands(std::vector<Command>(motors.size(), command));
         std::cout << ANSI_BOLD << "Writing commands: \n" << m.command_headers() << ANSI_RESET << std::endl << m.commands() << std::endl;
+        if (use_cmd_status_req) {
+            for (auto &m : motors) {
+                m->set_cmd_status_req();
+            }
+        }
         m.write_saved_commands();
     }
 
@@ -939,7 +958,7 @@ int _main(int argc, char** argv) {
 
                 // option to not sleep
                 // while (std::chrono::steady_clock::now() < next_time);
-                std::this_thread::sleep_until(next_time);
+                interruptible_sleep_until(next_time);
             }
         }
     }

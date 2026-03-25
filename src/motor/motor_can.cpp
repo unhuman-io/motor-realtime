@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#if __has_include(<charconv>)
+#include <charconv>
+#endif
 
 #include <net/if.h>
 #include <sys/types.h>
@@ -280,6 +283,12 @@ MotorCAN::MotorCAN(std::string address) {
     board_num_ = operator[]("board_num").get();
     config_ = operator[]("config").get();
     serial_number_ = operator[]("serial").get();
+    // hex in base_path_ for convenience
+#if __has_include(<charconv>)
+    char buffer[5] = {"0x"};
+    std::to_chars(buffer+2, buffer+4, devnum_, 16);
+    base_path_ = buffer;
+#endif
 }
 
 uint32_t MotorCAN::timeout_ms_ = 10;
@@ -329,6 +338,18 @@ int MotorCAN::open_socket(std::string if_name) {
 }
 
 ssize_t MotorCAN::read() {
+    if (send_read_request_) {
+        struct canfd_frame frame = {
+            .can_id = 3 << 7 | devnum_,
+            .len = 0,
+            .flags = CANFD_BRS
+        };
+        if (int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
+            nbytes < 0) {
+            throw RuntimeErrnoException("write read request error");
+        }
+    }
+
     struct canfd_frame frame;
     pollfd tmp;
     tmp.fd = fd_;
@@ -352,10 +373,12 @@ ssize_t MotorCAN::read() {
 }
 
 ssize_t MotorCAN::write() {
-    struct canfd_frame frame = {};
-	frame.can_id  = 2 << 7 | devnum_; // 1 : command, 2: command/req status
-	frame.len = 48; //sizeof(command_);
-    frame.flags = CANFD_BRS;
+    struct canfd_frame frame = {
+        // 1 : command, 2: command/req status
+        .can_id = ((cmd_status_req_ ? 2 : 1) << 7) | devnum_,
+	    .len = 48, //sizeof(command_);
+        .flags = CANFD_BRS
+    };
 	std::memcpy(frame.data, &command_, sizeof(command_));
 
 	int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));

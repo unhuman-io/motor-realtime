@@ -41,7 +41,7 @@ class TextFile {
             throw RuntimeException("text writeread failure " + std::to_string(errno) + ": " + strerror(errno));
         }
         str_in[s] = 0;
-        std::string s_out(str_in, s);
+        std::string s_out(str_in);
         return s_out;
     }
 };
@@ -328,6 +328,7 @@ class Motor : public MotorDescription {
         return fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK); }
     virtual int clear_nonblock() { nonblock_ = false;
         return fcntl(fd_, F_SETFL, fd_flags_ & ~O_NONBLOCK); }
+    virtual void set_cmd_status_req() { cmd_status_req_ = true; }
     bool is_nonblocking() const { return nonblock_; }
     virtual ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
 			ssize_t read_error = read(); 
@@ -381,6 +382,7 @@ class Motor : public MotorDescription {
     int fd_flags_;
     bool nonblock_ = false;
     bool no_write_ = false;
+    bool cmd_status_req_ = false;
     Status status_ = {};
     Command command_ = {};
     std::string attr_path_;

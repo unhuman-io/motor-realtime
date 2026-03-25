@@ -38,6 +38,7 @@ _motor_util_completion()
             tuning) subcommand=tuning_mode ; break ;;
             --set-api) subcommand=api_set ; break ;;
             --text) subcommand=api_text ; break ;;
+            -e|--eth-l2) subcommand=eth_l2 ; break ;;
         esac
         (( i-- ))
     done
@@ -49,9 +50,10 @@ _motor_util_completion()
       -j --json-ip-file --no-print-unconnected --get-log -e --eth-l2 gdbserver
       -a --uart-paths --uart-raw -f --can -p --paths -d --devpaths -s --serial_numbers set read --set-api 
       --api --api-timing --run-stats --set-timeout -v --version -u --user-space --allow-simulated --lock 
+      --list-ethernet-interfaces-only
       -h --help";
     case $subcommand in
-        set) words="--host_time --mode --current --position --velocity --torque --torque_dot --reserved --gpio impedance state position_tuning current_tuning stepper_tuning voltage stepper_velocity tuning read -h --help";
+        set) words="--host_time --mode --current --position --velocity --torque --torque_dot --reserved --gpio --cmd-status-req impedance state position_tuning current_tuning stepper_tuning voltage stepper_velocity tuning read -h --help";
             case $last in
                 --host_time|--current|--position|--velocity|--reserved|--gpio) return 0 ;;
                 --mode) words="open damped current position velocity torque impedance state current_tuning position_tuning voltage phase_lock stepper_tuning hardware_brake joint_position admittance find_limits driver_enable driver_disable clear_faults fault sleep crash reset" ;;
@@ -64,6 +66,10 @@ _motor_util_completion()
         paths) words="$(motor_util --list-path-only) $base_words" ;;
         devpaths) words="$(motor_util --list-devpath-only) $base_words" ;;
         serial_numbers) words="$(motor_util --list-serial-number-only) $base_words" ;;
+        eth_l2)
+            compopt -o nospace
+            interfaces=$(motor_util --list-ethernet-interfaces-only)
+            words="${interfaces// /- }" ;;
         ips) 
             while [[ $i -gt 0 ]]
             do
