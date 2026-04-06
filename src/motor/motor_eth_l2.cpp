@@ -430,6 +430,9 @@ class L2File : public TextFile {
                 }
                 retval = total_count_received;
             }
+        } else if (retval > 0) {
+            // a string
+            retval = strnlen(data, length);
         }
         unlock();
         return retval;
