@@ -332,11 +332,10 @@ class L2File : public TextFile {
         };
 
         int nbytes = 0;
-        int poll_result;
         L2Frame frame {};
         // do a no timeout flush/read
         while (true) {
-            int nbytes = ::read(fd_, &frame, sizeof(frame));
+            nbytes = ::read(fd_, &frame, sizeof(frame));
             if (nbytes < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
@@ -347,7 +346,7 @@ class L2File : public TextFile {
         }
 
         // if nothing from the no timeout flush/read, then do a timeout read
-        if (nbytes == 0) {
+        if (nbytes < 0) {
             if (int poll_result = poll(&poll_fd, 1, timeout_ms_); poll_result < 0) {
                 throw RuntimeErrnoException("poll error in read");
             } else if (poll_result == 0) {
