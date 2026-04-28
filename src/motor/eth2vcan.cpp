@@ -266,17 +266,15 @@ int _main(int argc, char** argv) {
         throw RuntimeErrnoException("socket set non-block failed for eth");
     }
 
-    pollfd poll_fds[2];
-    poll_fds[0].fd = fd_vcan;
-    poll_fds[0].events = POLLIN;
-    poll_fds[1].fd = fd_eth;
-    poll_fds[1].events = POLLIN;
-    while(1) {
-        {
+    // check for new packets with non blocking read on both can and ethernet.
+    // poll can be slow
+    while (true) {
+        while (true) {
             canfd_frame can_frame;
             int nbytes = ::read(fd_vcan, &can_frame, sizeof(canfd_frame));
             if (nbytes <= 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    break;
                 } else {
                     throw RuntimeErrnoException("vcan read error");
                 }
@@ -301,11 +299,12 @@ int _main(int argc, char** argv) {
             }
         }
 
-        {
+        while (true) {
             L2Frame frame {};
             int nbytes = ::read(fd_eth, &frame, sizeof(frame));
             if (nbytes <= 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    break;
                 } else {
                     throw RuntimeErrnoException("vcan read error");
                 }
@@ -327,21 +326,17 @@ int _main(int argc, char** argv) {
             }
         }
 
-
+        // instead of sleep do poll that may timeout faster if something comes in
+        pollfd poll_fds[2];
+        poll_fds[0].fd = fd_vcan;
+        poll_fds[0].events = POLLIN;
+        poll_fds[1].fd = fd_eth;
+        poll_fds[1].events = POLLIN;
         int poll_result = poll(poll_fds, 2, 1);
         if (poll_result < 0) {
             throw RuntimeErrnoException("Poll error");
-        } 
-        
-        
-        else if (poll_result > 0) {
-           
-            if (poll_fds[1].revents) {
-
-            }
         }
     }
-
     return 0;
 }
 
