@@ -112,19 +112,23 @@ class CANFile : public TextFile {
             .fd = fd_,
             .events = POLLIN
         };
-        int nbytes = 0;
+        int nbytes = -1;
         int length_recv = 0;
         int can_id = 5 << 7 | devnum_;
 
         // flush but save read frame
         while (true) {
-            nbytes = ::read(fd_, &frame, sizeof(frame));
-            if (nbytes < 0) {
+            canfd_frame tmp_frame;
+            int tmp_nbytes = ::read(fd_, &tmp_frame, sizeof(tmp_frame));
+            if (tmp_nbytes < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
                 } else {
-                    throw RuntimeErrnoException("read error during flush " + name());
+                    throw RuntimeErrnoException("read error during flush " + dev_path());
                 }
+            } else {
+                frame = tmp_frame;
+                nbytes = tmp_nbytes;
             }
         }
 
@@ -282,7 +286,7 @@ MotorCAN::MotorCAN(std::string address) {
     rfilter[0].can_id   = 3 << 7 | devnum_;
     rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
-    if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
+    if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, rfilter, sizeof(rfilter))) {
         throw RuntimeException("Error setting filter for " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
 
@@ -354,22 +358,23 @@ int MotorCAN::open_socket(std::string if_name) {
     return fd;
 }
 
-ssize_t MotorCAN::read() {
-    if (send_read_request_) {
-        struct canfd_frame frame = {
-            .can_id = 3 << 7 | devnum_,
-            .len = 0,
-            .flags = CANFD_BRS
-        };
-        if (int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
-            nbytes < 0) {
-            throw RuntimeErrnoException("write read request error");
-        }
+ssize_t MotorCAN::aread() {
+    struct canfd_frame frame = {
+        .can_id = 3 << 7 | devnum_,
+        .len = 0,
+        .flags = CANFD_BRS
+    };
+    if (int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
+        nbytes < 0) {
+        throw RuntimeErrnoException("write read request error");
     }
+    return 0;
+}
 
+ssize_t MotorCAN::read() {
     struct canfd_frame frame;
 
-    int nbytes = 0;
+    int nbytes = -1;
     int length_recv = 0;
 
     pollfd poll_fd {
@@ -379,13 +384,17 @@ ssize_t MotorCAN::read() {
 
     // flush but save read frame
     while (true) {
-        nbytes = ::read(fd_, &frame, sizeof(frame));
-        if (nbytes < 0) {
+        canfd_frame tmp_frame;
+        int tmp_nbytes = ::read(fd_, &tmp_frame, sizeof(tmp_frame));
+        if (tmp_nbytes < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 break;
             } else {
                 throw RuntimeErrnoException("read error during flush " + dev_path());
             }
+        } else {
+            frame = tmp_frame;
+            nbytes = tmp_nbytes;
         }
     }
 
