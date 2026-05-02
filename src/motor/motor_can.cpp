@@ -47,7 +47,7 @@ class CANFile : public TextFile {
         rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
         if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
-            throw RuntimeException("Error setting filter for " + ifname_ + ":" + std::to_string(devnum_) + ": "
+            throw RuntimeException("Error setting filter for " + name() + ": "
                 + std::to_string(errno) + ": " + strerror(errno));
         }
     }
@@ -65,7 +65,7 @@ class CANFile : public TextFile {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
                 } else {
-                    throw RuntimeErrnoException("read error during flush");
+                    throw RuntimeErrnoException("read error during flush " + name());
                 }
             }
         }
@@ -123,7 +123,7 @@ class CANFile : public TextFile {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
                 } else {
-                    throw RuntimeErrnoException("read error during flush");
+                    throw RuntimeErrnoException("read error during flush " + name());
                 }
             }
         }
@@ -131,9 +131,9 @@ class CANFile : public TextFile {
         // if nothing from the no timeout flush/read, then do a timeout read
         if (nbytes < 0) {
             if (int poll_result = poll(&poll_fd, 1, timeout_ms_); poll_result < 0) {
-                throw RuntimeErrnoException("poll error in read");
+                throw RuntimeErrnoException("poll error in read " + name());
             } else if (poll_result == 0) {
-                throw RuntimeException("poll timeout in read");
+                throw RuntimeException("poll timeout in read " + name());
             }
 
             nbytes = ::read(fd_, &frame, sizeof(frame));
@@ -225,7 +225,7 @@ class CANFile : public TextFile {
 
         int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
         if (nbytes < 0) {
-            throw RuntimeException("Error writing canfile " + std::to_string(devnum_) + ": " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error writing canfile " + name() + ": " + std::to_string(errno) + ": " + strerror(errno));
         }
         return nbytes;
     }
@@ -245,6 +245,10 @@ class CANFile : public TextFile {
         //     return err;
         // }
         return retval;
+    }
+
+    std::string name() const {
+        return ifname_ + ":" + std::to_string(devnum_);
     }
 
     int fd_;
@@ -380,7 +384,7 @@ ssize_t MotorCAN::read() {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 break;
             } else {
-                throw RuntimeErrnoException("read error during flush");
+                throw RuntimeErrnoException("read error during flush " + dev_path());
             }
         }
     }
@@ -388,9 +392,9 @@ ssize_t MotorCAN::read() {
     // if nothing from the no timeout flush/read, then do a timeout read
     if (nbytes < 0) {
         if (int poll_result = poll(&poll_fd, 1, timeout_ms_); poll_result < 0) {
-            throw RuntimeErrnoException("poll error in read");
+            throw RuntimeErrnoException("poll error in read " + dev_path());
         } else if (poll_result == 0) {
-            throw RuntimeException("poll timeout in read");
+            throw RuntimeException("poll timeout in read " + dev_path());
         }
 
         nbytes = ::read(fd_, &frame, sizeof(frame));
@@ -416,7 +420,7 @@ ssize_t MotorCAN::write() {
 
 	int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
     if (nbytes < 0) {
-        throw RuntimeException("Error writing can " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error writing can " + dev_path() + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     return nbytes;
 }
