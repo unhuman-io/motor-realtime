@@ -124,7 +124,7 @@ class CANFile : public TextFile {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
                 } else {
-                    throw RuntimeErrnoException("read error during flush " + dev_path());
+                    throw RuntimeErrnoException("read error during flush " + name());
                 }
             } else {
                 frame = tmp_frame;
