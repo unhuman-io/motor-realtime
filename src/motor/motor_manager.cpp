@@ -284,6 +284,11 @@ void MotorManager::start_nonblocking_read() {
     }
 }
 
+__attribute__((weak))
+std::vector<Status> &MotorManager::read_uring() {
+    throw RuntimeException("uring not supported");
+}
+
 std::vector<Status> &MotorManager::read() {
     bool should_throw = false;
     std::string err_msg;

@@ -154,6 +154,7 @@ struct ReadOptions {
     bool poll;
     bool ppoll;
     bool aread;
+    bool uring;
     bool nonblock;
     double frequency_hz;
     bool statistics;
@@ -230,7 +231,8 @@ int _main(int argc, char** argv) {
         {"minor", Motor::MessagesCheck::MINOR}};
     bool command_gpio = false;
     bool lock_motors = false;
-    ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .nonblock = false, .frequency_hz = 1000, 
+    ReadOptions read_opts = { .poll = false, .ppoll = false, .aread = false, .uring = false,
+        .nonblock = false, .frequency_hz = 1000, 
         .statistics = false, .text = {"log"} , .timestamp_in_seconds = false, .host_time = false, 
         .csv = false, .reconnect = false, .read_write_statistics = false,
         .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
@@ -288,6 +290,7 @@ int _main(int argc, char** argv) {
     read_option->add_flag("--poll", read_opts.poll, "Use poll before read");
     read_option->add_flag("--ppoll", read_opts.ppoll, "Use multipoll before read");
     read_option->add_flag("--aread", read_opts.aread, "Use aread before poll");
+    read_option->add_flag("--uring", read_opts.uring, "Use io_uring to read");
     read_option->add_flag("--nonblock", read_opts.nonblock, "Use non-blocking i/o for read");
     read_option->add_option("--frequency", read_opts.frequency_hz , "Read frequency in Hz");
     read_option->add_flag("--statistics", read_opts.statistics, "Print statistics rather than values");
@@ -875,7 +878,13 @@ int _main(int argc, char** argv) {
                     }
                 }
                 
-                auto status = m.read();
+                std::vector<Status> status;
+                if (read_opts.uring) {
+                    status = m.read_uring();
+                } else {
+                    status = m.read();
+                }
+                
                 auto exec_time = std::chrono::steady_clock::now();
 
                 if (*bits_option) {

@@ -14,6 +14,9 @@ class MotorCAN : public Motor {
     virtual ssize_t read() override;
     virtual ssize_t write() override;
     virtual ssize_t aread() override { send_read_request_ = false; return 0; }
+    virtual uint8_t * read_buffer() override { return read_buffer_; }
+    virtual size_t read_buffer_size() const override;
+    virtual void process_read_buffer() override;
 
     virtual void set_timeout_ms(int timeout_ms) override;
     virtual int get_timeout_ms() const override { return timeout_ms_; }
@@ -25,6 +28,7 @@ class MotorCAN : public Motor {
     std::string intf_;
     static uint32_t timeout_ms_;
     bool send_read_request_ = true;
+    uint8_t * read_buffer_;
 };
 
 }; // namespace obot

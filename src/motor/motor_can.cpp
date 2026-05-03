@@ -264,6 +264,9 @@ MotorCAN::MotorCAN(std::string address) {
             }
         }
     }
+
+    read_buffer_ = new uint8_t[sizeof(canfd_frame)];
+
     open();
     struct can_filter rfilter[1];
     rfilter[0].can_id   = 3 << 7 | devnum_;
@@ -388,6 +391,15 @@ ssize_t MotorCAN::write() {
     return nbytes;
 }
 
+size_t MotorCAN::read_buffer_size() const {
+    return sizeof(canfd_frame);
+}
+void MotorCAN::process_read_buffer() {
+    canfd_frame frame;
+    std::memcpy(&frame, read_buffer(), read_buffer_size());
+    int length = std::min(sizeof(frame.data), sizeof(status_));
+    std::memcpy(&status_, frame.data, length);
+}
 
 static std::vector<std::string> get_can_interfaces() {
     std::vector<std::string> interfaces;
