@@ -16,6 +16,7 @@
 #include <poll.h>
 #include <netdb.h>
 #include <linux/filter.h>
+#include <fcntl.h>
 
 using namespace obot;
 
@@ -258,22 +259,26 @@ int _main(int argc, char** argv) {
     int fd_vcan = open_vcan(vcan_interface);
     int fd_eth = open_eth(interface, mac_address, static_cast<bool>(*gateway_option), gateway_mac);
 
-    pollfd poll_fds[2];
-    poll_fds[0].fd = fd_vcan;
-    poll_fds[0].events = POLLIN;
-    poll_fds[1].fd = fd_eth;
-    poll_fds[1].events = POLLIN;
-    while(1) {
-        int poll_result = poll(poll_fds, 2, 1);
-        if (poll_result < 0) {
-            throw RuntimeErrnoException("Poll error");
-        } else if (poll_result > 0) {
-            if (poll_fds[0].revents) {
-                canfd_frame can_frame;
-                int nbytes = ::read(fd_vcan, &can_frame, sizeof(canfd_frame));
-                if (nbytes <= 0) {
+    if (fcntl(fd_vcan, F_SETFL, O_NONBLOCK) < 0) {
+        throw RuntimeErrnoException("socket set non-block failed for vcan");
+    }
+    if (fcntl(fd_eth, F_SETFL, O_NONBLOCK) < 0) {
+        throw RuntimeErrnoException("socket set non-block failed for eth");
+    }
+
+    // check for new packets with non blocking read on both can and ethernet.
+    // poll can be slow
+    while (true) {
+        while (true) {
+            canfd_frame can_frame;
+            int nbytes = ::read(fd_vcan, &can_frame, sizeof(canfd_frame));
+            if (nbytes <= 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    break;
+                } else {
                     throw RuntimeErrnoException("vcan read error");
                 }
+            } else if (nbytes > 0) {
                 std::cout << "can nbytes " << nbytes << std::endl;
                 uint16_t length = can_frame.len;
                 Payload payload {
@@ -292,12 +297,18 @@ int _main(int argc, char** argv) {
                     throw RuntimeErrnoException("eth write error");
                 }
             }
-            if (poll_fds[1].revents) {
-                L2Frame frame {};
-                int nbytes = ::read(fd_eth, &frame, sizeof(frame));
-                if (nbytes <= 0) {
-                    throw RuntimeErrnoException("eth read error");
+        }
+
+        while (true) {
+            L2Frame frame {};
+            int nbytes = ::read(fd_eth, &frame, sizeof(frame));
+            if (nbytes <= 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    break;
+                } else {
+                    throw RuntimeErrnoException("vcan read error");
                 }
+            } else if (nbytes > 0) {
                 std::cout << "eth nbytes " << nbytes << std::endl;
                 for (auto &payload : parse_eth_payload(frame.payload, nbytes-L2_HEADER_SIZE)) {
                     uint8_t length_uint8 {static_cast<uint8_t>(payload.length)};
@@ -314,8 +325,18 @@ int _main(int argc, char** argv) {
                 }
             }
         }
-    }
 
+        // instead of sleep do poll that may timeout faster if something comes in
+        pollfd poll_fds[2];
+        poll_fds[0].fd = fd_vcan;
+        poll_fds[0].events = POLLIN;
+        poll_fds[1].fd = fd_eth;
+        poll_fds[1].events = POLLIN;
+        int poll_result = poll(poll_fds, 2, 1);
+        if (poll_result < 0) {
+            throw RuntimeErrnoException("Poll error");
+        }
+    }
     return 0;
 }
 

@@ -47,7 +47,7 @@ class CANFile : public TextFile {
         rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
         if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
-            throw RuntimeException("Error setting filter for " + ifname_ + ":" + std::to_string(devnum_) + ": "
+            throw RuntimeException("Error setting filter for " + name() + ": "
                 + std::to_string(errno) + ": " + strerror(errno));
         }
     }
@@ -57,22 +57,17 @@ class CANFile : public TextFile {
     }
 
     void flush() {
-        struct canfd_frame frame;
-        pollfd tmp;
-        tmp.fd = fd_;
-        tmp.events = POLLIN;
-        int poll_result;
-        do {
-            poll_result = ::poll(&tmp, 1,0);
-            if (poll_result > 0) {
-                int nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
-                if (nbytes < 0) {
-                    throw RuntimeErrnoException("Read error during flush");
+        // flush frames received before filter
+        canfd_frame frame;
+        while (true) {
+            int retval = ::read(fd_, &frame, sizeof(frame));
+            if (retval < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    break;
+                } else {
+                    throw RuntimeErrnoException("read error during flush " + name());
                 }
             }
-        } while(poll_result > 0);
-        if (poll_result < 0) {
-            throw RuntimeErrnoException("Poll error durning flush");
         }
     }
 
@@ -113,32 +108,50 @@ class CANFile : public TextFile {
 
     ssize_t _read(char * data, unsigned int length) {
         struct canfd_frame frame;
-        pollfd tmp;
-        tmp.fd = fd_;
-        tmp.events = POLLIN;
-        int count = 0;
-        int nbytes = 0;
+        pollfd poll_fd {
+            .fd = fd_,
+            .events = POLLIN
+        };
+        int nbytes = -1;
         int length_recv = 0;
-        int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
         int can_id = 5 << 7 | devnum_;
-        if (poll_result > 0) {
-            nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
-            if (nbytes > 0) {
-                if (frame.can_id == can_id) {
-                    length_recv = std::min(length, (unsigned int) frame.len);
-                    if (frame.data[0] != 0) {
-                        // an ascii packet, not a special control packet
-                        // search for embedded 0 terminator
-                        length_recv = strnlen((const char*) frame.data, length_recv);
-                    }
-                    std::memcpy(data, frame.data, length_recv);
+
+        // flush but save read frame
+        while (true) {
+            canfd_frame tmp_frame;
+            int tmp_nbytes = ::read(fd_, &tmp_frame, sizeof(tmp_frame));
+            if (tmp_nbytes < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    break;
+                } else {
+                    throw RuntimeErrnoException("read error during flush " + name());
                 }
-            }
-        } else {
-            if (poll_result == 0) {
-                throw RuntimeException("poll timeout on can id: " + std::to_string(devnum_));
             } else {
-                throw RuntimeErrnoException("poll error on can id: " + std::to_string(devnum_));
+                frame = tmp_frame;
+                nbytes = tmp_nbytes;
+            }
+        }
+
+        // if nothing from the no timeout flush/read, then do a timeout read
+        if (nbytes < 0) {
+            if (int poll_result = poll(&poll_fd, 1, timeout_ms_); poll_result < 0) {
+                throw RuntimeErrnoException("poll error in read " + name());
+            } else if (poll_result == 0) {
+                throw RuntimeException("poll timeout in read " + name());
+            }
+
+            nbytes = ::read(fd_, &frame, sizeof(frame));
+        }
+
+        if (nbytes > 0) {
+            if (frame.can_id == can_id) {
+                length_recv = std::min(length, (unsigned int) frame.len);
+                if (frame.data[0] != 0) {
+                    // an ascii packet, not a special control packet
+                    // search for embedded 0 terminator
+                    length_recv = strnlen((const char*) frame.data, length_recv);
+                }
+                std::memcpy(data, frame.data, length_recv);
             }
         }
         return length_recv;
@@ -216,7 +229,7 @@ class CANFile : public TextFile {
 
         int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
         if (nbytes < 0) {
-            throw RuntimeException("Error writing canfile " + std::to_string(devnum_) + ": " + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeException("Error writing canfile " + name() + ": " + std::to_string(errno) + ": " + strerror(errno));
         }
         return nbytes;
     }
@@ -236,6 +249,10 @@ class CANFile : public TextFile {
         //     return err;
         // }
         return retval;
+    }
+
+    std::string name() const {
+        return ifname_ + ":" + std::to_string(devnum_);
     }
 
     int fd_;
@@ -269,7 +286,7 @@ MotorCAN::MotorCAN(std::string address) {
     rfilter[0].can_id   = 3 << 7 | devnum_;
     rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
-    if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
+    if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, rfilter, sizeof(rfilter))) {
         throw RuntimeException("Error setting filter for " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
 
@@ -329,6 +346,10 @@ int MotorCAN::open_socket(std::string if_name) {
 	addr.can_family  = AF_CAN;
 	addr.can_ifindex = ifr.ifr_ifindex;
 
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
+        throw RuntimeErrnoException("socket set non-block failed for " + if_name);
+    }
+
 	// printf("%s at index %d\n", ifname, ifr.ifr_ifindex);
 
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
@@ -337,39 +358,64 @@ int MotorCAN::open_socket(std::string if_name) {
     return fd;
 }
 
+ssize_t MotorCAN::aread() {
+    struct canfd_frame frame = {
+        .can_id = 3 << 7 | devnum_,
+        .len = 0,
+        .flags = CANFD_BRS
+    };
+    if (int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
+        nbytes < 0) {
+        throw RuntimeErrnoException("write read request error");
+    }
+    return 0;
+}
+
 ssize_t MotorCAN::read() {
-    if (send_read_request_) {
-        struct canfd_frame frame = {
-            .can_id = 3 << 7 | devnum_,
-            .len = 0,
-            .flags = CANFD_BRS
-        };
-        if (int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
-            nbytes < 0) {
-            throw RuntimeErrnoException("write read request error");
+    struct canfd_frame frame;
+
+    int nbytes = -1;
+    int length_recv = 0;
+
+    pollfd poll_fd {
+        .fd = fd_,
+        .events = POLLIN
+    };
+
+    // flush but save read frame
+    while (true) {
+        canfd_frame tmp_frame;
+        int tmp_nbytes = ::read(fd_, &tmp_frame, sizeof(tmp_frame));
+        if (tmp_nbytes < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                break;
+            } else {
+                throw RuntimeErrnoException("read error during flush " + dev_path());
+            }
+        } else {
+            frame = tmp_frame;
+            nbytes = tmp_nbytes;
         }
     }
 
-    struct canfd_frame frame;
-    pollfd tmp;
-    tmp.fd = fd_;
-    tmp.events = POLLIN;
-
-    int poll_result;
-    int nbytes = 0;
-    do {
-        poll_result = ::poll(&tmp, 1, 0 /* ms */);
-        if (poll_result > 0) {
-            nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
-            if (nbytes > 0) {
-                if (frame.can_id == 3 << 7 | devnum_) {
-                    int length = std::min(nbytes, (int)sizeof(status_));
-                    std::memcpy(&status_, frame.data, length);
-                }
-            }
+    // if nothing from the no timeout flush/read, then do a timeout read
+    if (nbytes < 0) {
+        if (int poll_result = poll(&poll_fd, 1, timeout_ms_); poll_result < 0) {
+            throw RuntimeErrnoException("poll error in read " + dev_path());
+        } else if (poll_result == 0) {
+            throw RuntimeException("poll timeout in read " + dev_path());
         }
-    } while (poll_result > 0);
-    return nbytes;
+
+        nbytes = ::read(fd_, &frame, sizeof(frame));
+    }
+
+    if (nbytes > 0) {
+        if (frame.can_id == 3 << 7 | devnum_) {
+            length_recv = std::min((int)frame.len, (int)sizeof(status_));
+            std::memcpy(&status_, frame.data, length_recv);
+        }
+    }
+    return length_recv;
 }
 
 ssize_t MotorCAN::write() {
@@ -383,7 +429,7 @@ ssize_t MotorCAN::write() {
 
 	int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
     if (nbytes < 0) {
-        throw RuntimeException("Error writing can " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+        throw RuntimeException("Error writing can " + dev_path() + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
     return nbytes;
 }

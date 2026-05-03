@@ -543,6 +543,9 @@ int MotorManager::poll(uint32_t timeout_ms) {
 int MotorManager::multipoll(uint32_t timeout_ns) {
     struct timespec timeout = {};
     Timer t(timeout_ns);
+    auto pollfds = pollfds_;
+    int size = pollfds_.size();
+    int count_received = 0;
 
     int retval;
     do {
@@ -550,14 +553,25 @@ int MotorManager::multipoll(uint32_t timeout_ns) {
         if (timeout.tv_nsec == 0) {
             return -ETIMEDOUT;
         }
-        retval = ::ppoll(pollfds_.data(), pollfds_.size(), &timeout, nullptr);
+        retval = ::ppoll(pollfds.data(), pollfds.size(), &timeout, nullptr);
+
         if (retval == 0) {
             return -ETIMEDOUT;
         } else if (retval < 0) {
             return retval;
-        } 
-    } while (static_cast<uint8_t>(retval) < pollfds_.size());
-    return retval;
+        }
+
+        for (auto it = pollfds.begin(); it != pollfds.end(); ) {
+            if (it->revents == POLLIN) {
+                count_received++;
+                it = pollfds.erase(it);
+            } else {
+                ++it;
+            }
+        }
+
+    } while (count_received < size);
+    return count_received;
 }
 
 std::string MotorManager::command_headers() const {
