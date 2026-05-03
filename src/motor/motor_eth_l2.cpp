@@ -333,24 +333,28 @@ class L2File : public TextFile {
 
         int nbytes = 0;
         L2Frame frame {};
-        // do a no timeout flush/read
+        // flush but save read frame
         while (true) {
-            nbytes = ::read(fd_, &frame, sizeof(frame));
-            if (nbytes < 0) {
+            L2Frame tmp_frame;
+            int tmp_nbytes = ::read(fd_, &tmp_frame, sizeof(tmp_frame));
+            if (tmp_nbytes < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
                 } else {
-                    throw RuntimeErrnoException("read error during flush");
+                    throw RuntimeErrnoException("read error during flush " + name());
                 }
+            } else {
+                frame = tmp_frame;
+                nbytes = tmp_nbytes;
             }
         }
 
         // if nothing from the no timeout flush/read, then do a timeout read
         if (nbytes < 0) {
             if (int poll_result = poll(&poll_fd, 1, timeout_ms_); poll_result < 0) {
-                throw RuntimeErrnoException("poll error in read");
+                throw RuntimeErrnoException("poll error in read " + name());
             } else if (poll_result == 0) {
-                throw RuntimeException("poll timeout in read");
+                throw RuntimeException("poll timeout in read " + name());
             }
 
             nbytes = ::read(fd_, &frame, sizeof(frame));
@@ -360,7 +364,7 @@ class L2File : public TextFile {
             unlock();
         }
         if (nbytes <= 0) {
-            throw RuntimeErrnoException("eth read error");
+            throw RuntimeErrnoException("eth read error " + name());
         }
     
         Payload payload {};
@@ -460,7 +464,7 @@ class L2File : public TextFile {
         int result = send(fd_, &l2_frame_out_, length_out, 0);
         if (result < 0) {
             std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out_, length_out) << std::endl;
-            throw RuntimeErrnoException("eth write error");
+            throw RuntimeErrnoException("eth write error " + name());
         }
         return length_out;
     }
@@ -480,6 +484,10 @@ class L2File : public TextFile {
         //     return err;
         // }
         return retval;
+    }
+
+    std::string name() const {
+        return interface_ + "-" + mac2str(dst_mac_);
     }
 
     int fd_;
