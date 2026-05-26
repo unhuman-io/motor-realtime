@@ -304,7 +304,7 @@ class L2File : public TextFile {
         return err;
     }
 
-    ssize_t _read(char * data, unsigned int length, bool request = false) {
+    ssize_t _read(char * data, unsigned int length, bool request = false, bool flush = true) {
         if (request) {
             lock();
             TopicId topic_id {
@@ -335,7 +335,7 @@ class L2File : public TextFile {
         int poll_result;
         L2Frame frame {};
         // do a no timeout flush/read
-        while (true) {
+        while (flush) {
             int nbytes = ::read(fd_, &frame, sizeof(frame));
             if (nbytes < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -407,7 +407,7 @@ class L2File : public TextFile {
                 while (total_length > total_count_received) {
                     // assemble multiple packets
                     char * data_ptr = data + total_count_received;
-                    retval = _read(data_ptr, length);
+                    retval = _read(data_ptr, length, false, false);
                     if (retval < 0) {
                         return retval;
                     }
