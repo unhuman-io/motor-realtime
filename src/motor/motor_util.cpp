@@ -173,6 +173,31 @@ struct ReadOptions {
     bool print_reserved;
 };
 
+// AI generated formatter for fully expanded --help-all
+class DeepHelpFormatter : public CLI::Formatter {
+public:
+    std::string make_expanded(const CLI::App *sub) const override {
+        std::string out = std::string(ANSI_YELLOW) + std::string(sub->get_name()) + std::string(ANSI_RESET) + "\n";
+        out += make_description(sub);
+        out += make_positionals(sub);
+        out += make_groups(sub, CLI::AppFormatMode::Sub);
+        auto subcommands = sub->get_subcommands(
+            [](const CLI::App *app) { 
+                return !app->get_name().empty() && app->get_group() != ""; 
+            }
+        );
+
+        if(!subcommands.empty()) {
+            out += "\nSubcommands:\n";
+            for(const CLI::App *scom : subcommands) {
+                out += "  ---\n";
+                out += make_expanded(scom); 
+            }
+        }
+        return out;
+    }
+};
+
 int _main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers\n"
                  "\n"
@@ -235,6 +260,8 @@ int _main(int argc, char** argv) {
         .csv = false, .reconnect = false, .read_write_statistics = false,
         .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
     bool get_log = false;
+    app.formatter(std::make_shared<DeepHelpFormatter>());
+    app.set_help_all_flag("--help-all", "Expand all help options and subcommands");
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
