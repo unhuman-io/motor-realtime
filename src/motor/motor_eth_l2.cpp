@@ -336,7 +336,7 @@ class L2File : public TextFile {
         L2Frame frame {};
         // do a no timeout flush/read
         while (flush) {
-            int nbytes = ::read(fd_, &frame, sizeof(frame));
+            nbytes = ::read(fd_, &frame, sizeof(frame));
             if (nbytes < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
