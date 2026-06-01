@@ -158,11 +158,15 @@ class L2File : public TextFile {
         lock_file_ = "/tmp/obot." + interface_ + "-" + mac2str(dst_mac) + ".lock";
         fd_lock_ = ::open(lock_file_.c_str(), O_CREAT | O_RDWR, 0666);
         if (fd_lock_ < 0) {
-            throw RuntimeException("Error opening lock file " + lock_file_ + ":" + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeErrnoException("Error opening lock file " + lock_file_);
         }
-        int err = ::lseek(fd_lock_, 0, SEEK_SET);
-        if (err < 0) {
-            throw RuntimeException("Error lseek lock file " + lock_file_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+        if (int retval = ::fchmod(fd_lock_, 0666); retval < 0) {
+            if (errno != EPERM) {
+                throw RuntimeErrnoException("Error setting permissions on lock file " + lock_file_);
+            } // else ignore no permissions
+        }
+        if (int retval = ::lseek(fd_lock_, 0, SEEK_SET); retval < 0) {
+            throw RuntimeErrnoException("Error lseek lock file " + lock_file_);
         }
         open();
     }
