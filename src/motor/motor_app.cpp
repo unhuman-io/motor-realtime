@@ -21,7 +21,17 @@
 
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <cstdint>
+#ifdef __linux__
 #define gettid() syscall(SYS_gettid)
+#elif defined(__APPLE__)
+#include <pthread.h>
+static inline long gettid() {
+    uint64_t tid = 0;
+    pthread_threadid_np(nullptr, &tid);
+    return static_cast<long>(tid);
+}
+#endif
 #include <csignal>
 
 #include "CLI11.hpp"

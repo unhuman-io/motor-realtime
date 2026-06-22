@@ -13,8 +13,10 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
+#ifdef __linux__
 #include <linux/can.h>
 #include <linux/can/raw.h>
+#endif
 
 #include <ifaddrs.h>
 
@@ -22,6 +24,7 @@
 
 namespace obot {
 
+#ifdef __linux__
 class CANFile : public TextFile {
  public:
     CANFile(std::string ifname, uint32_t devnum) : devnum_(devnum) {
@@ -489,5 +492,30 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
 
     return devices;
 }
+#else
+// SocketCAN is Linux-only. On other platforms MotorCAN is a compile-stub so the
+// library/CLI still build and link; every operation throws. Use MotorIP or
+// MotorEthL2 instead.
+uint32_t MotorCAN::timeout_ms_ = 10;
+
+MotorCAN::MotorCAN(std::string address) {
+    dev_path_ = address;
+    throw RuntimeException("CAN not supported on this platform (no SocketCAN): " + address);
+}
+
+void MotorCAN::open() {}
+
+void MotorCAN::set_timeout_ms(int timeout_ms) { timeout_ms_ = timeout_ms; }
+
+ssize_t MotorCAN::read() { throw RuntimeException("CAN not supported on this platform"); }
+
+ssize_t MotorCAN::write() { throw RuntimeException("CAN not supported on this platform"); }
+
+std::vector<std::string> MotorCAN::enumerate_can_devices(std::string /*interface*/) { return {}; }
+
+int MotorCAN::open_socket(std::string if_name) {
+    throw RuntimeException("CAN not supported on this platform: " + if_name);
+}
+#endif  // __linux__
 
 }; // namespace obot

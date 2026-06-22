@@ -7,11 +7,13 @@
 #include <memory>
 
 #include <libgen.h>
+#ifdef __linux__
 #include <libudev.h>
 
 // user space driver
 #include <linux/usb/ch9.h> // todo why not usb.h
 #include <linux/usbdevice_fs.h>
+#endif
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <errno.h>
@@ -110,6 +112,7 @@ class SysfsFile : public TextFile {
     int fd_;
 };
 
+#ifdef __linux__
 class USBFile : public TextFile {
  public:
     // file fd should be opened already - it can only have one open reference
@@ -227,6 +230,7 @@ class USBFile : public TextFile {
     unsigned int ep_num_;
     int fd_;
 };
+#endif  // __linux__
 
 class TextAPIItem {
  public:
@@ -478,6 +482,7 @@ class SimulatedMotor : public Motor {
     timespec last_time_;
 };
 
+#ifdef __linux__
 class UserSpaceMotor : public Motor {
  public:
     UserSpaceMotor(std::string dev_path, uint8_t ep_num = 2) { 
@@ -624,6 +629,7 @@ class UserSpaceMotor : public Motor {
         .buffer_length = sizeof(status_),
     };
 };
+#endif  // __linux__
 
 std::string &mode_color(ModeDesired mode);
 

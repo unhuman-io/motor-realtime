@@ -4,16 +4,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifdef __linux__
 #include <linux/unistd.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
+#endif
 
 #include <chrono>
 #include <thread>
 #include <iostream>
 
+#ifdef __linux__
 #define gettid() syscall(__NR_gettid)
 
 #define SCHED_DEADLINE	6
@@ -34,8 +37,11 @@
 #define __NR_sched_getattr		381
 #endif
 
+#endif  // __linux__
+
 namespace obot {
 
+#ifdef __linux__
 struct sched_attr {
 	__u32 size;
 
@@ -68,6 +74,7 @@ int sched_getattr(pid_t pid,
 {
 return syscall(__NR_sched_getattr, pid, attr, size, flags);
 }
+#endif  // __linux__
 
 
 void RealtimeThread::run() { 
@@ -94,6 +101,7 @@ void RealtimeThread::run_deadline()
 	//printf("realtime thread started period_ns = %d, [%ld]\n", period_ns_, gettid());
 	exit_ = std::promise<void>();
 
+#ifdef __linux__
 	struct sched_attr attr;
 	attr.size = sizeof(attr);
 	attr.sched_flags = 0;
@@ -128,6 +136,11 @@ void RealtimeThread::run_deadline()
 			perror("Error locking memory");
 		}
 	}
+
+#else
+	// No SCHED_DEADLINE / mlockall here; use the portable sleep_until path below.
+	bool deadline_permissions = false;
+#endif  // __linux__
 
 	auto next_time = std::chrono::steady_clock::now();
 	start_time_ = next_time;
