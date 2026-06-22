@@ -5,6 +5,7 @@
 #endif
 #include "terminal.h"
 #include <string.h>
+#include <string>
 namespace obot {
 
 #if __cplusplus >= 202002L

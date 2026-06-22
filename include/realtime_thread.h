@@ -3,10 +3,7 @@
 #include <future>
 #include <chrono>
 #include <functional>
-
-namespace std {
-    class thread;
-}
+#include <thread>
 
 namespace obot {
 
