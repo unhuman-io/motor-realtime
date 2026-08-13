@@ -176,11 +176,12 @@ struct ReadOptions {
 // AI generated formatter for fully expanded --help-all
 class DeepHelpFormatter : public CLI::Formatter {
 public:
-    std::string make_expanded(const CLI::App *sub) const override {
+    std::string make_expanded(const CLI::App *sub, CLI::AppFormatMode mode) const override {
         std::string out = std::string(ANSI_YELLOW) + std::string(sub->get_name()) + std::string(ANSI_RESET) + "\n";
         out += make_description(sub);
         out += make_positionals(sub);
         out += make_groups(sub, CLI::AppFormatMode::Sub);
+
         auto subcommands = sub->get_subcommands(
             [](const CLI::App *app) { 
                 return !app->get_name().empty() && app->get_group() != ""; 
@@ -191,7 +192,7 @@ public:
             out += "\nSubcommands:\n";
             for(const CLI::App *scom : subcommands) {
                 out += "  ---\n";
-                out += make_expanded(scom); 
+                out += make_expanded(scom, mode);
             }
         }
         return out;
