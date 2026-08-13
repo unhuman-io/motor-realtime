@@ -158,11 +158,15 @@ class L2File : public TextFile {
         lock_file_ = "/tmp/obot." + interface_ + "-" + mac2str(dst_mac) + ".lock";
         fd_lock_ = ::open(lock_file_.c_str(), O_CREAT | O_RDWR, 0666);
         if (fd_lock_ < 0) {
-            throw RuntimeException("Error opening lock file " + lock_file_ + ":" + std::to_string(errno) + ": " + strerror(errno));
+            throw RuntimeErrnoException("Error opening lock file " + lock_file_);
         }
-        int err = ::lseek(fd_lock_, 0, SEEK_SET);
-        if (err < 0) {
-            throw RuntimeException("Error lseek lock file " + lock_file_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+        if (int retval = ::fchmod(fd_lock_, 0666); retval < 0) {
+            if (errno != EPERM) {
+                throw RuntimeErrnoException("Error setting permissions on lock file " + lock_file_);
+            } // else ignore no permissions
+        }
+        if (int retval = ::lseek(fd_lock_, 0, SEEK_SET); retval < 0) {
+            throw RuntimeErrnoException("Error lseek lock file " + lock_file_);
         }
         open();
     }
@@ -304,7 +308,7 @@ class L2File : public TextFile {
         return err;
     }
 
-    ssize_t _read(char * data, unsigned int length, bool request = false) {
+    ssize_t _read(char * data, unsigned int length, bool request = false, bool flush = true) {
         if (request) {
             lock();
             TopicId topic_id {
@@ -331,27 +335,30 @@ class L2File : public TextFile {
             .events = POLLIN
         };
 
-        int nbytes = 0;
-        int poll_result;
+        int nbytes = -1;
         L2Frame frame {};
-        // do a no timeout flush/read
-        while (true) {
-            int nbytes = ::read(fd_, &frame, sizeof(frame));
-            if (nbytes < 0) {
+        // flush but save read frame
+        while (flush) {
+            L2Frame tmp_frame;
+            int tmp_nbytes = ::read(fd_, &tmp_frame, sizeof(tmp_frame));
+            if (tmp_nbytes < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
                 } else {
-                    throw RuntimeErrnoException("read error during flush");
+                    throw RuntimeErrnoException("read error during flush " + name());
                 }
+            } else {
+                frame = tmp_frame;
+                nbytes = tmp_nbytes;
             }
         }
 
         // if nothing from the no timeout flush/read, then do a timeout read
-        if (nbytes == 0) {
+        if (nbytes < 0) {
             if (int poll_result = poll(&poll_fd, 1, timeout_ms_); poll_result < 0) {
-                throw RuntimeErrnoException("poll error in read");
+                throw RuntimeErrnoException("poll error in read " + name());
             } else if (poll_result == 0) {
-                throw RuntimeException("poll timeout in read");
+                throw RuntimeException("poll timeout in read " + name());
             }
 
             nbytes = ::read(fd_, &frame, sizeof(frame));
@@ -361,7 +368,7 @@ class L2File : public TextFile {
             unlock();
         }
         if (nbytes <= 0) {
-            throw RuntimeErrnoException("eth read error");
+            throw RuntimeErrnoException("eth read error " + name());
         }
     
         Payload payload {};
@@ -407,7 +414,7 @@ class L2File : public TextFile {
                 while (total_length > total_count_received) {
                     // assemble multiple packets
                     char * data_ptr = data + total_count_received;
-                    retval = _read(data_ptr, length);
+                    retval = _read(data_ptr, length, false, false);
                     if (retval < 0) {
                         return retval;
                     }
@@ -430,6 +437,9 @@ class L2File : public TextFile {
                 }
                 retval = total_count_received;
             }
+        } else if (retval > 0) {
+            // a string
+            retval = strnlen(data, length);
         }
         unlock();
         return retval;
@@ -458,7 +468,7 @@ class L2File : public TextFile {
         int result = send(fd_, &l2_frame_out_, length_out, 0);
         if (result < 0) {
             std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out_, length_out) << std::endl;
-            throw RuntimeErrnoException("eth write error");
+            throw RuntimeErrnoException("eth write error " + name());
         }
         return length_out;
     }
@@ -478,6 +488,10 @@ class L2File : public TextFile {
         //     return err;
         // }
         return retval;
+    }
+
+    std::string name() const {
+        return interface_ + "-" + mac2str(dst_mac_);
     }
 
     int fd_;

@@ -46,12 +46,12 @@ _motor_util_completion()
     COMREPLY=()
     local words
     local base_words="-l --list -c --check-messages-version --no-list --list-names-only --list-path-only 
-      --list-devpath-only --list-serial-number-only --list-devnum-only --no-dfu-list -n --names -i --ips 
+      --list-devpath-only --list-serial-number-only --list-devnum-only --no-dfu-list -n --names -i --ips    
       -j --json-ip-file --no-print-unconnected --get-log -e --eth-l2 gdbserver
       -a --uart-paths --uart-raw -f --can -p --paths -d --devpaths -s --serial_numbers set read --set-api 
       --api --api-timing --run-stats --set-timeout -v --version -u --user-space --allow-simulated --lock 
       --list-ethernet-interfaces-only
-      -h --help";
+      -h --help --help-all";
     case $subcommand in
         set) words="--host_time --mode --current --position --velocity --torque --torque_dot --reserved --gpio --cmd-status-req impedance state position_tuning current_tuning stepper_tuning voltage stepper_velocity tuning read -h --help";
             case $last in
@@ -116,8 +116,37 @@ _motor_util_completion()
                 --tuning_mode) words="sine square triangle chirp random" ;;
                 --mode) words="position velocity torque current voltage impedance" ;;
             esac ;;
-        api_set) words="$(motor_util ${COMP_WORDS[@]:1:$((i-1))} --no-list --list-api)" ;;
-        api_text) words="$(motor_util ${COMP_WORDS[@]:1:$((i-2))} --no-list --list-api)" ;;
+        api_set|api_text)
+            local api_args=()
+            local j=1
+            while [[ $j -lt $COMP_CWORD ]]; do
+                case ${COMP_WORDS[j]} in
+                    -e|--eth-l2|-i|--ips|-n|--names|-p|--paths|-d|--devpaths|-s|--serial_numbers|-j|--json-ip-file)
+                        api_args+=("${COMP_WORDS[j]}")
+                        if [[ $((j+1)) -lt $COMP_CWORD ]]; then
+                            local k=$((j+1))
+                            local val="${COMP_WORDS[k]}"
+                            
+                            # Bash breaks words on colons (:). We stitch them back together
+                            # by continuing to append words as long as they don't start with a '-'
+                            while [[ $((k+1)) -lt $COMP_CWORD && "${COMP_WORDS[k+1]}" != -* ]]; do
+                                ((k++))
+                                val="${val}${COMP_WORDS[k]}"
+                            done
+                            
+                            api_args+=("$val")
+                            j=$((k+1))
+                        else
+                            ((j++))
+                        fi
+                        ;;
+                    *)
+                        ((j++))
+                        ;;
+                esac
+            done
+            words="$(motor_util "${api_args[@]}" --no-list --list-api 2>/dev/null)"
+            ;;
         *) words=$base_words ;;
     esac
 
