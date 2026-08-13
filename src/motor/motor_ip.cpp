@@ -371,7 +371,7 @@ ssize_t MotorIP::read() {
 
 ssize_t MotorIP::write() {
   //std::cout << "write " << std::endl;
-  return realtime_communication_.write((char *) &command_, sizeof(command_));
+  return realtime_communication_.write((char *) &command_, sizeof(command_), cmd_status_req_);
 }
 
 void MotorIP::rx_data() {
