@@ -10,10 +10,17 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
-#include <linux/if_packet.h>
 #include <net/ethernet.h>
+#ifdef __linux__
+#include <linux/if_packet.h>
 #include <linux/filter.h>
 #include <net/if_arp.h>
+#elif defined(__APPLE__)
+#include <net/bpf.h>
+#include <net/if_dl.h>
+#include <net/if_types.h>
+#include <fcntl.h>
+#endif
 
 #include <ifaddrs.h>
 #include <array>
@@ -103,12 +110,36 @@ std::string mac2str(const mac_t &mac) {
 mac_t get_interface_mac_address(int fd, std::string interface) {
     mac_t mac {};
     if (interface != "any" ) {
+#ifdef __linux__
         struct ifreq ifr = {};
         std::strncpy(ifr.ifr_name, interface.c_str(), IFNAMSIZ - 1);
         if (ioctl(fd, SIOCGIFHWADDR, &ifr) == -1) {
             throw RuntimeErrnoException("ioctl SIOCGIFHWADDR failed for " + interface);
         }
         std::memcpy(mac.data(), ifr.ifr_hwaddr.sa_data, 6);
+#elif defined(__APPLE__)
+        (void)fd;  // macOS reads the link-layer address via getifaddrs(), not the socket
+        struct ifaddrs *addrs = nullptr;
+        if (getifaddrs(&addrs)) {
+            throw RuntimeErrnoException("getifaddrs failed for " + interface);
+        }
+        bool found = false;
+        for (struct ifaddrs *tmp = addrs; tmp != nullptr; tmp = tmp->ifa_next) {
+            if (tmp->ifa_addr && tmp->ifa_addr->sa_family == AF_LINK &&
+                interface == tmp->ifa_name) {
+                struct sockaddr_dl *sdl = (struct sockaddr_dl *)tmp->ifa_addr;
+                if (sdl->sdl_alen == 6) {
+                    std::memcpy(mac.data(), LLADDR(sdl), 6);
+                    found = true;
+                    break;
+                }
+            }
+        }
+        freeifaddrs(addrs);
+        if (!found) {
+            throw RuntimeException("Could not get MAC address for " + interface);
+        }
+#endif
     }
     return mac;
 }
@@ -126,11 +157,20 @@ std::vector<std::string> get_eth_interfaces() {
         //std::cout << "interface: " << tmp->ifa_name << " flags " << tmp->ifa_flags << std::endl;
         // test if interface is ethernet
         if (tmp->ifa_flags & IFF_UP) {
+#ifdef __linux__
             struct sockaddr_ll *sll = (struct sockaddr_ll *)tmp->ifa_addr;
             if (sll && sll->sll_hatype == ARPHRD_ETHER) {
                 //printf("Interface %s is Ethernet-compatible\n", tmp->ifa_name);
                 interfaces.push_back(tmp->ifa_name);
             }
+#elif defined(__APPLE__)
+            if (tmp->ifa_addr && tmp->ifa_addr->sa_family == AF_LINK) {
+                struct sockaddr_dl *sdl = (struct sockaddr_dl *)tmp->ifa_addr;
+                if (sdl->sdl_type == IFT_ETHER) {
+                    interfaces.push_back(tmp->ifa_name);
+                }
+            }
+#endif
         }
         tmp = tmp->ifa_next;
     }
@@ -172,6 +212,7 @@ class L2File : public TextFile {
     }
 
     void open() {
+#ifdef __linux__
         fd_ = ::socket(AF_PACKET, SOCK_RAW, htons(0x88b5));
         if (fd_ < 0) {
             throw RuntimeErrnoException("socket failed for " + interface_);
@@ -187,6 +228,9 @@ class L2File : public TextFile {
         //         throw RuntimeErrnoException("setsockopt SO_BINDTODEVICE error");
         //     }
         // }
+#elif defined(__APPLE__)
+        fd_ = bpf_open_interface(interface_);
+#endif
 
         node_id_ = dst_mac_[5];
         TopicId topic_id {
@@ -199,22 +243,22 @@ class L2File : public TextFile {
 
         set_eth_packet_filter(fd_, dst_mac_, htons(topic_id_uint));
         flush();
-                // still need to bind in order to send, I guess
+#ifdef __linux__
+        // still need to bind in order to send, I guess
         sockaddr_ll server_addr = {};
         server_addr.sll_family = AF_PACKET;
         server_addr.sll_protocol = htons(0x88B5);
         server_addr.sll_ifindex = if_nametoindex(interface_.c_str());
-    
+
         int retval = bind(fd_, (struct sockaddr *)&server_addr, sizeof(server_addr));
         if (retval < 0) {
             throw RuntimeErrnoException("bind failed for " + interface_);
         }
+#endif
 
         std::memcpy(&l2_frame_out_.dst_mac, &dst_mac_, sizeof(dst_mac_));
         mac_t src_mac = get_interface_mac_address(fd_, interface_);
         std::memcpy(&l2_frame_out_.src_mac, &src_mac, sizeof(src_mac));
-
-        
     }
 
     void close() {
@@ -223,9 +267,14 @@ class L2File : public TextFile {
 
     void flush() {
         // flush frames received before filter
-        char buf[MAX_ETH_L2_PAYLOAD_SIZE];
         while (true) {
+#ifdef __linux__
+            char buf[MAX_ETH_L2_PAYLOAD_SIZE];
             int retval = ::read(fd_, buf, MAX_ETH_L2_PAYLOAD_SIZE);
+#elif defined(__APPLE__)
+            L2Frame tmp_frame;
+            ssize_t retval = bpf_read_frame(&tmp_frame);
+#endif
             if (retval < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
@@ -243,8 +292,15 @@ class L2File : public TextFile {
         uint16_t word2;
         std::memcpy(&word2, mac.data()+4, 2);
         word2 = htons(word2);
-        // Set Berkeley Packet Filter to only receive packets with mac matching
-        struct sock_filter bpf_code[] = {
+        // Set Berkeley Packet Filter to only receive packets with mac matching.
+        // The classic-BPF opcodes below are identical on Linux and BSD/macOS;
+        // only the container struct and the attach mechanism differ.
+#ifdef __linux__
+        using insn_t = struct sock_filter;
+#elif defined(__APPLE__)
+        using insn_t = struct bpf_insn;
+#endif
+        insn_t bpf_code[] = {
             // Load first 4 bytes of Ethernet MAC
             { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
             // Compare with dst_mac_[0..3]
@@ -266,6 +322,7 @@ class L2File : public TextFile {
             { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
         };
 
+#ifdef __linux__
         struct sock_fprog bpf_prog = {
             .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
             .filter = bpf_code,
@@ -273,6 +330,14 @@ class L2File : public TextFile {
         if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
             throw RuntimeErrnoException("Failed to set BPF filter");
         }
+#elif defined(__APPLE__)
+        struct bpf_program bpf_prog;
+        bpf_prog.bf_len = sizeof(bpf_code)/sizeof(bpf_code[0]);
+        bpf_prog.bf_insns = bpf_code;
+        if (ioctl(fd, BIOCSETF, &bpf_prog) < 0) {
+            throw RuntimeErrnoException("Failed to set BPF filter (BIOCSETF)");
+        }
+#endif
     }
 
     // use a lock file to provide exclusive access to the device during a 
@@ -324,7 +389,7 @@ class L2File : public TextFile {
             std::memset(&l2_frame_out_.payload, 0, 64-L2_HEADER_SIZE);
             std::memcpy(l2_frame_out_.payload, &payload, PAYLOAD_HEADER_SIZE);
             int length_out = 64;
-            int result = send(fd_, &l2_frame_out_, length_out, 0);
+            int result = raw_send(&l2_frame_out_, length_out);
             if (result < 0) {
                 std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out_, length_out) << std::endl;
                 throw RuntimeErrnoException("eth write error");
@@ -340,7 +405,7 @@ class L2File : public TextFile {
         // flush but save read frame
         while (flush) {
             L2Frame tmp_frame;
-            int tmp_nbytes = ::read(fd_, &tmp_frame, sizeof(tmp_frame));
+            int tmp_nbytes = raw_recv(&tmp_frame);
             if (tmp_nbytes < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
@@ -361,7 +426,7 @@ class L2File : public TextFile {
                 throw RuntimeException("poll timeout in read " + name());
             }
 
-            nbytes = ::read(fd_, &frame, sizeof(frame));
+            nbytes = raw_recv(&frame);
         }
 
         if (request) {
@@ -465,7 +530,7 @@ class L2File : public TextFile {
         length = std::min(length, static_cast<unsigned int>(MAX_ETH_L2_PAYLOAD_SIZE));
         std::memcpy(l2_frame_out_.payload+PAYLOAD_HEADER_SIZE, data, length);
         int length_out = std::max(length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, 64u);
-        int result = send(fd_, &l2_frame_out_, length_out, 0);
+        int result = raw_send(&l2_frame_out_, length_out);
         if (result < 0) {
             std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out_, length_out) << std::endl;
             throw RuntimeErrnoException("eth write error " + name());
@@ -493,6 +558,86 @@ class L2File : public TextFile {
     std::string name() const {
         return interface_ + "-" + mac2str(dst_mac_);
     }
+
+    // --- platform raw-frame backend ----------------------------------------
+#ifdef __APPLE__
+    // macOS BPF backend: open /dev/bpfN bound to the interface in immediate
+    // (per-packet), non-blocking mode, supplying the full link header on TX.
+    int bpf_open_interface(const std::string& ifname) {
+        int fd = -1;
+        for (int i = 0; i < 256; i++) {
+            std::string path = "/dev/bpf" + std::to_string(i);
+            fd = ::open(path.c_str(), O_RDWR);
+            if (fd >= 0) {
+                break;
+            }
+            if (errno == ENOENT) {
+                break;  // no more bpf devices to try
+            }
+            // EBUSY: device in use, try the next one
+        }
+        if (fd < 0) {
+            throw RuntimeErrnoException("could not open a /dev/bpf* device for " + ifname);
+        }
+        struct ifreq ifr = {};
+        std::strncpy(ifr.ifr_name, ifname.c_str(), IFNAMSIZ - 1);
+        if (ioctl(fd, BIOCSETIF, &ifr) < 0) {
+            ::close(fd);
+            throw RuntimeErrnoException("BIOCSETIF failed for " + ifname);
+        }
+        unsigned int blen = 0;
+        if (ioctl(fd, BIOCGBLEN, &blen) < 0) {
+            ::close(fd);
+            throw RuntimeErrnoException("BIOCGBLEN failed for " + ifname);
+        }
+        bpf_buf_.resize(blen);
+        int enable = 1;
+        int disable = 0;
+        ioctl(fd, BIOCIMMEDIATE, &enable);   // deliver packets immediately
+        ioctl(fd, BIOCSHDRCMPLT, &enable);   // we provide the source MAC ourselves
+        ioctl(fd, BIOCSSEESENT, &disable);   // don't echo back our own transmits
+        if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
+            ::close(fd);
+            throw RuntimeErrnoException("bpf set non-block failed for " + ifname);
+        }
+        return fd;
+    }
+
+    // De-frame one Ethernet frame out of the BPF read buffer. A single read()
+    // may return several packets, so leftover bytes are parsed on later calls.
+    // Returns the frame length (>0), or -1 with errno=EAGAIN when nothing is
+    // buffered (mirrors Linux ::read on a non-blocking AF_PACKET socket).
+    ssize_t bpf_read_frame(L2Frame* out) {
+        if (bpf_offset_ >= static_cast<size_t>(bpf_valid_)) {
+            ssize_t n = ::read(fd_, bpf_buf_.data(), bpf_buf_.size());
+            if (n <= 0) {
+                if (n == 0) {
+                    errno = EAGAIN;
+                }
+                return -1;
+            }
+            bpf_valid_ = n;
+            bpf_offset_ = 0;
+        }
+        struct bpf_hdr* bh = reinterpret_cast<struct bpf_hdr*>(bpf_buf_.data() + bpf_offset_);
+        uint8_t* pkt = bpf_buf_.data() + bpf_offset_ + bh->bh_hdrlen;
+        size_t copy_len = std::min(static_cast<size_t>(bh->bh_caplen), sizeof(L2Frame));
+        std::memset(out, 0, sizeof(L2Frame));
+        std::memcpy(out, pkt, copy_len);
+        bpf_offset_ += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
+        return static_cast<ssize_t>(copy_len);
+    }
+
+    ssize_t raw_send(const void* buf, size_t len) { return ::write(fd_, buf, len); }
+    ssize_t raw_recv(L2Frame* frame) { return bpf_read_frame(frame); }
+
+    std::vector<uint8_t> bpf_buf_;
+    size_t bpf_offset_ = 0;
+    ssize_t bpf_valid_ = 0;
+#else
+    ssize_t raw_send(const void* buf, size_t len) { return ::send(fd_, buf, len, 0); }
+    ssize_t raw_recv(L2Frame* frame) { return ::read(fd_, frame, sizeof(*frame)); }
+#endif
 
     int fd_;
     L2MessageType cmd_type_, cmd_status_type_, status_type_;

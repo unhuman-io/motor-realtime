@@ -1,5 +1,8 @@
 #include "motor_util_fun.h"
+#include "platform_compat.h"
+#ifdef __linux__
 #include <libudev.h>
+#endif
 #include <libgen.h>
 #include <sys/stat.h>
 #include <errno.h>
@@ -11,6 +14,7 @@
 
 namespace obot {
 
+#ifdef __linux__
 static std::string udev_device_check_and_get_sysattr_value(struct udev_device *dev, const char * name) {
     const char *value = udev_device_get_sysattr_value(dev, name);
     if (value != nullptr) {
@@ -93,6 +97,16 @@ DFUDevice::DFUDevice(std::string dev_path) {
     udev_device_unref(dev);
     udev_unref(udev);
 }
+#else
+// libudev is Linux-only; DFU firmware-update enumeration is unsupported on
+// other platforms. Stubs keep the symbols linkable.
+std::vector<std::string> udev_list_dfu() { return {}; }
+
+DFUDevice::DFUDevice(std::string dev_path) {
+    dev_path_ = dev_path;
+    throw RuntimeException("DFU device enumeration not supported on this platform");
+}
+#endif  // __linux__
 
 std::string short_status(const std::vector<Status> status) {
     std::ostringstream os;

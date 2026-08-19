@@ -6,7 +6,10 @@
 #include "motor_uart_obot.h"
 #include "motor_can.h"
 
+#ifdef __linux__
 #include <libudev.h>
+#endif
+#include "platform_compat.h"
 
 #include <cstring>
 #include <algorithm>
@@ -19,6 +22,7 @@ namespace obot {
 
 // Returns a vector of strings that contain the dev file locations,
 // e.g. /dev/skel0
+#ifdef __linux__
 static std::vector<std::string> udev (bool user_space_driver=false)
 {
 	struct udev_enumerate *enumerate;
@@ -67,10 +71,12 @@ static std::vector<std::string> udev (bool user_space_driver=false)
 
 	udev_unref(udev);
 
-	return dev_paths;       
+	return dev_paths;
 }
+#endif  // __linux__
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool connect) {
+#ifdef __linux__
     free_motors();
     auto dev_paths = udev(user_space_driver_);
     std::vector<std::shared_ptr<Motor>> m;
@@ -90,6 +96,13 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
         set_motors(m);
     }
     return m;
+#else
+    (void)connect;
+    // No USB/udev device enumeration on this platform; connect explicitly via
+    // get_motors_by_ip() / get_motors_by_eth_l2() instead.
+    free_motors();
+    return {};
+#endif  // __linux__
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect, bool allow_simulated) {
@@ -156,6 +169,7 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std::vector<std::string> devpaths, bool raw, uint32_t baud_rate, bool connect, bool allow_simulated) {
+#ifdef __linux__
     std::vector<std::shared_ptr<Motor>> m(devpaths.size());
     for (uint8_t i=0; i<devpaths.size(); i++) {
         if (raw) {
@@ -168,6 +182,11 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std
         set_motors(m);
     }
     return m;
+#else
+    (void)devpaths; (void)raw; (void)baud_rate; (void)connect; (void)allow_simulated;
+    // UART transports use Linux <asm/termbits.h> custom baud rates; unsupported here.
+    throw RuntimeException("UART motors not supported on this platform");
+#endif  // __linux__
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated, std::vector<std::string> ip_aliases) {

@@ -45,7 +45,13 @@ option(BUILD_SHARED_LIBS "Build libraries shared" ON)
 option(BUILD_PYTHON_API "build a python api module" OFF)
 option(BUILD_MOTOR_UTIL "build motor util command line program" ON)
 option(INSTALL_COMPLETION "install bash completion script" ON)
-option(INSTALL_MOTOR_EMBEDDED "install motor embedded" ON)
+if(APPLE)
+    # The embedded sub-build compiles the Linux USB/CAN/UART sources and links udev.
+    set(INSTALL_MOTOR_EMBEDDED_DEFAULT OFF)
+else()
+    set(INSTALL_MOTOR_EMBEDDED_DEFAULT ON)
+endif()
+option(INSTALL_MOTOR_EMBEDDED "install motor embedded" ${INSTALL_MOTOR_EMBEDDED_DEFAULT})
 
 # the RPATH to be used when installing, but only if it's not a system directory
 list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
@@ -91,10 +97,12 @@ endif()
 
 add_subdirectory(3rdparty)
 add_subdirectory(src)
-add_subdirectory(test)
-
-add_subdirectory(example)
-install(DIRECTORY example 
+if(NOT APPLE)
+    # tests and examples are out of scope for the macOS build (some link librt)
+    add_subdirectory(test)
+    add_subdirectory(example)
+endif()
+install(DIRECTORY example
     DESTINATION ${CMAKE_INSTALL_DATADIR}/${CMAKE_PROJECT_NAME})
 install(DIRECTORY scripts USE_SOURCE_PERMISSIONS
     DESTINATION ${CMAKE_INSTALL_DATADIR}/${CMAKE_PROJECT_NAME})

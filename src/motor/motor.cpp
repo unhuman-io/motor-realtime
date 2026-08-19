@@ -2,6 +2,7 @@
 
 namespace obot {
 
+#ifdef __linux__
 static std::string udev_device_check_and_get_sysattr_value(struct udev_device *dev, const char * name) {
     const char *value = udev_device_get_sysattr_value(dev, name);
     if (value != nullptr) {
@@ -10,8 +11,8 @@ static std::string udev_device_check_and_get_sysattr_value(struct udev_device *d
     return "";
 }
 
-Motor::Motor(std::string dev_path) { 
-    dev_path_ = dev_path; 
+Motor::Motor(std::string dev_path) {
+    dev_path_ = dev_path;
     struct udev *udev = udev_new();
     struct udev_device *dev = udev_device_new_from_subsystem_sysname(udev, "usbmisc", basename(const_cast<char *>(dev_path.c_str())));
     if (!dev) {
@@ -27,7 +28,7 @@ Motor::Motor(std::string dev_path) {
             dev,
             "usb",
             "usb_device");
-    serial_number_ = udev_device_check_and_get_sysattr_value(dev_parent, "serial"); 
+    serial_number_ = udev_device_check_and_get_sysattr_value(dev_parent, "serial");
     base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev_parent)));
     version_ = udev_device_check_and_get_sysattr_value(dev_parent, "configuration");
     devnum_ = std::stoi(udev_device_check_and_get_sysattr_value(dev_parent, "devnum"));
@@ -42,6 +43,15 @@ Motor::Motor(std::string dev_path) {
     board_num_ = operator[]("board_num").get();
     config_ = operator[]("config").get();
 }
+#else
+// USB/sysfs enumeration relies on libudev, which is Linux-only. On other
+// platforms (e.g. macOS) the local USB transport is unsupported; use MotorIP /
+// MotorEthL2 instead. Kept as a throwing stub so the symbol still links.
+Motor::Motor(std::string dev_path) {
+    dev_path_ = dev_path;
+    throw RuntimeException("Local USB motor not supported on this platform: " + dev_path);
+}
+#endif  // __linux__
 
 Motor::~Motor() { close(); }
 
@@ -165,9 +175,11 @@ SysfsFile::~SysfsFile() {
     }
 }
 
+#ifdef __linux__
 USBFile::~USBFile() {}
 
 UserSpaceMotor::~UserSpaceMotor() { close(); }
+#endif  // __linux__
 
 SimulatedMotor::~SimulatedMotor() { ::close(fd_); }
 

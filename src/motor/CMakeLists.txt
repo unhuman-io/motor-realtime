@@ -1,7 +1,15 @@
-add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cpp motor_uart_obot.cpp motor_can.cpp
+set(MOTOR_MANAGER_SOURCES motor_manager.cpp motor.cpp motor_ip.cpp motor_can.cpp
             motor_eth_l2.cpp
             realtime_thread.cpp motor_thread.cpp motor_app.cpp motor_util_fun.cpp terminal.cpp gdbserver.cpp)
-target_link_libraries(motor_manager PUBLIC udev pthread cli11 obot-protocol)
+if(NOT APPLE)
+    # UART transports use Linux <asm/termbits.h> custom baud rates; excluded on macOS
+    list(APPEND MOTOR_MANAGER_SOURCES motor_uart.cpp motor_uart_obot.cpp)
+endif()
+add_library(motor_manager ${MOTOR_MANAGER_SOURCES})
+target_link_libraries(motor_manager PUBLIC pthread cli11 obot-protocol)
+if(NOT APPLE)
+    target_link_libraries(motor_manager PUBLIC udev)
+endif()
 target_include_directories(motor_manager PUBLIC ${PROJECT_SOURCE_DIR}/include)
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
     ${PROJECT_SOURCE_DIR}/include/motor_manager.h
@@ -33,9 +41,12 @@ endif()
 install(FILES ${PROJECT_SOURCE_DIR}/include/motor_messages/motor_messages.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/motor_messages)
 
-add_executable(eth2vcan eth2vcan.cpp)
-target_link_libraries(eth2vcan cli11 motor_manager)
-install(TARGETS eth2vcan DESTINATION bin)
+if(NOT APPLE)
+    # eth2vcan bridges raw Ethernet L2 to a Linux virtual CAN interface; Linux-only.
+    add_executable(eth2vcan eth2vcan.cpp)
+    target_link_libraries(eth2vcan cli11 motor_manager)
+    install(TARGETS eth2vcan DESTINATION bin)
+endif()
 
 if(BUILD_MOTOR_UTIL)
     add_executable(motor_util motor_util.cpp )
@@ -43,19 +54,24 @@ if(BUILD_MOTOR_UTIL)
     target_include_directories(motor_util PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../../)
     install(TARGETS motor_util DESTINATION bin)
 
-    add_executable(motor_usbmon motor_usbmon.cpp)
-    target_link_libraries(motor_usbmon motor_manager)
-    install(TARGETS motor_usbmon DESTINATION bin)
+    if(NOT APPLE)
+        # motor_usbmon parses the Linux usbmon kernel interface; Linux-only.
+        add_executable(motor_usbmon motor_usbmon.cpp)
+        target_link_libraries(motor_usbmon motor_manager)
+        install(TARGETS motor_usbmon DESTINATION bin)
+    endif()
 endif()
 
-add_custom_target(setcap
-    COMMAND sudo setcap cap_net_raw+ep eth2vcan
-    COMMAND sudo setcap cap_net_raw+ep motor_util)
-add_dependencies(setcap eth2vcan motor_util)
+if(NOT APPLE)
+    add_custom_target(setcap
+        COMMAND sudo setcap cap_net_raw+ep eth2vcan
+        COMMAND sudo setcap cap_net_raw+ep motor_util)
+    add_dependencies(setcap eth2vcan motor_util)
 
-add_executable(motor_data_echo motor_data_echo.cpp)
-target_include_directories(motor_data_echo PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(motor_data_echo rt pthread)
+    add_executable(motor_data_echo motor_data_echo.cpp)
+    target_include_directories(motor_data_echo PUBLIC ${PROJECT_SOURCE_DIR}/include)
+    target_link_libraries(motor_data_echo rt pthread)
+endif()
 
 
 # can't seem to use ${CMAKE_INSTALL_SYSCONFDIR} below instead of /etc with cpack
@@ -77,6 +93,7 @@ if(INSTALL_MOTOR_EMBEDDED)
     configure_file(${PROJECT_SOURCE_DIR}/include/motor_messages/motor_messages.h motor_manager_embedded/motor_messages/motor_messages.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/terminal.h motor_manager_embedded/terminal.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/include/exception.h motor_manager_embedded/exception.h COPYONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/include/platform_compat.h motor_manager_embedded/platform_compat.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/3rdparty/obot-protocol/crc.h motor_manager_embedded/crc.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/3rdparty/obot-protocol/protocol_parser.h motor_manager_embedded/protocol_parser.h COPYONLY)
     configure_file(${PROJECT_SOURCE_DIR}/3rdparty/obot-protocol/protocol_parser.cpp motor_manager_embedded/protocol_parser.cpp COPYONLY)
