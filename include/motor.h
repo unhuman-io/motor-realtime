@@ -355,6 +355,9 @@ class Motor : public MotorDescription {
             return true;
         }
     }
+    virtual uint8_t * read_buffer() { return reinterpret_cast<uint8_t *>(&status_); }
+    virtual size_t read_buffer_size() const { return sizeof(Status); }
+    virtual void process_read_buffer() {}
     virtual void set_timeout_ms(int timeout_ms);
     virtual int get_timeout_ms() const;
     // note will probably not be the final interface

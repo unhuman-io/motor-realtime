@@ -3,6 +3,11 @@ add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cp
             realtime_thread.cpp motor_thread.cpp motor_app.cpp motor_util_fun.cpp terminal.cpp gdbserver.cpp)
 target_link_libraries(motor_manager PUBLIC udev pthread cli11 obot-protocol)
 target_include_directories(motor_manager PUBLIC ${PROJECT_SOURCE_DIR}/include)
+if (ENABLE_IO_URING)
+    target_sources(motor_manager PRIVATE motor_manager_uring.cpp)
+    target_link_libraries(motor_manager PRIVATE uring)
+endif()
+
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
     ${PROJECT_SOURCE_DIR}/include/motor_manager.h
     ${PROJECT_SOURCE_DIR}/include/motor_messages.h
