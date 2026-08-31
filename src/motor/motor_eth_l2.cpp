@@ -509,7 +509,7 @@ class L2File : public TextFile {
 MotorEthL2::MotorEthL2(std::string address, std::string alias) {
     std::string interface;
     std::string mac;
-    if (int n = address.find("-"); n == std::string::npos) {
+    if (int n = address.rfind("-"); n == std::string::npos) {
         interface = "any";
         mac = address;
     } else {
