@@ -155,7 +155,7 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
         }
     }
 
-int open_eth(std::string interface, std::string mac_address, bool gateway_mode, std::string gateway_mac) {
+int open_eth(std::string interface, std::string mac_address, std::string src_mac_address, bool gateway_mode, std::string gateway_mac) {
     int fd = ::socket(AF_PACKET, SOCK_RAW, htons(0x88b5));
     if (fd < 0) {
       throw RuntimeErrnoException("socket failed for " + interface);
@@ -172,7 +172,11 @@ int open_eth(std::string interface, std::string mac_address, bool gateway_mode, 
     if (gateway_mode) {
         *this_mac = str2mac(gateway_mac);
     } else {
-        *this_mac = get_interface_mac_address(fd, interface);
+        if (src_mac_address.size() != 0) {
+            *this_mac = str2mac(src_mac_address);
+        } else { 
+            *this_mac = get_interface_mac_address(fd, interface);
+        }
     }
     set_eth_packet_filter(fd, *dst_mac, !gateway_mode);
 
@@ -240,6 +244,7 @@ int _main(int argc, char** argv) {
     std::string vcan_interface {"vcan0"};
     std::string interface {"lo"};
     std::string gateway_mac {"00:00:00:00:00:00"};
+    std::string src_mac_address {};
     CLI::App app{"Utility for converting ethernet l2 communication to vcan\n"
                  "\n"
                  "Example:\n"
@@ -252,11 +257,12 @@ int _main(int argc, char** argv) {
     app.add_option("-v,--vcan", vcan_interface, "Use VCAN_INTERFACE for vcan")->type_name("VCAN_INTERFACE")->capture_default_str()->expected(1);
     app.add_option("-m,--mac", mac_address, "Use MAC address MAC_ADDRESS")->type_name("MAC_ADDRESS")->capture_default_str()->expected(1);
     app.add_option("-i,--interface", interface, "Use network interface INTERFACE")->type_name("INTERFACE")->capture_default_str()->expected(1);
+    app.add_option("-s,--src-mac", src_mac_address, "Use SRC_MAC_ADDRESS rather than interface mac address")->type_name("SRC_MAC_ADDRESS");
     auto gateway_option = app.add_option("-g,--gateway", gateway_mac, "Gateway mode for converting can to ethernet destination at MAC_ADDRESS")->type_name("MAC_ADDRESS")->capture_default_str()->expected(0,1);
     CLI11_PARSE(app, argc, argv);
 
     int fd_vcan = open_vcan(vcan_interface);
-    int fd_eth = open_eth(interface, mac_address, static_cast<bool>(*gateway_option), gateway_mac);
+    int fd_eth = open_eth(interface, mac_address, src_mac_address, static_cast<bool>(*gateway_option), gateway_mac);
 
     pollfd poll_fds[2];
     poll_fds[0].fd = fd_vcan;
