@@ -174,6 +174,17 @@ int open_eth(std::string interface, std::string mac_address, std::string src_mac
     } else {
         if (src_mac_address.size() != 0) {
             *this_mac = str2mac(src_mac_address);
+            std::cerr << "Warning: Using arbitrary source mac address requires promiscuous mode "
+                      << "and may lead to switch flooding or packet drops" << std::endl;
+            packet_mreq mr = {};
+            mr.mr_ifindex = if_nametoindex(interface.c_str());
+            if (mr.mr_ifindex == 0) {
+                throw RuntimeErrnoException("if_nametoindex failed for " + interface);
+            }
+            mr.mr_type = PACKET_MR_PROMISC;
+            if (setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) < 0) {
+                throw RuntimeErrnoException("setsockopt PACKET_ADD_MEMBERSHIP failed");
+            }
         } else { 
             *this_mac = get_interface_mac_address(fd, interface);
         }
