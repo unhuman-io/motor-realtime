@@ -593,46 +593,71 @@ std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interf
         interfaces.push_back(interface);
     }
 
-    for (std::string &interface : interfaces) {
-        std::cout << "Checking interface " << interface << std::endl;
-        L2File l2_file(interface, mac_t{0x3,0xff,0xff,0xff,0xff,0xff}, L2MessageType::OBOT_ENUM, L2MessageType::OBOT_ENUM, L2MessageType::OBOT_ENUM);
+    std::vector<std::unique_ptr<L2File>> l2_files;
+    for (const std::string& interface : interfaces) {
+        std::cout << "Binding to interface " << interface << "..." << std::endl;
 
-        int nbytes = l2_file.write(0, 0);;
+        l2_files.push_back(std::make_unique<L2File>(
+            interface, 
+            mac_t{0x03, 0xff, 0xff, 0xff, 0xff, 0xff}, 
+            L2MessageType::OBOT_ENUM, 
+            L2MessageType::OBOT_ENUM, 
+            L2MessageType::OBOT_ENUM
+        ));
+        int nbytes = l2_files[l2_files.size()-1]->write(0, 0);;
         if (nbytes < 0) {
             throw RuntimeErrnoException("Error writing broadcast to " + interface);
         }
     }
 
-    // pollfd tmp;
-    // tmp.fd = fd;
-    // tmp.events = POLLIN;
-    // Timer t(timeout_ms_ * 1000 * 1000); // 10 ms
-    // do {
-    //     struct timespec timeout = {};
-    //     timeout.tv_nsec = t.get_time_remaining_ns();
-    //     if (timeout.tv_nsec == 0) {
-    //         break;
-    //     }
-    //     int poll_result = ::ppoll(&tmp, 1, &timeout, nullptr /*sigmask*/);
-    //     if (poll_result > 0) {
-    //         struct canfd_frame frame;
-    //         struct sockaddr_can addr;
-    //         socklen_t len = sizeof(addr);
-    //         int nbytes = recvfrom(fd, &frame, sizeof(struct can_frame),
-    //               0, (struct sockaddr*)&addr, &len);
-    //         struct ifreq ifr = {};
-    //         ifr.ifr_ifindex = addr.can_ifindex;
-    //         ioctl(fd, SIOCGIFNAME, &ifr);
-    //         if (nbytes >= 0) {
-    //             int devnum = frame.can_id & 0x7F;
-    //             devices.push_back(std::string(ifr.ifr_name) + ":" + std::to_string(devnum));
-    //         } else {
-    //             throw RuntimeException("Error reading " + interface + "(" + std::string(ifr.ifr_name) + ")" ": " + std::to_string(errno) + ": " + strerror(errno));
-    //         }
-    //     } else if (poll_result < 0) {
-    //         throw RuntimeException("Error polling " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
-    //     }
-    // } while (t.get_time_remaining_ns() > 0);
+    std::vector<struct pollfd> pollfds;
+    pollfds.reserve(l2_files.size());
+    for (const auto& l2_file : l2_files) {
+        struct pollfd pfd = {};
+        pfd.fd = l2_file->fd_; // Assuming fd_ is accessible, or use l2_file->fd()
+        pfd.events = POLLIN;
+        pollfds.push_back(pfd);
+    }
+    Timer t(timeout_ms_ * 1000 * 1000); // 10 ms
+    do {
+        struct timespec timeout = {};
+        uint64_t remaining_ns = t.get_time_remaining_ns();
+        if (remaining_ns == 0) {
+            break;
+        }
+        timeout.tv_nsec = remaining_ns % 1'000'000'000;
+
+        // Poll all interfaces simultaneously
+        int poll_result = ::ppoll(pollfds.data(), pollfds.size(), &timeout, nullptr /*sigmask*/);
+        
+        if (poll_result > 0) {
+            // Check which file descriptors have data ready
+            for (size_t i = 0; i < pollfds.size(); ++i) {
+                if (pollfds[i].revents & POLLIN) {
+                    
+                    uint8_t buffer[1500]; // Standard Ethernet MTU
+                    int nbytes = ::recv(pollfds[i].fd, buffer, sizeof(buffer), 0);
+                    
+                    if (nbytes >= 14) { // At least a valid Ethernet header
+                        // buffer[0-5]:  Destination MAC
+                        // buffer[6-11]: Source MAC (The Motor Controller's MAC)
+                        // buffer[12-13]: EtherType
+                        
+                        // Assuming your node_id is the last byte of the MAC address
+                        int devnum = buffer[11]; 
+                        std::string if_name = l2_files[i]->interface_; 
+                        obot::mac_t src_mac;
+                        std::memcpy(src_mac.data(), &buffer[6], 6);
+                        devices.push_back(if_name + "-" + mac2str(src_mac));
+                    } else if (nbytes < 0) {
+                        throw RuntimeErrnoException("Error reading " + l2_files[i]->interface_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+                    }
+                }
+            }
+        } else if (poll_result < 0) {
+            throw RuntimeErrnoException("Error polling interfaces: " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    } while (t.get_time_remaining_ns() > 0);
 
     return devices;
 }

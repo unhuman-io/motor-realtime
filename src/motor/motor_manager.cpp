@@ -238,7 +238,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
         });
     }
     int j = 0;
-    for (uint8_t i=0; i<interface_macs.size(); i++) {
+    for (uint8_t i=0; i<new_interface_macs.size(); i++) {
         try {
             std::shared_ptr<MotorEthL2> motor = futures[i].get();
             if (motor->connected()) {
