@@ -181,13 +181,6 @@ class L2File : public TextFile {
             throw RuntimeErrnoException("socket set non-block failed for " + interface_);
         }
 
-
-        // if (interface_ != "any") {
-        //     if (setsockopt(fd_, SOL_SOCKET, SO_BINDTODEVICE, interface_.c_str(), interface_.size()) < 0) {
-        //         throw RuntimeErrnoException("setsockopt SO_BINDTODEVICE error");
-        //     }
-        // }
-
         node_id_ = dst_mac_[5];
         TopicId topic_id {
             .node_id = node_id_ ,
@@ -213,8 +206,6 @@ class L2File : public TextFile {
         std::memcpy(&l2_frame_out_.dst_mac, &dst_mac_, sizeof(dst_mac_));
         mac_t src_mac = get_interface_mac_address(fd_, interface_);
         std::memcpy(&l2_frame_out_.src_mac, &src_mac, sizeof(src_mac));
-
-        
     }
 
     void close() {
@@ -591,5 +582,60 @@ ssize_t MotorEthL2::write() {
     }
     return nbytes;
 }
+
+
+std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interface) {
+    std::vector<std::string> devices;
+    std::vector<std::string> interfaces;
+    if (interface == "any") {
+        interfaces = get_eth_interfaces();
+    } else {
+        interfaces.push_back(interface);
+    }
+
+    for (std::string &interface : interfaces) {
+        std::cout << "Checking interface " << interface << std::endl;
+        L2File l2_file(interface, mac_t{0x3,0xff,0xff,0xff,0xff,0xff}, L2MessageType::OBOT_ENUM, L2MessageType::OBOT_ENUM, L2MessageType::OBOT_ENUM);
+
+        int nbytes = l2_file.write(0, 0);;
+        if (nbytes < 0) {
+            throw RuntimeErrnoException("Error writing broadcast to " + interface);
+        }
+    }
+
+    // pollfd tmp;
+    // tmp.fd = fd;
+    // tmp.events = POLLIN;
+    // Timer t(timeout_ms_ * 1000 * 1000); // 10 ms
+    // do {
+    //     struct timespec timeout = {};
+    //     timeout.tv_nsec = t.get_time_remaining_ns();
+    //     if (timeout.tv_nsec == 0) {
+    //         break;
+    //     }
+    //     int poll_result = ::ppoll(&tmp, 1, &timeout, nullptr /*sigmask*/);
+    //     if (poll_result > 0) {
+    //         struct canfd_frame frame;
+    //         struct sockaddr_can addr;
+    //         socklen_t len = sizeof(addr);
+    //         int nbytes = recvfrom(fd, &frame, sizeof(struct can_frame),
+    //               0, (struct sockaddr*)&addr, &len);
+    //         struct ifreq ifr = {};
+    //         ifr.ifr_ifindex = addr.can_ifindex;
+    //         ioctl(fd, SIOCGIFNAME, &ifr);
+    //         if (nbytes >= 0) {
+    //             int devnum = frame.can_id & 0x7F;
+    //             devices.push_back(std::string(ifr.ifr_name) + ":" + std::to_string(devnum));
+    //         } else {
+    //             throw RuntimeException("Error reading " + interface + "(" + std::string(ifr.ifr_name) + ")" ": " + std::to_string(errno) + ": " + strerror(errno));
+    //         }
+    //     } else if (poll_result < 0) {
+    //         throw RuntimeException("Error polling " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));
+    //     }
+    // } while (t.get_time_remaining_ns() > 0);
+
+    return devices;
+}
+
 
 }; // namespace obot

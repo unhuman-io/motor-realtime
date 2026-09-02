@@ -130,12 +130,13 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
         uint32_t word1_loc = src ? 6 : 0;
         uint32_t word2_loc = word1_loc + 4;
 
-        if (src) {
+        if (!src) {
+            std::cout << "gateway mode \n";
             struct sock_filter bpf_code[] = {
                 // gateway mode
                 // if in gateway mode we'll accept 03:ff:ff:ff:ff:ff too. This is used for enumeration
                 // [0] Load first 4 bytes of Ethernet MAC
-                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 },
+                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 0 },
                 // [1] Compare with unicast word1. (True = jump 1 to Unicast word2 check, False = next instruction)
                 { BPF_JMP+BPF_JEQ+BPF_K, 1, 0, word1 },
                 // [2] Compare with multicast (03:FF:FF:FF). (True = jump 3 to Mcast word2 check, False = jump 8 to Reject)
@@ -143,7 +144,7 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
 
                 // --- Unicast Check Word 2 ---
                 // [3] Load next 2 bytes of Ethernet MAC
-                { BPF_LD+BPF_H+BPF_ABS, 0, 0, 10 },
+                { BPF_LD+BPF_H+BPF_ABS, 0, 0, 4 },
                 // [4] Compare with unicast word2. (True = jump 3 to Payload check, False = jump 6 to Reject)
                 { BPF_JMP+BPF_JEQ+BPF_K, 3, 6, word2 },
                 // [5] Unconditional jump forward by 2 instructions (Skips the Multicast check, goes to Payload)
@@ -180,11 +181,11 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
             // Set Berkeley Packet Filter to only receive packets with dst mac matching
             struct sock_filter bpf_code[] = {
                 // Load first 4 bytes of Ethernet MAC
-                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 0 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
+                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
                 // Compare with dst_mac_[0..3]
                 { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
                 // Load next 2 bytes of Ethernet MAC
-                { BPF_LD+BPF_H+BPF_ABS, 0, 0, 4 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
+                { BPF_LD+BPF_H+BPF_ABS, 0, 0, 10 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
                 // Compare with dst_mac_[4..5]
                 { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
                 // Check first 4 bytes of payload accept zero
