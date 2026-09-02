@@ -213,7 +213,9 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
     std::vector<std::string> new_interface_macs;
     for (uint8_t i=0; i<interface_macs.size(); i++) {
         std::string& interface_mac = interface_macs[i];
-        if (int n = interface_mac.find("-"); n == std::string::npos) {
+        if (int n = interface_mac.find(":"); n != std::string::npos) {
+            new_interface_macs.emplace_back(interface_mac);
+        } else if (int n = interface_mac.find("-"); n == std::string::npos) {
             // only interface or any given, broadcast 03:ff:ff:ff:ff:ff to enumerate all
             std::vector<std::string> additional_interface_macs = MotorEthL2::enumerate_eth_l2_devices(interface_mac);
             if (additional_interface_macs.size() == 0) {

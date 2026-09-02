@@ -187,8 +187,10 @@ class L2File : public TextFile {
             .bus_id = 0,
             .type = static_cast<uint16_t>(status_type_)
         };
-        uint16_t topic_id_uint;
-        std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id_uint));
+        uint16_t topic_id_uint = 0;
+        if (status_type_ != L2MessageType::OBOT_ENUM) {
+            std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id_uint));
+        }
 
         set_eth_packet_filter(fd_, dst_mac_, htons(topic_id_uint));
         flush();
@@ -235,34 +237,62 @@ class L2File : public TextFile {
         std::memcpy(&word2, mac.data()+4, 2);
         word2 = htons(word2);
         // Set Berkeley Packet Filter to only receive packets with mac matching
-        struct sock_filter bpf_code[] = {
-            // Load first 4 bytes of Ethernet MAC
-            { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
-            // Compare with dst_mac_[0..3]
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 7, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
-            // Load next 2 bytes of Ethernet MAC
-            { BPF_LD+BPF_H+BPF_ABS, 0, 0, 10 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
-            // Compare with dst_mac_[4..5]
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
-            // Check first 4 bytes of payload accept zero
-            { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, 0 },
-            // Check packet type field
-            { BPF_LD+BPF_H+BPF_ABS, 0, 0, L2_HEADER_SIZE },
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, htons(topic_id) },
+        if (topic_id != 0) {
+            struct sock_filter bpf_code[] = {
+                // Load first 4 bytes of Ethernet MAC
+                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
+                // Compare with dst_mac_[0..3]
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 7, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+                // Load next 2 bytes of Ethernet MAC
+                { BPF_LD+BPF_H+BPF_ABS, 0, 0, 10 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
+                // Compare with dst_mac_[4..5]
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+                // Check first 4 bytes of payload accept zero
+                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, 0 },
+                // Check packet type field
+                { BPF_LD+BPF_H+BPF_ABS, 0, 0, L2_HEADER_SIZE },
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, htons(topic_id) },
 
-            // Accept packet
-            { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
-            // Reject packet
-            { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
-        };
+                // Accept packet
+                { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
+                // Reject packet
+                { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
+            };
 
-        struct sock_fprog bpf_prog = {
-            .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
-            .filter = bpf_code,
-        };
-        if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
-            throw RuntimeErrnoException("Failed to set BPF filter");
+            struct sock_fprog bpf_prog = {
+                .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
+                .filter = bpf_code,
+            };
+            if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
+                throw RuntimeErrnoException("Failed to set BPF filter");
+            }
+        } else {
+            // don't check topic id if 0 (enumeration)
+            // also ignore 00:00:00:00:00:00
+            struct sock_filter bpf_code[] = {
+                // Load the first 4 bytes of the Source MAC (Offset 6)
+                { BPF_LD + BPF_W + BPF_ABS, 0, 0, 6 },
+                // If it DOES NOT match our MAC, jump 2 instructions forward (to Accept)
+                { BPF_JMP + BPF_JEQ + BPF_K, 0, 2, 0 },
+                
+                // Load the last 2 bytes of the Source MAC (Offset 10)
+                { BPF_LD + BPF_H + BPF_ABS, 0, 0, 10 },
+                // If it DOES match our MAC, jump 1 instruction forward (to Reject)
+                { BPF_JMP + BPF_JEQ + BPF_K, 1, 0, 0 },
+                // Accept packet
+                { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
+                // Reject packet
+                { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
+            };
+
+            struct sock_fprog bpf_prog = {
+                .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
+                .filter = bpf_code,
+            };
+            if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
+                throw RuntimeErrnoException("Failed to set BPF filter");
+            }
         }
     }
 
@@ -634,23 +664,20 @@ std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interf
             // Check which file descriptors have data ready
             for (size_t i = 0; i < pollfds.size(); ++i) {
                 if (pollfds[i].revents & POLLIN) {
-                    
                     uint8_t buffer[1500]; // Standard Ethernet MTU
                     int nbytes = ::recv(pollfds[i].fd, buffer, sizeof(buffer), 0);
-                    
                     if (nbytes >= 14) { // At least a valid Ethernet header
                         // buffer[0-5]:  Destination MAC
                         // buffer[6-11]: Source MAC (The Motor Controller's MAC)
                         // buffer[12-13]: EtherType
                         
-                        // Assuming your node_id is the last byte of the MAC address
                         int devnum = buffer[11]; 
                         std::string if_name = l2_files[i]->interface_; 
                         obot::mac_t src_mac;
                         std::memcpy(src_mac.data(), &buffer[6], 6);
                         devices.push_back(if_name + "-" + mac2str(src_mac));
                     } else if (nbytes < 0) {
-                        throw RuntimeErrnoException("Error reading " + l2_files[i]->interface_ + ": " + std::to_string(errno) + ": " + strerror(errno));
+                        throw RuntimeErrnoException("Error reading " + l2_files[i]->interface_);
                     }
                 }
             }

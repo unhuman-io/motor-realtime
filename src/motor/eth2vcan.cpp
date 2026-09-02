@@ -153,7 +153,7 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
                 // --- Multicast Check Word 2 ---
                 // [6] Load next 2 bytes of Ethernet MAC
                 // (We land here if Instruction 2 was True)
-                { BPF_LD+BPF_H+BPF_ABS, 0, 0, word2_loc },
+                { BPF_LD+BPF_H+BPF_ABS, 0, 0, 4 },
                 // [7] Compare with multicast word2 (FF:FF). (True = next instruction, False = jump 3 to Reject)
                 { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, 0xFFFF },
 
@@ -223,6 +223,7 @@ int open_eth(std::string interface, std::string mac_address, std::string src_mac
 
     if (gateway_mode) {
         *this_mac = str2mac(gateway_mac);
+        std::cout << "gateway mode on " << gateway_mac << std::endl;
     } else {
         if (src_mac_address.size() != 0) {
             *this_mac = str2mac(src_mac_address);
