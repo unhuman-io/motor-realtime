@@ -125,34 +125,85 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
         uint16_t word2;
         std::memcpy(&word2, mac.data()+4, 2);
         word2 = htons(word2);
+        
+
         uint32_t word1_loc = src ? 6 : 0;
         uint32_t word2_loc = word1_loc + 4;
-        // Set Berkeley Packet Filter to only receive packets with mac matching
-        struct sock_filter bpf_code[] = {
-            // Load first 4 bytes of Ethernet MAC
-            { BPF_LD+BPF_W+BPF_ABS, 0, 0, word1_loc }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
-            // Compare with dst_mac_[0..3]
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
-            // Load next 2 bytes of Ethernet MAC
-            { BPF_LD+BPF_H+BPF_ABS, 0, 0, word2_loc }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
-            // Compare with dst_mac_[4..5]
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
-            // Check first 4 bytes of payload accept zero
-            { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, 0 },
-            // Accept packet
-            { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
-            // Reject packet
-            { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
-        };
 
-        struct sock_fprog bpf_prog = {
-            .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
-            .filter = bpf_code,
-        };
-        if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
-            throw RuntimeErrnoException("Failed to set BPF filter");
+        if (src) {
+            struct sock_filter bpf_code[] = {
+                // gateway mode
+                // if in gateway mode we'll accept 03:ff:ff:ff:ff:ff too. This is used for enumeration
+                // [0] Load first 4 bytes of Ethernet MAC
+                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 },
+                // [1] Compare with unicast word1. (True = jump 1 to Unicast word2 check, False = next instruction)
+                { BPF_JMP+BPF_JEQ+BPF_K, 1, 0, word1 },
+                // [2] Compare with multicast (03:FF:FF:FF). (True = jump 3 to Mcast word2 check, False = jump 8 to Reject)
+                { BPF_JMP+BPF_JEQ+BPF_K, 3, 8, 0x03FFFFFF },
+
+                // --- Unicast Check Word 2 ---
+                // [3] Load next 2 bytes of Ethernet MAC
+                { BPF_LD+BPF_H+BPF_ABS, 0, 0, 10 },
+                // [4] Compare with unicast word2. (True = jump 3 to Payload check, False = jump 6 to Reject)
+                { BPF_JMP+BPF_JEQ+BPF_K, 3, 6, word2 },
+                // [5] Unconditional jump forward by 2 instructions (Skips the Multicast check, goes to Payload)
+                { BPF_JMP+BPF_JA, 0, 0, 2 },
+
+                // --- Multicast Check Word 2 ---
+                // [6] Load next 2 bytes of Ethernet MAC
+                // (We land here if Instruction 2 was True)
+                { BPF_LD+BPF_H+BPF_ABS, 0, 0, word2_loc },
+                // [7] Compare with multicast word2 (FF:FF). (True = next instruction, False = jump 3 to Reject)
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, 0xFFFF },
+
+                // --- Payload Check ---
+                // [8] Check first 4 bytes of payload (offset 14) accept zero
+                // (Both success paths route here)
+                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
+                // [9] Compare payload to 0. (True = next instruction, False = jump 1 to Reject)
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, 0 },
+
+                // --- Results ---
+                // [10] Accept packet
+                { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, 
+                // [11] Reject packet
+                { BPF_RET+BPF_K, 0, 0, 0 },
+            };
+            struct sock_fprog bpf_prog = {
+                .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
+                .filter = bpf_code,
+            };
+            if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
+                throw RuntimeErrnoException("Failed to set BPF filter");
+            }
+        } else {
+            // Set Berkeley Packet Filter to only receive packets with dst mac matching
+            struct sock_filter bpf_code[] = {
+                // Load first 4 bytes of Ethernet MAC
+                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 0 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
+                // Compare with dst_mac_[0..3]
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+                // Load next 2 bytes of Ethernet MAC
+                { BPF_LD+BPF_H+BPF_ABS, 0, 0, 4 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
+                // Compare with dst_mac_[4..5]
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+                // Check first 4 bytes of payload accept zero
+                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, 0 },
+                // Accept packet
+                { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
+                // Reject packet
+                { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
+            };
+            struct sock_fprog bpf_prog = {
+                .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
+                .filter = bpf_code,
+            };
+            if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
+                throw RuntimeErrnoException("Failed to set BPF filter");
+            }
         }
+
     }
 
 int open_eth(std::string interface, std::string mac_address, std::string src_mac_address, bool gateway_mode, std::string gateway_mac) {
@@ -249,6 +300,17 @@ std::vector<Payload> parse_eth_payload(uint8_t *frame_payload, ssize_t length) {
     return payloads;
 }
 
+void send_can_broadcast_packet(int fd_vcan) {
+    canfd_frame frame_out {
+        .can_id = 0x7ff,
+        .len = 0,
+    };
+    
+    int result = send(fd_vcan, &frame_out, sizeof(canfd_frame), 0);
+    if (result < 0) {
+        throw RuntimeErrnoException("vcan write error");
+    }
+}
 
 int _main(int argc, char** argv) {
     std::string mac_address {"00:00:00:00:00:00"};
@@ -316,17 +378,21 @@ int _main(int argc, char** argv) {
                     throw RuntimeErrnoException("eth read error");
                 }
                 std::cout << "eth nbytes " << nbytes << std::endl;
-                for (auto &payload : parse_eth_payload(frame.payload, nbytes-L2_HEADER_SIZE)) {
-                    uint8_t length_uint8 {static_cast<uint8_t>(payload.length)};
-                    canfd_frame frame_out {
-                        .can_id = payload.topic_id,
-                        .len = length_uint8,
-                    };
-                    std::memcpy(frame_out.data, payload.data, length_uint8);
-                    
-                    int result = send(fd_vcan, &frame_out, sizeof(canfd_frame), 0);
-                    if (result < 0) {
-                        throw RuntimeErrnoException("vcan write error");
+                if (frame.dst_mac[0] == 0x03) {
+                    send_can_broadcast_packet(fd_vcan);
+                } else {
+                    for (auto &payload : parse_eth_payload(frame.payload, nbytes-L2_HEADER_SIZE)) {
+                        uint8_t length_uint8 {static_cast<uint8_t>(payload.length)};
+                        canfd_frame frame_out {
+                            .can_id = payload.topic_id,
+                            .len = length_uint8,
+                        };
+                        std::memcpy(frame_out.data, payload.data, length_uint8);
+                        
+                        int result = send(fd_vcan, &frame_out, sizeof(canfd_frame), 0);
+                        if (result < 0) {
+                            throw RuntimeErrnoException("vcan write error");
+                        }
                     }
                 }
             }
