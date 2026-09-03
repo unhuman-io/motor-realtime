@@ -240,7 +240,7 @@ class CANFile : public TextFile {
 
     int fd_;
     uint32_t devnum_;
-    int timeout_ms_ = 10;
+    int timeout_ms_ = MotorCAN::get_default_timeout_ms();
     int fd_lock_;
     std::string ifname_;
     std::string lock_file_;
