@@ -55,7 +55,7 @@ template<typename T>
 std::vector<std::pair<T, int>> get_duplicate_counts(std::vector<T> vec) {
     std::vector<std::pair<T, int>> duplicates;
     if (vec.empty()) return duplicates;
-    std::ranges::sort(vec);
+    std::sort(vec.begin(), vec.end());
 
     T current_item = vec[0];
     int count = 1;
@@ -694,7 +694,7 @@ std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interf
 
         // Poll all interfaces simultaneously
         int poll_result = ::ppoll(pollfds.data(), pollfds.size(), &timeout, nullptr /*sigmask*/);
-        
+
         if (poll_result > 0) {
             // Check which file descriptors have data ready
             for (size_t i = 0; i < pollfds.size(); ++i) {
@@ -705,8 +705,7 @@ std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interf
                         // buffer[0-5]:  Destination MAC
                         // buffer[6-11]: Source MAC (The Motor Controller's MAC)
                         // buffer[12-13]: EtherType
-                        
-                        int devnum = buffer[11]; 
+
                         std::string if_name = l2_files[i]->interface_; 
                         obot::mac_t src_mac;
                         std::memcpy(src_mac.data(), &buffer[6], 6);
