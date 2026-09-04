@@ -6,6 +6,7 @@
 #include <vector>
 #include "motor_messages.h"
 #include <chrono>
+#include <cstring>
 
 namespace obot {
 
@@ -22,6 +23,10 @@ class MotorDescription {
     std::string board_num() const { return board_num_; }
     std::string messages_version() const { return messages_version_; }
     std::string config() const { return config_; }
+    void parse_enum(EnumResponse enum_response) {
+        name_ = std::string(reinterpret_cast<char*>(enum_response.name),
+                    strnlen(reinterpret_cast<char *>(enum_response.name), 20));
+    }
     virtual std::string short_version() const {
         std::string s = version();
         if (auto pos = s.find("~"); pos != std::string::npos) {

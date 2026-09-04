@@ -601,15 +601,31 @@ MotorEthL2::MotorEthL2(std::string address, std::string alias) {
     open();
 
     motor_txt_ = std::move(std::unique_ptr<L2File>(new L2File(interface, dst_mac, L2MessageType::OBOT_ASCII_CMD, L2MessageType::OBOT_ASCII_CMD, L2MessageType::OBOT_ASCII_RESPONSE)));
-	
-    messages_version_ = operator[]("messages_version").get();
-    name_ = operator[]("name").get();
-    version_ = operator[]("version").get();
-    board_name_ = operator[]("board_name").get();
-    board_rev_ = operator[]("board_rev").get();
-    board_num_ = operator[]("board_num").get();
-    config_ = operator[]("config").get();
-    serial_number_ = operator[]("serial").get();
+
+    // try obot enum
+    L2File tmp_enum (
+        interface,
+        dst_mac,
+        L2MessageType::OBOT_ENUM,
+        L2MessageType::OBOT_ENUM, 
+        L2MessageType::OBOT_ENUM
+    );
+    tmp_enum.write(0, 0);
+    EnumResponse obot_enum;
+    int nbytes = tmp_enum.read((char*) &obot_enum, sizeof(obot_enum));
+    if (nbytes == sizeof(obot_enum)) {
+        parse_enum(obot_enum);
+    } else {
+        // fall back to ascii reads
+        messages_version_ = operator[]("messages_version").get();
+        name_ = operator[]("name").get();
+        version_ = operator[]("version").get();
+        board_name_ = operator[]("board_name").get();
+        board_rev_ = operator[]("board_rev").get();
+        board_num_ = operator[]("board_num").get();
+        config_ = operator[]("config").get();
+        serial_number_ = operator[]("serial").get();
+    }
     connected_ = true;
 }
 
