@@ -24,8 +24,25 @@ class MotorDescription {
     std::string messages_version() const { return messages_version_; }
     std::string config() const { return config_; }
     void parse_enum(EnumResponse enum_response) {
+        messages_version_ = std::to_string(enum_response.messages_version[0]) + "." +
+                            std::to_string(enum_response.messages_version[1]);
         name_ = std::string(reinterpret_cast<char*>(enum_response.name),
-                    strnlen(reinterpret_cast<char *>(enum_response.name), 20));
+                    strnlen(reinterpret_cast<char *>(enum_response.name), sizeof(enum_response.name)));
+        char c[12];
+        std::sprintf(c, "%02x%02x%02x%02x%02x%02x",
+                enum_response.serial_number[0], enum_response.serial_number[1],
+                enum_response.serial_number[2], enum_response.serial_number[6],
+                enum_response.serial_number[4], enum_response.serial_number[5]);
+        serial_number_ = c;
+        version_ = std::to_string(enum_response.version[0]) + "." +
+                    std::to_string(enum_response.version[1]) + "." +
+                    std::to_string(enum_response.version[2]);
+        config_ = std::string(reinterpret_cast<char*>(enum_response.config),
+                    strnlen(reinterpret_cast<char *>(enum_response.config), sizeof(enum_response.config)));
+        board_name_ = std::string(reinterpret_cast<char*>(enum_response.board_name),
+                    strnlen(reinterpret_cast<char *>(enum_response.board_name), sizeof(enum_response.board_name)));
+        board_rev_ = std::to_string(enum_response.board_rev);
+        board_num_ = std::to_string(enum_response.board_num);
     }
     virtual std::string short_version() const {
         std::string s = version();
