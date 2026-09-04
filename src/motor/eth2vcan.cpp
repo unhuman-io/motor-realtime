@@ -125,16 +125,12 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
         uint16_t word2;
         std::memcpy(&word2, mac.data()+4, 2);
         word2 = htons(word2);
-        
-
-        uint32_t word1_loc = src ? 6 : 0;
-        uint32_t word2_loc = word1_loc + 4;
 
         if (!src) {
             std::cout << "gateway mode \n";
             struct sock_filter bpf_code[] = {
                 // gateway mode
-                // if in gateway mode we'll accept 03:ff:ff:ff:ff:ff too. This is used for enumeration
+                // if in gateway mode we'll accept 03:00:13:00:ff:ff too. This is used for enumeration
                 // [0] Load first 4 bytes of Ethernet MAC
                 { BPF_LD+BPF_W+BPF_ABS, 0, 0, 0 },
                 // [1] Compare with unicast word1. (True = jump 1 to Unicast word2 check, False = next instruction)
