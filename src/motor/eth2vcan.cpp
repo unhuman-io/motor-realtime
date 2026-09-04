@@ -140,7 +140,7 @@ void set_eth_packet_filter(int fd, mac_t mac, bool src = true) {
                 // [1] Compare with unicast word1. (True = jump 1 to Unicast word2 check, False = next instruction)
                 { BPF_JMP+BPF_JEQ+BPF_K, 1, 0, word1 },
                 // [2] Compare with multicast (03:FF:FF:FF). (True = jump 3 to Mcast word2 check, False = jump 8 to Reject)
-                { BPF_JMP+BPF_JEQ+BPF_K, 3, 8, 0x03FFFFFF },
+                { BPF_JMP+BPF_JEQ+BPF_K, 3, 8, 0x03001300 },
 
                 // --- Unicast Check Word 2 ---
                 // [3] Load next 2 bytes of Ethernet MAC

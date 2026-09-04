@@ -19,6 +19,9 @@
 #include <array>
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
+#include <vector>
+#include <utility> // for std::pair
 
 #include "poll.h"
 
@@ -44,6 +47,40 @@ class RuntimeHexDumpException : public RuntimeException {
         return stream.str();
     }
 };
+
+
+
+// Returns a vector of pairs: {Item, Count}
+template<typename T>
+std::vector<std::pair<T, int>> get_duplicate_counts(std::vector<T> vec) {
+    std::vector<std::pair<T, int>> duplicates;
+    if (vec.empty()) return duplicates;
+    std::ranges::sort(vec);
+
+    T current_item = vec[0];
+    int count = 1;
+
+    for (size_t i = 1; i < vec.size(); ++i) {
+        if (vec[i] == current_item) {
+            count++; // Sequence continues
+        } else {
+            // Sequence broke. Was it a duplicate?
+            if (count > 1) {
+                duplicates.push_back({current_item, count});
+            }
+            // Reset for the new item
+            current_item = vec[i];
+            count = 1;
+        }
+    }
+
+    // last run
+    if (count > 1) {
+        duplicates.push_back({current_item, count});
+    }
+
+    return duplicates;
+}
 
 enum class L2MessageType
 {
@@ -625,11 +662,9 @@ std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interf
 
     std::vector<std::unique_ptr<L2File>> l2_files;
     for (const std::string& interface : interfaces) {
-        std::cout << "Binding to interface " << interface << "..." << std::endl;
-
         l2_files.push_back(std::make_unique<L2File>(
             interface, 
-            mac_t{0x03, 0xff, 0xff, 0xff, 0xff, 0xff}, 
+            mac_t{0x03, 0x00, 0x13, 0x00, 0xff, 0xff}, 
             L2MessageType::OBOT_ENUM, 
             L2MessageType::OBOT_ENUM, 
             L2MessageType::OBOT_ENUM
@@ -685,6 +720,15 @@ std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interf
             throw RuntimeErrnoException("Error polling interfaces: " + std::to_string(errno) + ": " + strerror(errno));
         }
     } while (t.get_time_remaining_ns() > 0);
+
+    if (auto duplicate_counts = get_duplicate_counts(devices); duplicate_counts.size() > 0) {
+        std::string str;
+        for (const auto& [item, count] : duplicate_counts) {
+            str += "Item " + item + " appeared " + std::to_string(count) + " times\n";
+        }
+        std::cerr << str;
+        throw RuntimeException(str);
+    }
 
     return devices;
 }
