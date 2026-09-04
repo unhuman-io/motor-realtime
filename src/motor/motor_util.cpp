@@ -351,7 +351,7 @@ int _main(int argc, char** argv) {
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
-    auto eth_l2_option = app.add_option("-e,--eth-l2", macs, "Connect to motor eth l2 [INTERFACE-]MAC(S)")->type_name("[INTERFACE-]MAC")->expected(0,-1)->default_str("{}");
+    auto eth_l2_option = app.add_option("-e,--eth-l2", macs, "Connect to motor eth l2 [INTERFACE-]MAC(S)")->type_name("[INTERFACE-]MAC")->expected(0,-1)->default_str("any");
     auto ip_option = app.add_option("-i,--ips", ips, "Connect to IP(S). If left empty, connect to all ips specified in --json-ip-file")->type_name("IP")->expected(0,-1)->default_str("{}");
     app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     app.add_flag("--no-print-unconnected", no_print_unconnected, "Don't print unconnected motors, currently only used with --ips");

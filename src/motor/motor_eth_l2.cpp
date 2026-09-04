@@ -19,6 +19,9 @@
 #include <array>
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
+#include <vector>
+#include <utility> // for std::pair
 
 #include "poll.h"
 
@@ -44,6 +47,40 @@ class RuntimeHexDumpException : public RuntimeException {
         return stream.str();
     }
 };
+
+
+
+// Returns a vector of pairs: {Item, Count}
+template<typename T>
+std::vector<std::pair<T, int>> get_duplicate_counts(std::vector<T> vec) {
+    std::vector<std::pair<T, int>> duplicates;
+    if (vec.empty()) return duplicates;
+    std::sort(vec.begin(), vec.end());
+
+    T current_item = vec[0];
+    int count = 1;
+
+    for (size_t i = 1; i < vec.size(); ++i) {
+        if (vec[i] == current_item) {
+            count++; // Sequence continues
+        } else {
+            // Sequence broke. Was it a duplicate?
+            if (count > 1) {
+                duplicates.push_back({current_item, count});
+            }
+            // Reset for the new item
+            current_item = vec[i];
+            count = 1;
+        }
+    }
+
+    // last run
+    if (count > 1) {
+        duplicates.push_back({current_item, count});
+    }
+
+    return duplicates;
+}
 
 enum class L2MessageType
 {
@@ -181,21 +218,16 @@ class L2File : public TextFile {
             throw RuntimeErrnoException("socket set non-block failed for " + interface_);
         }
 
-
-        // if (interface_ != "any") {
-        //     if (setsockopt(fd_, SOL_SOCKET, SO_BINDTODEVICE, interface_.c_str(), interface_.size()) < 0) {
-        //         throw RuntimeErrnoException("setsockopt SO_BINDTODEVICE error");
-        //     }
-        // }
-
         node_id_ = dst_mac_[5];
         TopicId topic_id {
             .node_id = node_id_ ,
             .bus_id = 0,
             .type = static_cast<uint16_t>(status_type_)
         };
-        uint16_t topic_id_uint;
-        std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id_uint));
+        uint16_t topic_id_uint = 0;
+        if (status_type_ != L2MessageType::OBOT_ENUM) {
+            std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id_uint));
+        }
 
         set_eth_packet_filter(fd_, dst_mac_, htons(topic_id_uint));
         flush();
@@ -213,8 +245,6 @@ class L2File : public TextFile {
         std::memcpy(&l2_frame_out_.dst_mac, &dst_mac_, sizeof(dst_mac_));
         mac_t src_mac = get_interface_mac_address(fd_, interface_);
         std::memcpy(&l2_frame_out_.src_mac, &src_mac, sizeof(src_mac));
-
-        
     }
 
     void close() {
@@ -244,34 +274,62 @@ class L2File : public TextFile {
         std::memcpy(&word2, mac.data()+4, 2);
         word2 = htons(word2);
         // Set Berkeley Packet Filter to only receive packets with mac matching
-        struct sock_filter bpf_code[] = {
-            // Load first 4 bytes of Ethernet MAC
-            { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
-            // Compare with dst_mac_[0..3]
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 7, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
-            // Load next 2 bytes of Ethernet MAC
-            { BPF_LD+BPF_H+BPF_ABS, 0, 0, 10 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
-            // Compare with dst_mac_[4..5]
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
-            // Check first 4 bytes of payload accept zero
-            { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, 0 },
-            // Check packet type field
-            { BPF_LD+BPF_H+BPF_ABS, 0, 0, L2_HEADER_SIZE },
-            { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, htons(topic_id) },
+        if (topic_id != 0) {
+            struct sock_filter bpf_code[] = {
+                // Load first 4 bytes of Ethernet MAC
+                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
+                // Compare with dst_mac_[0..3]
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 7, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+                // Load next 2 bytes of Ethernet MAC
+                { BPF_LD+BPF_H+BPF_ABS, 0, 0, 10 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
+                // Compare with dst_mac_[4..5]
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+                // Check first 4 bytes of payload accept zero
+                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, 0 },
+                // Check packet type field
+                { BPF_LD+BPF_H+BPF_ABS, 0, 0, L2_HEADER_SIZE },
+                { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, htons(topic_id) },
 
-            // Accept packet
-            { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
-            // Reject packet
-            { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
-        };
+                // Accept packet
+                { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
+                // Reject packet
+                { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
+            };
 
-        struct sock_fprog bpf_prog = {
-            .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
-            .filter = bpf_code,
-        };
-        if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
-            throw RuntimeErrnoException("Failed to set BPF filter");
+            struct sock_fprog bpf_prog = {
+                .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
+                .filter = bpf_code,
+            };
+            if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
+                throw RuntimeErrnoException("Failed to set BPF filter");
+            }
+        } else {
+            // don't check topic id if 0 (enumeration)
+            // also ignore 00:00:00:00:00:00
+            struct sock_filter bpf_code[] = {
+                // Load the first 4 bytes of the Source MAC (Offset 6)
+                { BPF_LD + BPF_W + BPF_ABS, 0, 0, 6 },
+                // If it DOES NOT match our MAC, jump 2 instructions forward (to Accept)
+                { BPF_JMP + BPF_JEQ + BPF_K, 0, 2, 0 },
+                
+                // Load the last 2 bytes of the Source MAC (Offset 10)
+                { BPF_LD + BPF_H + BPF_ABS, 0, 0, 10 },
+                // If it DOES match our MAC, jump 1 instruction forward (to Reject)
+                { BPF_JMP + BPF_JEQ + BPF_K, 1, 0, 0 },
+                // Accept packet
+                { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
+                // Reject packet
+                { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
+            };
+
+            struct sock_fprog bpf_prog = {
+                .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
+                .filter = bpf_code,
+            };
+            if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
+                throw RuntimeErrnoException("Failed to set BPF filter");
+            }
         }
     }
 
@@ -543,15 +601,31 @@ MotorEthL2::MotorEthL2(std::string address, std::string alias) {
     open();
 
     motor_txt_ = std::move(std::unique_ptr<L2File>(new L2File(interface, dst_mac, L2MessageType::OBOT_ASCII_CMD, L2MessageType::OBOT_ASCII_CMD, L2MessageType::OBOT_ASCII_RESPONSE)));
-	
-    messages_version_ = operator[]("messages_version").get();
-    name_ = operator[]("name").get();
-    version_ = operator[]("version").get();
-    board_name_ = operator[]("board_name").get();
-    board_rev_ = operator[]("board_rev").get();
-    board_num_ = operator[]("board_num").get();
-    config_ = operator[]("config").get();
-    serial_number_ = operator[]("serial").get();
+
+    // try obot enum
+    L2File tmp_enum (
+        interface,
+        dst_mac,
+        L2MessageType::OBOT_ENUM,
+        L2MessageType::OBOT_ENUM, 
+        L2MessageType::OBOT_ENUM
+    );
+    tmp_enum.write(0, 0);
+    EnumResponse obot_enum;
+    int nbytes = tmp_enum.read((char*) &obot_enum, sizeof(obot_enum));
+    if (nbytes == sizeof(obot_enum)) {
+        parse_enum(obot_enum);
+    } else {
+        // fall back to ascii reads
+        messages_version_ = operator[]("messages_version").get();
+        name_ = operator[]("name").get();
+        version_ = operator[]("version").get();
+        board_name_ = operator[]("board_name").get();
+        board_rev_ = operator[]("board_rev").get();
+        board_num_ = operator[]("board_num").get();
+        config_ = operator[]("config").get();
+        serial_number_ = operator[]("serial").get();
+    }
     connected_ = true;
 }
 
@@ -591,5 +665,88 @@ ssize_t MotorEthL2::write() {
     }
     return nbytes;
 }
+
+
+std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interface) {
+    std::vector<std::string> devices;
+    std::vector<std::string> interfaces;
+    if (interface == "any") {
+        interfaces = get_eth_interfaces();
+    } else {
+        interfaces.push_back(interface);
+    }
+
+    std::vector<std::unique_ptr<L2File>> l2_files;
+    for (const std::string& interface : interfaces) {
+        l2_files.push_back(std::make_unique<L2File>(
+            interface, 
+            mac_t{0x03, 0x00, 0x13, 0x00, 0xff, 0xff}, 
+            L2MessageType::OBOT_ENUM, 
+            L2MessageType::OBOT_ENUM, 
+            L2MessageType::OBOT_ENUM
+        ));
+        int nbytes = l2_files[l2_files.size()-1]->write(0, 0);;
+        if (nbytes < 0) {
+            throw RuntimeErrnoException("Error writing broadcast to " + interface);
+        }
+    }
+
+    std::vector<struct pollfd> pollfds;
+    pollfds.reserve(l2_files.size());
+    for (const auto& l2_file : l2_files) {
+        struct pollfd pfd = {};
+        pfd.fd = l2_file->fd_; // Assuming fd_ is accessible, or use l2_file->fd()
+        pfd.events = POLLIN;
+        pollfds.push_back(pfd);
+    }
+    Timer t(timeout_ms_ * 1000 * 1000); // 10 ms
+    do {
+        struct timespec timeout = {};
+        uint64_t remaining_ns = t.get_time_remaining_ns();
+        if (remaining_ns == 0) {
+            break;
+        }
+        timeout.tv_nsec = remaining_ns % 1'000'000'000;
+
+        // Poll all interfaces simultaneously
+        int poll_result = ::ppoll(pollfds.data(), pollfds.size(), &timeout, nullptr /*sigmask*/);
+
+        if (poll_result > 0) {
+            // Check which file descriptors have data ready
+            for (size_t i = 0; i < pollfds.size(); ++i) {
+                if (pollfds[i].revents & POLLIN) {
+                    uint8_t buffer[1500]; // Standard Ethernet MTU
+                    int nbytes = ::recv(pollfds[i].fd, buffer, sizeof(buffer), 0);
+                    if (nbytes >= 14) { // At least a valid Ethernet header
+                        // buffer[0-5]:  Destination MAC
+                        // buffer[6-11]: Source MAC (The Motor Controller's MAC)
+                        // buffer[12-13]: EtherType
+
+                        std::string if_name = l2_files[i]->interface_; 
+                        obot::mac_t src_mac;
+                        std::memcpy(src_mac.data(), &buffer[6], 6);
+                        devices.push_back(if_name + "-" + mac2str(src_mac));
+                    } else if (nbytes < 0) {
+                        throw RuntimeErrnoException("Error reading " + l2_files[i]->interface_);
+                    }
+                }
+            }
+        } else if (poll_result < 0) {
+            throw RuntimeErrnoException("Error polling interfaces: " + std::to_string(errno) + ": " + strerror(errno));
+        }
+    } while (t.get_time_remaining_ns() > 0);
+
+    if (auto duplicate_counts = get_duplicate_counts(devices); duplicate_counts.size() > 0) {
+        std::string str;
+        for (const auto& [item, count] : duplicate_counts) {
+            str += "Item " + item + " appeared " + std::to_string(count) + " times\n";
+        }
+        std::cerr << str;
+        throw RuntimeException(str);
+    }
+
+    return devices;
+}
+
 
 }; // namespace obot
