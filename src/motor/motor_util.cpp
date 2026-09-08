@@ -469,10 +469,7 @@ int _main(int argc, char** argv) {
                 auto motor_macs = nlohmann::ordered_json::parse(std::ifstream(json_mac_file));
                 for (auto &address : macs) {
                     if (motor_macs.find(address) != motor_macs.end()) {
-                        mac_aliases.push_back(address);
                         address = motor_macs[address].get<std::string>();
-                    } else {
-                        mac_aliases.push_back("");
                     }
                 }
                 

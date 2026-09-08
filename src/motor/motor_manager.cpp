@@ -207,7 +207,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
     return m;
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vector<std::string> interface_macs, bool connect, bool print_unconnected, bool allow_simulated, std::vector<std::string> ip_aliases) {
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vector<std::string> interface_macs, bool connect, bool print_unconnected, bool allow_simulated) {
     std::vector<std::shared_ptr<Motor>> m(interface_macs.size());
     std::vector<std::future<std::shared_ptr<MotorEthL2>>> futures(interface_macs.size());
     std::vector<std::string> new_interface_macs;
@@ -231,14 +231,9 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
     m.resize(new_interface_macs.size());
     for (int i=0; i<new_interface_macs.size(); i++) {
         std::string& interface_mac = new_interface_macs[i];
-        // todo something with ip_alias, right now doesn't do anything
-        std::string ip_alias;
-        if (ip_aliases.size() > i) {
-            ip_alias = ip_aliases[i];
-        }
-        futures[i] = std::async(std::launch::async, [&interface_mac, ip_alias]
+        futures[i] = std::async(std::launch::async, [&interface_mac]
         {
-            return std::make_shared<MotorEthL2>(interface_mac, ip_alias);
+            return std::make_shared<MotorEthL2>(interface_mac);
         });
     }
     int j = 0;

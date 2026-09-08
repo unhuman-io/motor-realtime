@@ -48,7 +48,7 @@ class MotorManager {
     std::vector<std::shared_ptr<Motor>> get_motors_by_devpath(std::vector<std::string> devpaths, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_uart_by_devpath(std::vector<std::string> devpaths, bool raw = false, uint32_t baud_rate = 4000000, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_by_ip(std::vector<std::string> ips, bool connect = true, bool print_unconnected = true, bool allow_simulated = false, std::vector<std::string> ip_aliases = {});
-    std::vector<std::shared_ptr<Motor>> get_motors_by_eth_l2(std::vector<std::string> l2_string, bool connect, bool print_unconnected = true, bool allow_simulated = false, std::vector<std::string> ip_aliases = {});
+    std::vector<std::shared_ptr<Motor>> get_motors_by_eth_l2(std::vector<std::string> l2_string, bool connect, bool print_unconnected = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> get_motors_can(std::vector<std::string> can_interfaces, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors() const { return motors_; }
     int size() const { return motors_.size(); }

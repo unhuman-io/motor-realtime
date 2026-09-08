@@ -12,7 +12,7 @@ class L2File;
 
 class MotorEthL2 : public Motor {
  public:
-    MotorEthL2(std::string address, std::string alias);
+    MotorEthL2(std::string address);
     virtual ~MotorEthL2();
     void open();
     bool connected() const { return connected_; }
