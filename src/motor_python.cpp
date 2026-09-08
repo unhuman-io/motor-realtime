@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/operators.h>
 #include "motor_manager.h"
+#include "motor_can.h"
 #include <sstream>
 
 namespace py = pybind11;
@@ -133,7 +134,11 @@ PYBIND11_MODULE(motor, m)
         .export_values();
 
     m.def("mode_color", &mode_color)
-     .def("max_api_packet_size", []{ return MAX_API_LONG_DATA_SIZE; });
+     .def("max_api_packet_size", []{ return MAX_API_LONG_DATA_SIZE; })
+     // Set before get_motors_can(); Motor.set_timeout_ms() only reaches motors that
+     // already exist, so it cannot widen discovery.
+     .def("set_can_default_timeout_ms", &MotorCAN::set_default_timeout_ms, py::arg("timeout_ms"))
+     .def("get_can_default_timeout_ms", &MotorCAN::get_default_timeout_ms);
 
     py::enum_<TuningMode>(m, "TuningMode")
         .value("Sine", TuningMode::SINE)

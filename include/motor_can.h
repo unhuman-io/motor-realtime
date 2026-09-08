@@ -21,6 +21,11 @@ class MotorCAN : public Motor {
     static std::vector<std::string> enumerate_can_devices(std::string interface);
     static int open_socket(std::string if_name);
 
+    // Timeout used by enumerate_can_devices() and by every CANFile opened afterwards.
+    // Settable before any MotorCAN exists, unlike the set_timeout_ms() override.
+    static void set_default_timeout_ms(uint32_t timeout_ms) { timeout_ms_ = timeout_ms; }
+    static uint32_t get_default_timeout_ms() { return timeout_ms_; }
+
  private:
     std::string intf_;
     static uint32_t timeout_ms_;

@@ -1,6 +1,7 @@
 #include "motor_manager.h"
 #include "motor.h"
 #include "motor_uart.h"
+#include "motor_can.h"
 #include <iostream>
 #include <iomanip>
 #include <chrono>
@@ -505,6 +506,11 @@ int _main(int argc, char** argv) {
     }
 
     if (*can_option) {
+        // enumerate_can_devices() and the identity queries in MotorCAN's constructor run
+        // before there are any motors to apply --set-timeout to, so set the default here.
+        if (*set_timeout_option) {
+            MotorCAN::set_default_timeout_ms(timeout_ms);
+        }
         std::vector<std::shared_ptr<Motor>> tmp_motors;
         tmp_motors = m.get_motors_can(can_devs);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
