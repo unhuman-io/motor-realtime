@@ -227,6 +227,8 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
             new_interface_macs.emplace_back(interface_mac);
         }
     }
+    futures.resize(new_interface_macs.size());
+    m.resize(new_interface_macs.size());
     for (int i=0; i<new_interface_macs.size(); i++) {
         std::string& interface_mac = new_interface_macs[i];
         // todo something with ip_alias, right now doesn't do anything
@@ -252,7 +254,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
             }
         } catch (const std::exception &e) {
             if (print_unconnected) {
-                std::cerr << interface_macs[i] << " exception: " << e.what() << std::endl;
+                std::cerr << new_interface_macs[i] << " exception: " << e.what() << std::endl;
             }
         }
     }
