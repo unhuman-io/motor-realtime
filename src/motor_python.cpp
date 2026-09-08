@@ -374,7 +374,25 @@ PYBIND11_MODULE(motor, m)
             }
             return m.get_motors_by_ip(ips, connect, print_unconnected, allow_simulated);
         }, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false)
-        .def("get_motors_by_eth_l2", &MotorManager::get_motors_by_eth_l2, py::arg("l2_string"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false, py::arg("ip_aliases") = py::list());
+        .def("get_motors_by_eth_l2", [](MotorManager &m, std::vector<std::string> l2_string, bool connect, bool print_unconnected, bool allow_simulated) {
+            std::string config_dir = get_config_dir();
+            auto json = py::module::import("json");
+            std::string json_mac_file = config_dir + "device_mac_map.json";
+
+            if (access(json_mac_file.c_str(), F_OK) == 0) {
+                auto file = py::module::import("io").attr("open")(json_mac_file, "r");
+                auto motor_macs = json.attr("load")(file);
+                for (auto &address : l2_string) {
+                    if (motor_macs.contains(address)) {
+                        address = motor_macs[py::str(address)].cast<std::string>();
+                    }
+                }
+                return m.get_motors_by_eth_l2(l2_string, connect, print_unconnected, allow_simulated);
+            } else {
+                py::print("Error: json file " + json_mac_file + " not accessible");
+            }
+            return m.get_motors_by_eth_l2(l2_string, connect, print_unconnected, allow_simulated);
+        }, py::arg("l2_string"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false);
 
     m.def("get_config_dir", &get_config_dir);
     m.def("diff_mcu_time", [](uint32_t t1, uint32_t t2)

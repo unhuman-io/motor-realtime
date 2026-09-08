@@ -16,6 +16,7 @@ _motor_util_completion()
         fi
     fi
     local json_ip_file=$config_dir/device_ip_map.json
+    local json_mac_file=$config_dir/device_mac_map.json
     local subcommand
     local i=$COMP_CWORD
     while [[ $i -gt 0 ]]
@@ -30,6 +31,7 @@ _motor_util_completion()
             -c|--check-messages-version) subcommand=check_messages_version ; break ;;
             -i|--ips) subcommand=ips ; break ;;
             -j|--json-ip-file) subcommand=json_file ; break ;;
+            --json-mac-file) subcommand=json_mac_file ; break ;;
             position_tuning|current_tuning|stepper_tuning) subcommand=tuning ; break ;;
             stepper_velocity) subcommand=stepper_velocity ; break ;;
             voltage) subcommand=voltage ; break ;;
@@ -47,7 +49,7 @@ _motor_util_completion()
     local words
     local base_words="-l --list -c --check-messages-version --no-list --list-names-only --list-path-only 
       --list-devpath-only --list-serial-number-only --list-devnum-only --no-dfu-list -n --names -i --ips    
-      -j --json-ip-file --no-print-unconnected --get-log -e --eth-l2 gdbserver
+      -j --json-ip-file --json-mac-file --no-print-unconnected --get-log -e --eth-l2 gdbserver
       -a --uart-paths --uart-raw -f --can -p --paths -d --devpaths -s --serial_numbers set read --set-api 
       --api --api-timing --run-stats --set-timeout -v --version -u --user-space --allow-simulated --lock 
       --list-ethernet-interfaces-only
@@ -68,8 +70,33 @@ _motor_util_completion()
         serial_numbers) words="$(motor_util --list-serial-number-only) $base_words" ;;
         eth_l2)
             compopt -o nospace
+            
+            # 1. Fetch the standard interfaces
             interfaces=$(motor_util --list-ethernet-interfaces-only)
-            words="${interfaces// /- }" ;;
+            base_words="${interfaces// /- }"
+            
+            # 2. Scan backwards to find if a JSON MAC file was provided
+            local i=$COMP_CWORD
+            local json_mac_file=""
+            while [[ $i -gt 0 ]]
+            do
+                case ${COMP_WORDS[$i]} in
+                    --json-mac-file) json_mac_file=${COMP_WORDS[$((i+1))]}; break ;;
+                esac
+                (( i-- ))
+            done
+            # 3. If the file exists, extract the keys and append the interfaces
+            if [[ -f "$json_mac_file" ]]; then
+                if command -v jq >/dev/null; then
+                    # Extract keys from JSON and combine with base interfaces
+                    words="$(jq --raw-output 'to_entries[] | .key ' "$json_mac_file" | tr '\n' ' ') $base_words"
+                else
+                    words="$base_words"
+                fi
+            else
+                words="$base_words"
+            fi 
+            ;;
         ips) 
             while [[ $i -gt 0 ]]
             do
@@ -88,6 +115,11 @@ _motor_util_completion()
         json_file)
             case $last in
                 -j|--json-ip-file) COMPREPLY=($(compgen -o plusdirs -f -X '!*.json' -- $cur)); return 0 ;;
+            esac
+            words=$base_words ;;
+        json_mac_file)
+            case $last in
+                --json-mac-file) COMPREPLY=($(compgen -o plusdirs -f -X '!*.json' -- $cur)); return 0 ;;
             esac
             words=$base_words ;;
         check_messages_version) words="none major minor $base_words" ;;
@@ -121,7 +153,7 @@ _motor_util_completion()
             local j=1
             while [[ $j -lt $COMP_CWORD ]]; do
                 case ${COMP_WORDS[j]} in
-                    -e|--eth-l2|-i|--ips|-n|--names|-p|--paths|-d|--devpaths|-s|--serial_numbers|-j|--json-ip-file)
+                    -e|--eth-l2|-i|--ips|-n|--names|-p|--paths|-d|--devpaths|-s|--serial_numbers|-j|--json-ip-file|--json-mac-file)
                         api_args+=("${COMP_WORDS[j]}")
                         if [[ $((j+1)) -lt $COMP_CWORD ]]; then
                             local k=$((j+1))

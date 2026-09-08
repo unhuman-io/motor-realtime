@@ -228,6 +228,8 @@ int _main(int argc, char** argv) {
     std::string config_dir = get_config_dir();
     std::string json_ip_file_default = config_dir + "device_ip_map.json";
     std::string json_ip_file = json_ip_file_default;
+    std::string json_mac_file_default = config_dir + "device_mac_map.json";
+    std::string json_mac_file = json_mac_file_default;
     bool no_print_unconnected = false;
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map;
@@ -352,6 +354,7 @@ int _main(int argc, char** argv) {
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
     auto eth_l2_option = app.add_option("-e,--eth-l2", macs, "Connect to motor eth l2 [INTERFACE-]MAC(S)")->type_name("[INTERFACE-]MAC")->expected(0,-1)->default_str("any");
+    app.add_option("--json-mac-file", json_mac_file, "Use json file to map mac addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     auto ip_option = app.add_option("-i,--ips", ips, "Connect to IP(S). If left empty, connect to all ips specified in --json-ip-file")->type_name("IP")->expected(0,-1)->default_str("{}");
     app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     app.add_flag("--no-print-unconnected", no_print_unconnected, "Don't print unconnected motors, currently only used with --ips");
@@ -460,6 +463,26 @@ int _main(int argc, char** argv) {
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
     if (*eth_l2_option) {
+        std::vector<std::string> mac_aliases;
+        // translate name aliases to macs via json file
+        if (access(json_mac_file.c_str(), F_OK) == 0) {
+            try {
+                auto motor_macs = nlohmann::ordered_json::parse(std::ifstream(json_mac_file));
+                for (auto &address : macs) {
+                    if (motor_macs.find(address) != motor_macs.end()) {
+                        address = motor_macs[address].get<std::string>();
+                    }
+                }
+                
+            } catch (nlohmann::json::parse_error &e) {
+                std::cerr << "Error: json file " << json_mac_file << " could not be parsed: " << e.what() << std::endl;
+            }
+        } else {
+            if (json_mac_file != json_mac_file_default) {
+                std::cerr << "Error: json file " << json_mac_file << " not accessible" << std::endl;
+            }
+        }
+
         auto tmp_motors = m.get_motors_by_eth_l2(macs, true, !no_print_unconnected);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }

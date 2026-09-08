@@ -564,7 +564,7 @@ class L2File : public TextFile {
     std::string lock_file_;
 };
 
-MotorEthL2::MotorEthL2(std::string address, std::string alias) {
+MotorEthL2::MotorEthL2(std::string address) {
     std::string interface;
     std::string mac;
     if (int n = address.find("-"); n == std::string::npos) {
