@@ -93,6 +93,7 @@ enum class L2MessageType
 };
 
 constexpr int MAX_ETH_L2_PAYLOAD_SIZE = 3000;
+constexpr unsigned int MIN_ETH_L2_FRAME_SIZE = 60;
 constexpr int MAX_PAYLOAD_LENGTH = 64;
 using mac_t = std::array<uint8_t, 6>;
 struct L2Frame {
@@ -522,7 +523,7 @@ class L2File : public TextFile {
         std::memcpy(l2_frame_out_.payload, &payload, PAYLOAD_HEADER_SIZE);
         length = std::min(length, static_cast<unsigned int>(MAX_ETH_L2_PAYLOAD_SIZE));
         std::memcpy(l2_frame_out_.payload+PAYLOAD_HEADER_SIZE, data, length);
-        int length_out = std::max(length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, 64u);
+        int length_out = std::max(length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, MIN_ETH_L2_FRAME_SIZE);
         int result = send(fd_, &l2_frame_out_, length_out, 0);
         if (result < 0) {
             std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out_, length_out) << std::endl;
