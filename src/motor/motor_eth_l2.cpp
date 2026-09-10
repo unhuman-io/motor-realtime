@@ -382,7 +382,7 @@ class L2File : public TextFile {
             };
             std::memset(&l2_frame_out_.payload, 0, 64-L2_HEADER_SIZE);
             std::memcpy(l2_frame_out_.payload, &payload, PAYLOAD_HEADER_SIZE);
-            int length_out = 64;
+            int length_out = MIN_ETH_L2_FRAME_SIZE;
             int result = send(fd_, &l2_frame_out_, length_out, 0);
             if (result < 0) {
                 std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out_, length_out) << std::endl;
