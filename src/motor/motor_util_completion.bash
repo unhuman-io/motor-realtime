@@ -9,9 +9,9 @@ _motor_util_completion()
     esac
 
     local config_dir=${MOTOR_UTIL_CONFIG_DIR:=~/.config/motor_util}
-    if [ ! -f $config_dir/device_ip_map.json ]; then
+    if [ ! -f $config_dir/device_ip_map.json ] && [ ! -f "$config_dir/device_mac_map.json" ]; then
         config_dir=/etc/motor_util
-        if [ ! -f $config_dir/device_ip_map.json ]; then
+        if [ ! -f $config_dir/device_ip_map.json ] && [ ! -f "$config_dir/device_mac_map.json" ]; then
             config_dir=/usr/share/motor-realtime
         fi
     fi
@@ -77,7 +77,6 @@ _motor_util_completion()
             
             # 2. Scan backwards to find if a JSON MAC file was provided
             local i=$COMP_CWORD
-            local json_mac_file=""
             while [[ $i -gt 0 ]]
             do
                 case ${COMP_WORDS[$i]} in

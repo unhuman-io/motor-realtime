@@ -120,9 +120,11 @@ std::string get_config_dir() {
         // will have to figure out the search path implementation later if other files are added
         if (char * home_dir = getenv("HOME"); home_dir != NULL) {
             config_dir = std::string() + "/.config/motor_util/";
-            if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
+            if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0 ||
+                access((config_dir + "device_mac_map.json").c_str(), F_OK) != 0) {
                 config_dir = "/etc/motor_util/";
-                if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0) {
+                if (access((config_dir + "device_ip_map.json").c_str(), F_OK) != 0 ||
+                    access((config_dir + "device_mac_map.json").c_str(), F_OK) != 0) {
                     config_dir = "/usr/share/motor-realtime/";
                 }
             }
