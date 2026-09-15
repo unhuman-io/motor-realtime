@@ -198,15 +198,24 @@ class L2File : public TextFile {
         if (fd_lock_ < 0) {
             throw RuntimeErrnoException("Error opening lock file " + lock_file_);
         }
-        if (int retval = ::fchmod(fd_lock_, 0666); retval < 0) {
-            if (errno != EPERM) {
-                throw RuntimeErrnoException("Error setting permissions on lock file " + lock_file_);
-            } // else ignore no permissions
+        // The lock descriptor is already open, and a throw from here on skips ~L2File, so
+        // anything that can throw has to hand it back itself.
+        try {
+            if (int retval = ::fchmod(fd_lock_, 0666); retval < 0) {
+                if (errno != EPERM) {
+                    throw RuntimeErrnoException("Error setting permissions on lock file " + lock_file_);
+                } // else ignore no permissions
+            }
+            if (int retval = ::lseek(fd_lock_, 0, SEEK_SET); retval < 0) {
+                throw RuntimeErrnoException("Error lseek lock file " + lock_file_);
+            }
+            open();
+        } catch (...) {
+            close();
+            ::close(fd_lock_);
+            fd_lock_ = -1;
+            throw;
         }
-        if (int retval = ::lseek(fd_lock_, 0, SEEK_SET); retval < 0) {
-            throw RuntimeErrnoException("Error lseek lock file " + lock_file_);
-        }
-        open();
     }
 
     void open() {
