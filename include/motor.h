@@ -377,8 +377,27 @@ class Motor : public MotorDescription {
         fd_flags_ = fcntl(fd_, F_GETFL); 
         return fd_;
     }
-    int close() { return ::close(fd_); }
-    int fd_ = 0;
+    // Close only a descriptor this Motor actually opened.
+    //
+    // fd_ defaults to -1 rather than 0 because a Motor whose transport does not use the
+    // base descriptor never assigns it. MotorEthL2 is exactly that: its open() is empty and
+    // its two L2Files carry their own descriptors, so with a 0 default every eth-L2 Motor
+    // closed file descriptor 0 on destruction. MotorManager::get_motors_by_eth_l2 builds one
+    // per candidate address, including addresses that do not answer, so a discovery sweep
+    // closed fd 0 once per candidate. Where fd 0 was open, that destroyed it and the number
+    // was then recycled onto whatever opened next.
+    //
+    // Clearing the field before closing also makes a second close a no-op rather than a
+    // close of a number that may since have been reused.
+    int close() {
+        int fd = fd_;
+        fd_ = -1;
+        if (fd < 0) {
+            return 0;
+        }
+        return ::close(fd);
+    }
+    int fd_ = -1;
     int fd_flags_;
     bool nonblock_ = false;
     bool no_write_ = false;
