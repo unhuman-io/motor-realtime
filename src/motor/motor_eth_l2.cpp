@@ -249,7 +249,22 @@ class L2File : public TextFile {
     }
 
     void close() {
-        ::close(fd_);
+        if (fd_ >= 0) {
+            ::close(fd_);
+            fd_ = -1;
+        }
+    }
+
+    // Close both descriptors on destruction. Without this, every constructed L2File leaks
+    // its raw socket and its lock file descriptor. Harmless in a one-shot CLI that exits
+    // immediately, but a long-lived process that probes many addresses exhausts its
+    // descriptor table.
+    ~L2File() override {
+        close();
+        if (fd_lock_ >= 0) {
+            ::close(fd_lock_);
+            fd_lock_ = -1;
+        }
     }
 
     void flush() {
@@ -553,12 +568,12 @@ class L2File : public TextFile {
         return interface_ + "-" + mac2str(dst_mac_);
     }
 
-    int fd_;
+    int fd_ = -1;
     L2MessageType cmd_type_, cmd_status_type_, status_type_;
     std::string interface_;
     mac_t dst_mac_;
     int timeout_ms_ = 10;
-    int fd_lock_;
+    int fd_lock_ = -1;
     L2Frame l2_frame_out_;
     uint8_t node_id_;
     

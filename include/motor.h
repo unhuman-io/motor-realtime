@@ -387,14 +387,12 @@ class Motor : public MotorDescription {
     // closed fd 0 once per candidate. Where fd 0 was open, that destroyed it and the number
     // was then recycled onto whatever opened next.
     //
-    // The <= 2 test is belt-and-braces on top of the -1 default: a Motor never owns stdio, so
-    // it must never close it. The trade is that a genuine descriptor of 0, 1 or 2 leaks
-    // instead, which needs the process to have closed stdio before opening a motor, and one
-    // leaked descriptor is much the lesser failure.
+    // Clearing the field before closing also makes a second close a no-op rather than a
+    // close of a number that may since have been reused.
     int close() {
         int fd = fd_;
         fd_ = -1;
-        if (fd <= 2) {
+        if (fd < 0) {
             return 0;
         }
         return ::close(fd);
