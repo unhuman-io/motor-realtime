@@ -151,6 +151,25 @@ mac_t get_interface_mac_address(int fd, std::string interface) {
     return mac;
 }
 
+std::string get_primary_ifname(const std::string &input_name) {
+  // 1. Get the unique hardware index for whatever name was provided
+  unsigned int if_index = if_nametoindex(input_name.c_str());
+
+  if (if_index == 0) {
+    // Interface doesn't exist or is down; fallback to the provided name
+    return input_name;
+  }
+
+  // 2. Map the index back to a name. The kernel always returns the primary
+  // name.
+  char primary_name[IF_NAMESIZE];
+  if (if_indextoname(if_index, primary_name) != nullptr) {
+    return std::string(primary_name);
+  }
+
+  return input_name; // Fallback
+}
+
 std::vector<std::string> get_eth_interfaces() {
     std::vector<std::string> interfaces;
     struct ifaddrs *addrs,*tmp;
@@ -193,7 +212,8 @@ class L2File : public TextFile {
         
 
         // lock file to prevent multiple instances at the same time
-        lock_file_ = "/tmp/obot." + interface_ + "-" + mac2str(dst_mac) + ".lock";
+        lock_file_ = "/tmp/obot." + get_primary_ifname(interface_) + "-" +
+                     mac2str(dst_mac) + ".lock";
         fd_lock_ = ::open(lock_file_.c_str(), O_CREAT | O_RDWR, 0666);
         if (fd_lock_ < 0) {
             throw RuntimeErrnoException("Error opening lock file " + lock_file_);
