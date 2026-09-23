@@ -35,9 +35,25 @@ class CANFile : public TextFile {
         }
         int err = ::lseek(fd_lock_, 0, SEEK_SET);
         if (err < 0) {
+            ::close(fd_lock_);
             throw RuntimeException("Error lseek lock file " + lock_file_ + ": " + std::to_string(errno) + ": " + strerror(errno));
         }
-        open();
+        try {
+            open();
+        } catch (...) {
+            ::close(fd_lock_);
+            throw;
+        }
+    }
+
+    // Both descriptors belong to this object: the lock file and the CAN socket. A destroyed
+    // CANFile used to leave both open until the process exited.
+    ~CANFile() override {
+        close();
+        if (fd_lock_ >= 0) {
+            ::close(fd_lock_);
+            fd_lock_ = -1;
+        }
     }
 
     void open() {
@@ -47,13 +63,18 @@ class CANFile : public TextFile {
         rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
         if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
+            int saved = errno;
+            close();
             throw RuntimeException("Error setting filter for " + ifname_ + ":" + std::to_string(devnum_) + ": "
-                + std::to_string(errno) + ": " + strerror(errno));
+                + std::to_string(saved) + ": " + strerror(saved));
         }
     }
 
     void close() {
-        ::close(fd_);
+        if (fd_ >= 0) {
+            ::close(fd_);
+            fd_ = -1;
+        }
     }
 
     void flush() {
@@ -238,10 +259,10 @@ class CANFile : public TextFile {
         return retval;
     }
 
-    int fd_;
+    int fd_ = -1;
     uint32_t devnum_;
     int timeout_ms_ = MotorCAN::get_default_timeout_ms();
-    int fd_lock_;
+    int fd_lock_ = -1;
     std::string ifname_;
     std::string lock_file_;
 };
