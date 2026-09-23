@@ -277,6 +277,11 @@ int _main(int argc, char** argv) {
     set->add_option("--reserved", command.reserved, "Reserved command");
     set->add_option("--gpio", command_gpio, "GPIO output");
     set->add_flag("--cmd-status-req", use_cmd_status_req, "Request status on set");
+    auto current_command_mode = set->add_subcommand("current", "Current control mode")->final_callback([&](){command.mode_desired = ModeDesired::CURRENT;})->fallthrough();
+    current_command_mode->add_option("--iq", command.current.iq, "Q axis current (A peak)");
+    current_command_mode->add_option("--id", command.current.id, "D axis current (A peak)");
+    auto motor_torque_mode = set->add_subcommand("motor_torque", "Motor torque control mode")->final_callback([&](){command.mode_desired = ModeDesired::MOTOR_TORQUE;})->fallthrough();
+    motor_torque_mode->add_option("--motor_torque", command.motor_torque.motor_torque, "Motor torque (Nm)");
     auto state_mode = set->add_subcommand("state", "State control mode")->final_callback([&](){command.mode_desired = ModeDesired::STATE;})->fallthrough();
     state_mode->add_option("--kp", command.state.kp, "Position error gain");
     state_mode->add_option("--kd", command.state.kd, "Velocity error gain");

@@ -35,6 +35,8 @@ _motor_util_completion()
             position_tuning|current_tuning|stepper_tuning) subcommand=tuning ; break ;;
             stepper_velocity) subcommand=stepper_velocity ; break ;;
             voltage) subcommand=voltage ; break ;;
+            current) subcommand=current ; break ;;
+            motor_torque) subcommand=motor_torque ; break ;;
             state) subcommand=state ; break ;;
             impedance) subcommand=impedance ; break ;;
             tuning) subcommand=tuning_mode ; break ;;
@@ -130,7 +132,9 @@ _motor_util_completion()
             case $last in
                 --position|--velocity|--torque|--torque_dot|--current|--stiffness|--damping) return 0 ;;
             esac ;;
-        voltage) words="--voltage --velocity read -h --help" ;;
+        voltage) words="--voltage read -h --help" ;;
+        motor_torque) words="--motor_torque read -h --help" ;;
+        current) words="--iq --id read -h --help" ;;
         stepper_velocity) words="--voltage --velocity --current --stepper_mode read -h --help" ;
             case $last in
                 --voltage|--velocity|--current) return 0 ;;
