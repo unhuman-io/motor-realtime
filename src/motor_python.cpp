@@ -123,6 +123,7 @@ PYBIND11_MODULE(motor, m)
         .value("FindLimits", ModeDesired::FIND_LIMITS)
         .value("Admittance", ModeDesired::ADMITTANCE)
         .value("Tuning", ModeDesired::TUNING)
+        .value("MotorTorque", ModeDesired::MOTOR_TORQUE)
         .value("DriverEnable", ModeDesired::DRIVER_ENABLE)
         .value("DriverDisable", ModeDesired::DRIVER_DISABLE)
         .value("ClearFaults", ModeDesired::CLEAR_FAULTS)
@@ -167,6 +168,13 @@ PYBIND11_MODULE(motor, m)
         .def_readwrite("tuning_mode", &TuningCommand::tuning_mode)
         .def_readwrite("bias", &TuningCommand::bias)
         .def_readwrite("frequency", &TuningCommand::frequency);
+
+    py::class_<MotorTorqueCommand>(m, "MotorTorqueCommand")
+        .def_readwrite("motor_torque", &MotorTorqueCommand::motor_torque);
+
+    py::class_<CurrentCommand>(m, "CurrentCommand")
+        .def_readwrite("iq", &CurrentCommand::iq)
+        .def_readwrite("id", &CurrentCommand::id);
 
     py::enum_<StepperMode>(m, "StepperMode")
         .value("StepperCurrent", StepperMode::STEPPER_CURRENT)
