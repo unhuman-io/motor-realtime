@@ -38,7 +38,7 @@ target_link_libraries(eth2vcan cli11 motor_manager)
 install(TARGETS eth2vcan DESTINATION bin)
 
 if(BUILD_MOTOR_UTIL)
-    add_executable(motor_util motor_util.cpp )
+    add_executable(motor_util motor_util.cpp motor_util_autocomplete.cpp)
     target_link_libraries(motor_util motor_manager json)
     target_include_directories(motor_util PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../../)
     install(TARGETS motor_util DESTINATION bin)

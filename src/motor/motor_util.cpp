@@ -26,6 +26,10 @@
 
 using namespace obot;
 
+namespace obot {
+bool handle_autocomplete(int argc, char** argv, CLI::App& main_app);
+}
+
 std::atomic<bool> signal_exit{false};
 
 struct cstr{char s[100];};
@@ -376,6 +380,11 @@ int _main(int argc, char** argv) {
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
     app.add_flag("--print-raw-packet", print_raw_packet, "Print raw packet only. Doesn't connect to motors");
     app.add_flag("--parse-raw-packet", parse_raw_packet, "Parse raw packet only from stdin. Doesn't connect to motors")->needs(ip_option);
+
+    if (handle_autocomplete(argc, argv, app)) {
+        return 0; // Exit cleanly if we generated autocomplete strings
+    }
+
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });

@@ -1,191 +1,24 @@
 #!/usr/bin/env bash
+
 _motor_util_completion()
 {
-    local cur=${COMP_WORDS[${COMP_CWORD}]}
-    local last=${COMP_WORDS[$((${COMP_CWORD}-1))]}
+    local cur="${COMP_WORDS[COMP_CWORD]}"
 
+    # Pass the current cursor position and the entire command array to the executable
+    # We use 2>/dev/null to ensure no spurious logs pollute the autocomplete dropdown
+    local completions=$(motor_util --autocomplete ${COMP_CWORD} "${COMP_WORDS[@]}" 2>/dev/null)
+
+    # compgen filters the completions based on the current word being typed
+    COMPREPLY=( $(compgen -W "$completions" -- "$cur") )
+
+    # Handle filename fallback for specific JSON flags if needed
+    local last="${COMP_WORDS[$((${COMP_CWORD}-1))]}"
     case $last in
-        -h|--help) return 0;;
-    esac
-
-    local config_dir=${MOTOR_UTIL_CONFIG_DIR:=~/.config/motor_util}
-    if [ ! -f $config_dir/device_ip_map.json ] && [ ! -f "$config_dir/device_mac_map.json" ]; then
-        config_dir=/etc/motor_util
-        if [ ! -f $config_dir/device_ip_map.json ] && [ ! -f "$config_dir/device_mac_map.json" ]; then
-            config_dir=/usr/share/motor-realtime
-        fi
-    fi
-    local json_ip_file=$config_dir/device_ip_map.json
-    local json_mac_file=$config_dir/device_mac_map.json
-    local subcommand
-    local i=$COMP_CWORD
-    while [[ $i -gt 0 ]]
-    do
-        case ${COMP_WORDS[$i]} in
-            set) subcommand=set ; break ;; 
-            read) subcommand=read ; break ;;
-            -n|--names) subcommand=names ; break ;;
-            -p|--paths) subcommand=paths ; break ;;
-            -d|--devpaths) subcommand=devpaths ; break ;;
-            -s|--serial_numbers) subcommand=serial_numbers ; break ;;
-            -c|--check-messages-version) subcommand=check_messages_version ; break ;;
-            -i|--ips) subcommand=ips ; break ;;
-            -j|--json-ip-file) subcommand=json_file ; break ;;
-            --json-mac-file) subcommand=json_mac_file ; break ;;
-            position_tuning|current_tuning|stepper_tuning) subcommand=tuning ; break ;;
-            stepper_velocity) subcommand=stepper_velocity ; break ;;
-            voltage) subcommand=voltage ; break ;;
-            current) subcommand=current ; break ;;
-            motor_torque) subcommand=motor_torque ; break ;;
-            state) subcommand=state ; break ;;
-            impedance) subcommand=impedance ; break ;;
-            tuning) subcommand=tuning_mode ; break ;;
-            --set-api) subcommand=api_set ; break ;;
-            --text) subcommand=api_text ; break ;;
-            -e|--eth-l2) subcommand=eth_l2 ; break ;;
-        esac
-        (( i-- ))
-    done
-
-    COMREPLY=()
-    local words
-    local base_words="-l --list -c --check-messages-version --no-list --list-names-only --list-path-only 
-      --list-devpath-only --list-serial-number-only --list-devnum-only --no-dfu-list -n --names -i --ips    
-      -j --json-ip-file --json-mac-file --no-print-unconnected --get-log -e --eth-l2 gdbserver
-      -a --uart-paths --uart-raw -f --can -p --paths -d --devpaths -s --serial_numbers set read --set-api 
-      --api --api-timing --run-stats --set-timeout -v --version -u --user-space --allow-simulated --lock 
-      --list-ethernet-interfaces-only
-      -h --help --help-all";
-    case $subcommand in
-        set) words="--host_time --mode --current --position --velocity --torque --torque_dot --reserved --gpio --cmd-status-req impedance state position_tuning current_tuning stepper_tuning voltage stepper_velocity tuning motor_torque current read -h --help";
-            case $last in
-                --host_time|--current|--position|--velocity|--reserved|--gpio) return 0 ;;
-                --mode) words="open damped current position velocity torque impedance state current_tuning position_tuning voltage phase_lock stepper_tuning motor_torque hardware_brake joint_position admittance find_limits driver_enable driver_disable clear_faults fault sleep crash reset" ;;
-            esac ;;
-        read) words="--poll --ppoll --aread --nonblock --frequency --statistics --read-write-statistics --text --fast_log --fast_log2 -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision -m --short --print-reserved set -h --help";
-            case $last in
-                --frequency|--timestamp_frequency|-p|--precision) return 0 ;;
-            esac ;;
-        names) words="$(motor_util --list-names-only) $base_words" ;;
-        paths) words="$(motor_util --list-path-only) $base_words" ;;
-        devpaths) words="$(motor_util --list-devpath-only) $base_words" ;;
-        serial_numbers) words="$(motor_util --list-serial-number-only) $base_words" ;;
-        eth_l2)
-            compopt -o nospace
-            
-            # 1. Fetch the standard interfaces
-            interfaces=$(motor_util --list-ethernet-interfaces-only)
-            base_words="${interfaces// /- }"
-            
-            # 2. Scan backwards to find if a JSON MAC file was provided
-            local i=$COMP_CWORD
-            while [[ $i -gt 0 ]]
-            do
-                case ${COMP_WORDS[$i]} in
-                    --json-mac-file) json_mac_file=${COMP_WORDS[$((i+1))]}; break ;;
-                esac
-                (( i-- ))
-            done
-            # 3. If the file exists, extract the keys and append the interfaces
-            if [[ -f "$json_mac_file" ]]; then
-                if command -v jq >/dev/null; then
-                    # Extract keys from JSON and combine with base interfaces
-                    words="$(jq --raw-output 'to_entries[] | .key ' "$json_mac_file" | tr '\n' ' ') $base_words"
-                else
-                    words="$base_words"
-                fi
-            else
-                words="$base_words"
-            fi 
+        -j|--json-ip-file|--json-mac-file)
+            COMPREPLY=($(compgen -o plusdirs -f -X '!*.json' -- "$cur"))
             ;;
-        ips) 
-            while [[ $i -gt 0 ]]
-            do
-                case ${COMP_WORDS[$i]} in
-                    -j|--json-ip-file) json_ip_file=${COMP_WORDS[$((i+1))]}; break ;;
-                esac
-                (( i-- ))
-            done
-            if [ -f $json_ip_file ]; then
-                if command -v jq >/dev/null; then
-                    words="$(jq --raw-output 'to_entries[] | .key ' $json_ip_file | tr '\n' ' ') $base_words"
-                fi
-            else
-                words="$base_words"
-            fi ;;
-        json_file)
-            case $last in
-                -j|--json-ip-file) COMPREPLY=($(compgen -o plusdirs -f -X '!*.json' -- $cur)); return 0 ;;
-            esac
-            words=$base_words ;;
-        json_mac_file)
-            case $last in
-                --json-mac-file) COMPREPLY=($(compgen -o plusdirs -f -X '!*.json' -- $cur)); return 0 ;;
-            esac
-            words=$base_words ;;
-        check_messages_version) words="none major minor $base_words" ;;
-        state) words="--position --velocity --torque --torque_dot --current --kp --kd --kt --ks -h --help" ;
-            case $last in
-                --position|--velocity|--torque|--torque_dot|--current|--kp|--kd|--kt|--ks) return 0 ;;
-            esac ;;
-        impedance) words="--position --velocity --torque --torque_dot --current --stiffness --damping -h --help" ;
-            case $last in
-                --position|--velocity|--torque|--torque_dot|--current|--stiffness|--damping) return 0 ;;
-            esac ;;
-        voltage) words="--voltage read -h --help" ;;
-        motor_torque) words="--motor_torque read -h --help" ;;
-        current) words="--iq --id read -h --help" ;;
-        stepper_velocity) words="--voltage --velocity --current --stepper_mode read -h --help" ;
-            case $last in
-                --voltage|--velocity|--current) return 0 ;;
-                --stepper_mode) words="current voltage" ;;
-            esac ;;
-        tuning) words="--amplitude --frequency --mode --bias --kv read -h --help";
-            case $last in
-                --amplitude|--frequency|--bias) return 0 ;;
-                --mode) words="sine square triangle chirp random" ;;
-            esac ;;
-        tuning_mode) words="--amplitude --frequency --mode --bias --tuning_mode read -h --help";
-            case $last in
-                --amplitude|--frequency|--bias) return 0 ;;
-                --tuning_mode) words="sine square triangle chirp random" ;;
-                --mode) words="position velocity torque current voltage impedance" ;;
-            esac ;;
-        api_set|api_text)
-            local api_args=()
-            local j=1
-            while [[ $j -lt $COMP_CWORD ]]; do
-                case ${COMP_WORDS[j]} in
-                    -e|--eth-l2|-i|--ips|-n|--names|-p|--paths|-d|--devpaths|-s|--serial_numbers|-j|--json-ip-file|--json-mac-file)
-                        api_args+=("${COMP_WORDS[j]}")
-                        if [[ $((j+1)) -lt $COMP_CWORD ]]; then
-                            local k=$((j+1))
-                            local val="${COMP_WORDS[k]}"
-                            
-                            # Bash breaks words on colons (:). We stitch them back together
-                            # by continuing to append words as long as they don't start with a '-'
-                            while [[ $((k+1)) -lt $COMP_CWORD && "${COMP_WORDS[k+1]}" != -* ]]; do
-                                ((k++))
-                                val="${val}${COMP_WORDS[k]}"
-                            done
-                            
-                            api_args+=("$val")
-                            j=$((k+1))
-                        else
-                            ((j++))
-                        fi
-                        ;;
-                    *)
-                        ((j++))
-                        ;;
-                esac
-            done
-            words="$(motor_util "${api_args[@]}" --no-list --list-api 2>/dev/null)"
-            ;;
-        *) words=$base_words ;;
     esac
-
-    COMPREPLY=($(compgen -W "$words" -- $cur))
 }
 
+# -o filenames allows bash to handle path completions properly if the binary yields nothing
 complete -o filenames -F _motor_util_completion motor_util
