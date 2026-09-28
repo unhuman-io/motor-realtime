@@ -360,7 +360,7 @@ int MotorCAN::open_socket(std::string if_name) {
 
 ssize_t MotorCAN::read() {
     int current_timeout = 0;
-    if (send_read_request_) {
+    if (send_read_request_ && !cmd_status_req_) {
         struct canfd_frame frame = {
             .can_id = (3 << 7) | devnum_,
             .len = 0,
@@ -373,6 +373,9 @@ ssize_t MotorCAN::read() {
         // In send_read_request mode allow up to timeout_ms_ for a response
         // This could still be tripped up if an unrequested status message comes in
         // But that should not be the normal case
+        current_timeout = timeout_ms_;
+    } else if (cmd_status_req_) {
+        // also keep the timeout
         current_timeout = timeout_ms_;
     }
 
