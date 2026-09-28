@@ -359,9 +359,10 @@ int MotorCAN::open_socket(std::string if_name) {
 }
 
 ssize_t MotorCAN::read() {
+    int current_timeout = 0;
     if (send_read_request_) {
         struct canfd_frame frame = {
-            .can_id = 3 << 7 | devnum_,
+            .can_id = (3 << 7) | devnum_,
             .len = 0,
             .flags = CANFD_BRS
         };
@@ -369,6 +370,10 @@ ssize_t MotorCAN::read() {
             nbytes < 0) {
             throw RuntimeErrnoException("write read request error");
         }
+        // In send_read_request mode allow up to timeout_ms_ for a response
+        // This could still be tripped up if an unrequested status message comes in
+        // But that should not be the normal case
+        current_timeout = timeout_ms_;
     }
 
     struct canfd_frame frame;
@@ -379,12 +384,13 @@ ssize_t MotorCAN::read() {
     int poll_result;
     int nbytes = 0;
     do {
-        poll_result = ::poll(&tmp, 1, 0 /* ms */);
+        poll_result = ::poll(&tmp, 1, current_timeout /* ms */);
+        current_timeout = 0;
         if (poll_result > 0) {
             nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
             if (nbytes > 0) {
-                if (frame.can_id == 3 << 7 | devnum_) {
-                    int length = std::min(nbytes, (int)sizeof(status_));
+                if (frame.can_id == ((3 << 7) | devnum_)) {
+                    int length = std::min((size_t)frame.len, sizeof(status_));
                     std::memcpy(&status_, frame.data, length);
                 }
             }
