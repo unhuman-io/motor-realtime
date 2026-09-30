@@ -350,31 +350,43 @@ class L2File : public TextFile {
                 throw RuntimeErrnoException("Failed to set BPF filter");
             }
         } else {
-            // don't check topic id if 0 (enumeration)
-            // also ignore 00:00:00:00:00:00
-            struct sock_filter bpf_code[] = {
-                // Load the first 4 bytes of the Source MAC (Offset 6)
-                { BPF_LD + BPF_W + BPF_ABS, 0, 0, 6 },
-                // If it DOES NOT match our MAC, jump 2 instructions forward (to Accept)
-                { BPF_JMP + BPF_JEQ + BPF_K, 0, 2, 0 },
-                
-                // Load the last 2 bytes of the Source MAC (Offset 10)
-                { BPF_LD + BPF_H + BPF_ABS, 0, 0, 10 },
-                // If it DOES match our MAC, jump 1 instruction forward (to Reject)
-                { BPF_JMP + BPF_JEQ + BPF_K, 1, 0, 0 },
-                // Accept packet
-                { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
-                // Reject packet
-                { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
-            };
+          // if topic id is 0 (enumeration)
+          // check dst_mac is us
+          mac_t src_mac = get_interface_mac_address(fd_, interface_);
+          uint32_t word1;
+          std::memcpy(&word1, src_mac.data(), 4);
+          word1 = htonl(word1);
+          uint16_t word2;
+          std::memcpy(&word2, src_mac.data() + 4, 2);
+          word2 = htons(word2);
+          struct sock_filter bpf_code[] = {
+              // Load the first 4 bytes of the dst MAC (Offset 0)
+              {BPF_LD + BPF_W + BPF_ABS, 0, 0, 0},
+              // If it DOES NOT match our MAC, jump 2 instructions forward (to
+              // reject)
+              {BPF_JMP + BPF_JEQ + BPF_K, 0, 3, word1},
 
-            struct sock_fprog bpf_prog = {
-                .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
-                .filter = bpf_code,
-            };
-            if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
-                throw RuntimeErrnoException("Failed to set BPF filter");
-            }
+              // Load the last 2 bytes of the dst MAC (Offset 4)
+              {BPF_LD + BPF_H + BPF_ABS, 0, 0, 4},
+              // If it DOES not match our MAC, jump 1 instruction forward (to
+              // reject)
+              {BPF_JMP + BPF_JEQ + BPF_K, 0, 1, word2},
+              // Accept packet
+              {BPF_RET + BPF_K, 0, 0,
+               0xFFFFFFFF}, // BPF_RET+BPF_K = 0x06, accept
+              // Reject packet
+              {BPF_RET + BPF_K, 0, 0, 0}, // BPF_RET+BPF_K = 0x06, drop
+          };
+
+          struct sock_fprog bpf_prog = {
+              .len = sizeof(bpf_code) / sizeof(bpf_code[0]),
+              .filter = bpf_code,
+          };
+          if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER,
+                                      &bpf_prog, sizeof(bpf_prog));
+              result < 0) {
+            throw RuntimeErrnoException("Failed to set BPF filter");
+          }
         }
     }
 
