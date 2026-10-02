@@ -359,23 +359,31 @@ class L2File : public TextFile {
           uint16_t word2;
           std::memcpy(&word2, src_mac.data() + 4, 2);
           word2 = htons(word2);
-          struct sock_filter bpf_code[] = {
-              // Load the first 4 bytes of the dst MAC (Offset 0)
-              {BPF_LD + BPF_W + BPF_ABS, 0, 0, 0},
-              // If it DOES NOT match our MAC, jump 2 instructions forward (to
-              // reject)
-              {BPF_JMP + BPF_JEQ + BPF_K, 0, 3, word1},
 
-              // Load the last 2 bytes of the dst MAC (Offset 4)
+          struct sock_filter bpf_code[] = {
+              // 0. Load the first 4 bytes of the dst MAC (Offset 0)
+              {BPF_LD + BPF_W + BPF_ABS, 0, 0, 0},
+              // 1. If it DOES NOT match, jump 6 instructions forward (to reject)
+              {BPF_JMP + BPF_JEQ + BPF_K, 0, 6, word1},
+
+              // 2. Load the last 2 bytes of the dst MAC (Offset 4)
               {BPF_LD + BPF_H + BPF_ABS, 0, 0, 4},
-              // If it DOES not match our MAC, jump 1 instruction forward (to
-              // reject)
-              {BPF_JMP + BPF_JEQ + BPF_K, 0, 1, word2},
-              // Accept packet
-              {BPF_RET + BPF_K, 0, 0,
-               0xFFFFFFFF}, // BPF_RET+BPF_K = 0x06, accept
-              // Reject packet
-              {BPF_RET + BPF_K, 0, 0, 0}, // BPF_RET+BPF_K = 0x06, drop
+              // 3. If it DOES NOT match, jump 4 instructions forward (to reject)
+              {BPF_JMP + BPF_JEQ + BPF_K, 0, 4, word2},
+
+              // 4. Load 2 bytes from payload at offset 20
+              // (14 bytes eth header + 6 bytes into payload)
+              {BPF_LD + BPF_H + BPF_ABS, 0, 0, 20},
+              // 5. Apply bitwise AND with 0x0780 mask
+              {BPF_ALU + BPF_AND + BPF_K, 0, 0, 0x0780},
+              // 6. If the result DOES NOT equal 0x0780, jump 1 instruction forward (to reject)
+              {BPF_JMP + BPF_JEQ + BPF_K, 0, 1, 0x0780},
+
+              // 7. Accept packet
+              {BPF_RET + BPF_K, 0, 0, 0xFFFFFFFF},
+
+              // 8. Reject packet
+              {BPF_RET + BPF_K, 0, 0, 0},
           };
 
           struct sock_fprog bpf_prog = {
