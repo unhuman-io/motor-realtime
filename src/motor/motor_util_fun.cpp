@@ -144,8 +144,8 @@ void interruptible_sleep_until(std::chrono::steady_clock::time_point next_time) 
     auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - seconds);
 
     struct timespec ts {
-        .tv_sec = seconds.count(),
-        .tv_nsec = nanoseconds.count()
+        .tv_sec = static_cast<__time_t>(seconds.count()),
+        .tv_nsec = static_cast<__time_t>(nanoseconds.count())
     };
 
     // using std::this_thread::sleep_until does not exit when there is a ctrl-c signal
