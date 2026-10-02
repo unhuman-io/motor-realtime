@@ -91,7 +91,9 @@ void raw_packet_printer(bool set_api, bool set, bool ip_option, std::vector<std:
         packet_data = parser.generatePacket(packet_data, length, packet_id, &length_out);
         length = length_out;
     }
-    write(1, packet_data, length);
+    if (int retval = write(1, packet_data, length); retval < 0) {
+        throw RuntimeErrnoException("error writing to stdout");
+    }
     exit(0);
 }
 

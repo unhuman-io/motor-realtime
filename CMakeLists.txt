@@ -40,6 +40,7 @@ else()
     set(CMAKE_CXX_STANDARD 17)
 endif()
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+add_compile_options(-Werror)
 
 option(BUILD_SHARED_LIBS "Build libraries shared" ON)
 option(BUILD_PYTHON_API "build a python api module" OFF)
