@@ -72,7 +72,7 @@ return syscall(__NR_sched_getattr, pid, attr, size, flags);
 
 void RealtimeThread::run() { 
 	done_ = false;
-	thread_ = new std::thread([=]{run_deadline();}); 
+	thread_ = new std::thread([this]{run_deadline();}); 
 }
 
 void RealtimeThread::done() {

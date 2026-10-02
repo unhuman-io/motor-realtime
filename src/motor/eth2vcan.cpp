@@ -202,7 +202,9 @@ int open_eth(std::string interface, std::string mac_address, std::string src_mac
             throw RuntimeErrnoException("poll error during flush");
         }
         char buf[MAX_ETH_L2_PAYLOAD_SIZE];
-        ::read(fd, buf, MAX_ETH_L2_PAYLOAD_SIZE);
+        if (int retval = ::read(fd, buf, MAX_ETH_L2_PAYLOAD_SIZE); retval < 0) {
+            throw RuntimeErrnoException("error during read");
+        }
     }
 
     // still need to bind in order to send, I guess

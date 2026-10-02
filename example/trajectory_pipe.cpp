@@ -25,7 +25,9 @@ int main (int /* argc */, char ** /* argv */) {
         m.set_command_position(std::vector<float>(m.motors().size(), x));
         m.set_command_velocity(std::vector<float>(m.motors().size(), .1));
         auto s = m.serialize_saved_commands(data);
-        write(pipe_fd, data, s);
+        if (int retval = write(pipe_fd, data, s); retval < 0) {
+            throw RuntimeErrnoException("error writing pipe");
+        }
         printf("%d\n", x);
 
         std::this_thread::sleep_until(next_time);

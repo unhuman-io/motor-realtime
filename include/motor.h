@@ -78,14 +78,18 @@ class SysfsFile : public TextFile {
     // locked/blocked to one caller so that a read is a response to write
     virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
-        lockf(fd_, F_LOCK, 0);
+        if (int retval = lockf(fd_, F_LOCK, 0); retval < 0) {
+            throw RuntimeErrnoException("error locking");
+        }
         auto retval = write(data_out, length_out);
         if (retval >= 0) {
             ::lseek(fd_, 0, SEEK_SET);
             retval = read(data_in, length_in);
         }
         ::lseek(fd_, 0, SEEK_SET);
-        lockf(fd_, F_ULOCK, 0);
+        if (int retval = lockf(fd_, F_ULOCK, 0); retval < 0) {
+            throw RuntimeErrnoException("error unlocking");
+        }
         return retval;
     }
  private:
@@ -121,14 +125,18 @@ class USBFile : public TextFile {
     // locked/blocked to one caller so that a read is a response to write
     virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
-        lockf(fd_, F_LOCK, 0);
+        if (int retval = lockf(fd_, F_LOCK, 0); retval < 0) {
+            throw RuntimeErrnoException("error locking");
+        }
         auto retval = write(data_out, length_out);
         if (retval >= 0) {
             ::lseek(fd_, 0, SEEK_SET);
             retval = read(data_in, length_in);
         }
         ::lseek(fd_, 0, SEEK_SET);
-        lockf(fd_, F_ULOCK, 0);
+        if (int retval = lockf(fd_, F_ULOCK, 0); retval < 0) {
+            throw RuntimeErrnoException("error unlocking");
+        }
         return retval;
     }
     uint32_t timeout_ms_ = 100;

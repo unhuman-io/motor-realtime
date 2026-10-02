@@ -42,7 +42,9 @@ class Task : public MotorThread {
         timeout_ts.tv_nsec=100 * 1000;
 		int retval = ppoll(poll_fds, 1, &timeout_ts, nullptr);
 		if (retval) {
-            read(fd_, &joystick, sizeof(joystick));
+            if (int retval = read(fd_, &joystick, sizeof(joystick)); retval < 0) {
+                throw RuntimeErrnoException("error reading");
+            }
             uint16_t ud = (joystick.l_stick[2] << 4l) | ((joystick.l_stick[1] & 0xF0) >> 4);
             uint16_t lr = joystick.l_stick[0] | ((joystick.l_stick[1] & 0xF) << 8l);
             //uint16_t ud = joystick.l_stick[1] >> 4;

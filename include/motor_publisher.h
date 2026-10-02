@@ -8,6 +8,7 @@
 #include <cstring>
 #include "cstack.h"
 #include <chrono>
+#include "exception.h"
 
 namespace obot {
 
@@ -24,7 +25,9 @@ class MotorPublisher {
     };
     MotorPublisher(std::string shm_name = "motor_data") : shm_name_(shm_name) {
         fd_ = shm_open(shm_name_.c_str(), O_RDWR  | O_CREAT, 0666);
-        ftruncate(fd_, sizeof(*data_));
+        if (int retval = ftruncate(fd_, sizeof(*data_)); retval < 0) {
+            throw RuntimeErrnoException("error truncating " + shm_name);
+        }
         memptr_ = mmap(nullptr,       /* let system pick where to put segment */
                         sizeof(*data_),   /* how many bytes */
                         PROT_READ | PROT_WRITE, /* access protections */
