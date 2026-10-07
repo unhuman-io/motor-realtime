@@ -21,7 +21,7 @@ jobs:
     - name: install libudev-dev
       run: |
         sudo apt-get update
-        sudo apt-get install -y libudev-dev
+        sudo apt-get install -y libudev-dev liburing-dev
     - name: cmake
       run: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_PYTHON_API=1 .
     - name: make
@@ -96,7 +96,7 @@ jobs:
     - name: dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libudev-dev clang-tools
+        sudo apt-get install -y libudev-dev clang-tools liburing-dev
     - name: cmake
       run: scan-build cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_PYTHON_API=1 .
     - name: make
@@ -144,7 +144,7 @@ jobs:
           make package
         install: |
           apt-get update -q -y
-          apt-get install -y cmake build-essential libudev-dev git python3-dev
+          apt-get install -y cmake build-essential libudev-dev git python3-dev liburing-dev
           if [ ${{ matrix.distro }} = "buster" ]; then
             # cmake 3.16 has problems
             apt-get remove -y cmake-data
@@ -195,7 +195,7 @@ jobs:
           make install
         install: |
           apt-get update -q -y
-          apt-get install -y cmake build-essential libudev-dev git python3-dev
+          apt-get install -y cmake build-essential libudev-dev git python3-dev liburing-dev
           if [ ${{ matrix.distro }} = "buster" ]; then
             # cmake 3.16 has problems
             apt-get remove -y cmake-data
