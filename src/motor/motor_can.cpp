@@ -22,249 +22,284 @@
 
 namespace obot {
 
-class CANFile : public TextFile {
- public:
-    CANFile(std::string ifname, uint32_t devnum) : devnum_(devnum) {
-        ifname_ = ifname;
-
-        // lock file to prevent multiple instances at the same time
-        lock_file_ = "/tmp/obot." + ifname + ":" + std::to_string(devnum) + ".lock";
-        fd_lock_ = ::open(lock_file_.c_str(), O_CREAT | O_RDWR, 0666);
-        if (fd_lock_ < 0) {
-            throw RuntimeException("Error opening lock file " + lock_file_ + ":" + std::to_string(errno) + ": " + strerror(errno));
-        }
-        int err = ::lseek(fd_lock_, 0, SEEK_SET);
-        if (err < 0) {
-            ::close(fd_lock_);
-            throw RuntimeException("Error lseek lock file " + lock_file_ + ": " + std::to_string(errno) + ": " + strerror(errno));
-        }
-        try {
-            open();
-        } catch (...) {
-            ::close(fd_lock_);
-            throw;
-        }
+class CANPipe : public TextFile {
+public:
+  enum class PipeType { CMD_STATUS, ASCII, ENUM };
+  CANPipe(std::string ifname, uint32_t devnum, PipeType type)
+      : devnum_(devnum) {
+    ifname_ = ifname;
+    switch (type) {
+    case PipeType::CMD_STATUS:
+      read_type_id_ = 2;
+      write_type_id_ = 1;
+      read_write_type_id_ = 3;
+      break;
+    case PipeType::ASCII:
+      read_type_id_ = 5;
+      write_type_id_ = 4;
+      read_write_type_id_ = 5;
+      break;
+    case PipeType::ENUM:
+      read_type_id_ = 15;
+      write_type_id_ = 15;
+      read_write_type_id_ = 15;
+      break;
     }
 
-    // Both descriptors belong to this object: the lock file and the CAN socket. A destroyed
-    // CANFile used to leave both open until the process exited.
-    ~CANFile() override {
-        close();
-        if (fd_lock_ >= 0) {
-            ::close(fd_lock_);
-            fd_lock_ = -1;
-        }
+    // lock file to prevent multiple instances at the same time
+    lock_file_ = "/tmp/obot." + ifname + ":" + std::to_string(devnum) + ".lock";
+    fd_lock_ = ::open(lock_file_.c_str(), O_CREAT | O_RDWR, 0666);
+    if (fd_lock_ < 0) {
+      throw RuntimeException("Error opening lock file " + lock_file_ + ":" +
+                             std::to_string(errno) + ": " + strerror(errno));
     }
-
-    void open() {
-        fd_ = MotorCAN::open_socket(ifname_);
-        struct can_filter rfilter[1];
-        rfilter[0].can_id   = 5 << 7 | devnum_;
-        rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
-
-        if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
-            int saved = errno;
-            close();
-            throw RuntimeException("Error setting filter for " + ifname_ + ":" + std::to_string(devnum_) + ": "
-                + std::to_string(saved) + ": " + strerror(saved));
-        }
+    int err = ::lseek(fd_lock_, 0, SEEK_SET);
+    if (err < 0) {
+      ::close(fd_lock_);
+      throw RuntimeException("Error lseek lock file " + lock_file_ + ": " +
+                             std::to_string(errno) + ": " + strerror(errno));
     }
-
-    void close() {
-        if (fd_ >= 0) {
-            ::close(fd_);
-            fd_ = -1;
-        }
+    try {
+      open();
+    } catch (...) {
+      ::close(fd_lock_);
+      throw;
     }
+  }
 
-    void flush() {
-        struct canfd_frame frame;
-        pollfd tmp;
-        tmp.fd = fd_;
-        tmp.events = POLLIN;
-        int poll_result;
-        do {
-            poll_result = ::poll(&tmp, 1,0);
-            if (poll_result > 0) {
-                int nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
-                if (nbytes < 0) {
-                    throw RuntimeErrnoException("Read error during flush");
-                }
-            }
-        } while(poll_result > 0);
-        if (poll_result < 0) {
-            throw RuntimeErrnoException("Poll error durning flush");
-        }
+  uint8_t read_type_id_;
+  uint8_t write_type_id_;
+  uint8_t read_write_type_id_;
+
+  ~CANPipe() override {
+    close();
+    if (fd_lock_ >= 0) {
+      ::close(fd_lock_);
+      fd_lock_ = -1;
     }
+  }
 
-    // use a lock file to provide exclusive access to the CAN device during a 
-    // write followed by read interface to the text api
-    int lock() {
-        int err = lockf(fd_lock_, F_LOCK, 1);
-        if (err) {
-            std::cerr << "error locking " + lock_file_;
-            pid_t pid;
-            int err2 = get_lock_pid(fd_lock_, &pid);
-            if (err2 == 0) {
-                std::cerr << ", already locked by process: " << pid;
-            }
-            std::cerr << std::endl;
-        }
-        // option 1: open and close the socket - throughput at 600 packets/second
-        // option 2: flush the socket - throughput at 620 packets/second
-        // open();
-        flush();
-        return err;
+  void open() {
+    fd_ = MotorCAN::open_socket(ifname_);
+    struct can_filter rfilter[1];
+    rfilter[0].can_id = read_write_type_id_ << 7 | devnum_;
+    rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
+
+    if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter,
+                   sizeof(rfilter))) {
+      int saved = errno;
+      close();
+      throw RuntimeException("Error setting filter for " + ifname_ + ":" +
+                             std::to_string(devnum_) + ": " +
+                             std::to_string(saved) + ": " + strerror(saved));
     }
+  }
 
-    int unlock() {
-        // close();
-        int err = lockf(fd_lock_, F_ULOCK, 0);
-        if (err) {
-            std::cerr << "error unlocking " + lock_file_;
-            pid_t pid;
-            int err2 = get_lock_pid(fd_lock_, &pid);
-            if (err2 == 0) {
-                std::cerr << ", locked by process: " << pid;
-            }
-            std::cerr << std::endl;
-        }
-        return err;
+  void close() {
+    if (fd_ >= 0) {
+      ::close(fd_);
+      fd_ = -1;
     }
+  }
 
-    ssize_t _read(char * data, unsigned int length) {
-        struct canfd_frame frame;
-        pollfd tmp;
-        tmp.fd = fd_;
-        tmp.events = POLLIN;
-        int count = 0;
-        int nbytes = 0;
-        int length_recv = 0;
-        int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
-        int can_id = 5 << 7 | devnum_;
-        if (poll_result > 0) {
-            nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
-            if (nbytes > 0) {
-                if (frame.can_id == can_id) {
-                    length_recv = std::min(length, (unsigned int) frame.len);
-                    if (frame.data[0] != 0) {
-                        // an ascii packet, not a special control packet
-                        // search for embedded 0 terminator
-                        length_recv = strnlen((const char*) frame.data, length_recv);
-                    }
-                    std::memcpy(data, frame.data, length_recv);
-                }
-            }
-        } else {
-            if (poll_result == 0) {
-                throw RuntimeException("poll timeout on can id: " + std::to_string(devnum_));
-            } else {
-                throw RuntimeErrnoException("poll error on can id: " + std::to_string(devnum_));
-            }
-        }
-        return length_recv;
-    }
-
-    virtual ssize_t read(char * data, unsigned int length) {
-        ssize_t retval = _read(data, length);
-        
-        if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
-            // a control packet
-            APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data);
-            if (packet->type == TIMEOUT_REQUEST) {
-                // timeout request
-                if (retval == sizeof(APIControlPacket)) {
-                    // timeout request
-                    // retriggers the read with the new timeout
-                    uint32_t old_timeout_ms = timeout_ms_;
-                    timeout_ms_ += packet->timeout_request.timeout_us/1000;
-                    ssize_t retval = read(data, length);
-                    timeout_ms_ = old_timeout_ms;
-                    return retval;
-                }
-            } else if (packet->type == LONG_PACKET) {
-                // long packet
-                uint16_t total_length = packet->long_packet.total_length;
-                uint16_t packet_number = packet->long_packet.packet_number;
-                const uint8_t header_size = sizeof(APIControlPacket);
-                uint16_t total_count_received = retval - header_size;
-                if (total_length > length) {
-                    // too long
-                    return -EINVAL;
-                }
-                std::memmove(data, data + header_size, total_count_received);
-                while (total_length > total_count_received) {
-                    // assemble multiple packets
-                    char * data_ptr = data + total_count_received;
-                    retval = _read(data_ptr, length);
-                    if (retval < 0) {
-                        return retval;
-                    }
-                    APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data_ptr);
-                    if (packet->type != LONG_PACKET) {
-                        std::cerr << "Error: expected long packet, got " << packet->type << std::endl;
-                        return -EINVAL;
-                    }
-                    if (packet->long_packet.packet_number != ++packet_number) {
-                        std::cerr << "Error: expected packet number " << packet_number << ", got " << packet->long_packet.packet_number << std::endl;
-                        return -EINVAL;
-                    }
-                    //std::cout << packet->long_packet.packet_number << retval << std::endl;
-                    total_count_received += retval - header_size;
-                    std::memmove(data_ptr, data_ptr + header_size, retval - header_size);
-                }
-                if (total_count_received < total_length) {
-                    std::cerr << "Error: expected " << total_length << " bytes, got " << total_count_received << std::endl;
-                    return -EINVAL;
-                }
-                retval = total_count_received;
-            }
-        }
-        unlock();
-        return retval;
-    }
-
-
-    virtual ssize_t write(const char * data, unsigned int length) {
-        lock();
-        struct canfd_frame frame = {};
-        length = std::min(length, (unsigned int) CANFD_MAX_DLEN-1);
-        frame.can_id  = 4 << 7 | devnum_;
-        frame.len = length + 1;
-        frame.flags = CANFD_BRS;
-        std::memcpy(frame.data, data, length);
-        frame.data[length] = 0;
-
-        int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
+  void flush() {
+    struct canfd_frame frame;
+    pollfd tmp;
+    tmp.fd = fd_;
+    tmp.events = POLLIN;
+    int poll_result;
+    do {
+      poll_result = ::poll(&tmp, 1, 0);
+      if (poll_result > 0) {
+        int nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
         if (nbytes < 0) {
-            throw RuntimeException("Error writing canfile " + std::to_string(devnum_) + ": " + std::to_string(errno) + ": " + strerror(errno));
+          throw RuntimeErrnoException("Read error during flush");
         }
-        return nbytes;
+      }
+    } while (poll_result > 0);
+    if (poll_result < 0) {
+      throw RuntimeErrnoException("Poll error durning flush");
     }
+  }
 
-    virtual ssize_t writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
-        //int err = lock();
-        // if (err) {
-        //     return err;
-        // }
-        ssize_t nbytes = write(data_out, length_out);
-        if (nbytes < 0) {
-            return nbytes;
+  // use a lock file to provide exclusive access to the CAN device during a
+  // write followed by read interface to the text api
+  int lock() {
+    int err = lockf(fd_lock_, F_LOCK, 1);
+    if (err) {
+      std::cerr << "error locking " + lock_file_;
+      pid_t pid;
+      int err2 = get_lock_pid(fd_lock_, &pid);
+      if (err2 == 0) {
+        std::cerr << ", already locked by process: " << pid;
+      }
+      std::cerr << std::endl;
+    }
+    // option 1: open and close the socket - throughput at 600 packets/second
+    // option 2: flush the socket - throughput at 620 packets/second
+    // open();
+    flush();
+    return err;
+  }
+
+  int unlock() {
+    // close();
+    int err = lockf(fd_lock_, F_ULOCK, 0);
+    if (err) {
+      std::cerr << "error unlocking " + lock_file_;
+      pid_t pid;
+      int err2 = get_lock_pid(fd_lock_, &pid);
+      if (err2 == 0) {
+        std::cerr << ", locked by process: " << pid;
+      }
+      std::cerr << std::endl;
+    }
+    return err;
+  }
+
+  ssize_t _read(char *data, unsigned int length) {
+    struct canfd_frame frame;
+    pollfd tmp;
+    tmp.fd = fd_;
+    tmp.events = POLLIN;
+    int count = 0;
+    int nbytes = 0;
+    int length_recv = 0;
+    int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
+    int can_id = read_type_id_ << 7 | devnum_;
+    if (poll_result > 0) {
+      nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+      if (nbytes > 0) {
+        if (frame.can_id == can_id) {
+          length_recv = std::min(length, (unsigned int)frame.len);
+          if (frame.data[0] != 0) {
+            // an ascii packet, not a special control packet
+            // search for embedded 0 terminator
+            length_recv = strnlen((const char *)frame.data, length_recv);
+          }
+          std::memcpy(data, frame.data, length_recv);
         }
-        int retval = read(data_in, length_in);
-        //err = unlock();
-        // if (err) {
-        //     return err;
-        // }
-        return retval;
+      }
+    } else {
+      if (poll_result == 0) {
+        throw RuntimeException("poll timeout on can id: " +
+                               std::to_string(devnum_));
+      } else {
+        throw RuntimeErrnoException("poll error on can id: " +
+                                    std::to_string(devnum_));
+      }
     }
+    return length_recv;
+  }
 
-    int fd_ = -1;
-    uint32_t devnum_;
-    int timeout_ms_ = MotorCAN::get_default_timeout_ms();
-    int fd_lock_ = -1;
-    std::string ifname_;
-    std::string lock_file_;
+  virtual ssize_t read(char *data, unsigned int length) {
+    ssize_t retval = _read(data, length);
+
+    if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
+      // a control packet
+      APIControlPacket *packet = reinterpret_cast<APIControlPacket *>(data);
+      if (packet->type == TIMEOUT_REQUEST) {
+        // timeout request
+        if (retval == sizeof(APIControlPacket)) {
+          // timeout request
+          // retriggers the read with the new timeout
+          uint32_t old_timeout_ms = timeout_ms_;
+          timeout_ms_ += packet->timeout_request.timeout_us / 1000;
+          ssize_t retval = read(data, length);
+          timeout_ms_ = old_timeout_ms;
+          return retval;
+        }
+      } else if (packet->type == LONG_PACKET) {
+        // long packet
+        uint16_t total_length = packet->long_packet.total_length;
+        uint16_t packet_number = packet->long_packet.packet_number;
+        const uint8_t header_size = sizeof(APIControlPacket);
+        uint16_t total_count_received = retval - header_size;
+        if (total_length > length) {
+          // too long
+          return -EINVAL;
+        }
+        std::memmove(data, data + header_size, total_count_received);
+        while (total_length > total_count_received) {
+          // assemble multiple packets
+          char *data_ptr = data + total_count_received;
+          retval = _read(data_ptr, length);
+          if (retval < 0) {
+            return retval;
+          }
+          APIControlPacket *packet =
+              reinterpret_cast<APIControlPacket *>(data_ptr);
+          if (packet->type != LONG_PACKET) {
+            std::cerr << "Error: expected long packet, got " << packet->type
+                      << std::endl;
+            return -EINVAL;
+          }
+          if (packet->long_packet.packet_number != ++packet_number) {
+            std::cerr << "Error: expected packet number " << packet_number
+                      << ", got " << packet->long_packet.packet_number
+                      << std::endl;
+            return -EINVAL;
+          }
+          // std::cout << packet->long_packet.packet_number << retval <<
+          // std::endl;
+          total_count_received += retval - header_size;
+          std::memmove(data_ptr, data_ptr + header_size, retval - header_size);
+        }
+        if (total_count_received < total_length) {
+          std::cerr << "Error: expected " << total_length << " bytes, got "
+                    << total_count_received << std::endl;
+          return -EINVAL;
+        }
+        retval = total_count_received;
+      }
+    }
+    unlock();
+    return retval;
+  }
+
+  virtual ssize_t write(const char *data, unsigned int length) {
+    lock();
+    struct canfd_frame frame = {};
+    length = std::min(length, (unsigned int)CANFD_MAX_DLEN - 1);
+    frame.can_id = write_type_id_ << 7 | devnum_;
+    frame.len = length + 1;
+    frame.flags = CANFD_BRS;
+    std::memcpy(frame.data, data, length);
+    frame.data[length] = 0;
+
+    int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
+    if (nbytes < 0) {
+      throw RuntimeException("Error writing can pipe " +
+                             std::to_string(devnum_) + ": " +
+                             std::to_string(errno) + ": " + strerror(errno));
+    }
+    return nbytes;
+  }
+
+  virtual ssize_t writeread(const char *data_out, unsigned int length_out,
+                            char *data_in, unsigned int length_in) {
+    // int err = lock();
+    //  if (err) {
+    //      return err;
+    //  }
+    ssize_t nbytes = write(data_out, length_out);
+    if (nbytes < 0) {
+      return nbytes;
+    }
+    int retval = read(data_in, length_in);
+    // err = unlock();
+    //  if (err) {
+    //      return err;
+    //  }
+    return retval;
+  }
+
+  int fd_ = -1;
+  uint32_t devnum_;
+  int timeout_ms_ = MotorCAN::get_default_timeout_ms();
+  int fd_lock_ = -1;
+  std::string ifname_;
+  std::string lock_file_;
 };
 
 MotorCAN::MotorCAN(std::string address) {
@@ -294,16 +329,28 @@ MotorCAN::MotorCAN(std::string address) {
         throw RuntimeException("Error setting filter for " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
 
-    motor_txt_ = std::move(std::unique_ptr<CANFile>(new CANFile(dev_path_, devnum_)));
-	
-    messages_version_ = operator[]("messages_version").get();
-    name_ = operator[]("name").get();
-    version_ = operator[]("version").get();
-    board_name_ = operator[]("board_name").get();
-    board_rev_ = operator[]("board_rev").get();
-    board_num_ = operator[]("board_num").get();
-    config_ = operator[]("config").get();
-    serial_number_ = operator[]("serial").get();
+    motor_txt_ = std::move(std::unique_ptr<CANPipe>(
+        new CANPipe(dev_path_, devnum_, CANPipe::PipeType::ASCII)));
+
+    // try obot enum
+    CANPipe tmp_enum_pipe(dev_path_, devnum_, CANPipe::PipeType::ENUM);
+    tmp_enum_pipe.write(0, 0);
+    EnumResponse obot_enum;
+    int nbytes = tmp_enum_pipe.read((char *)&obot_enum, sizeof(obot_enum));
+    if (nbytes == sizeof(obot_enum)) {
+      parse_enum(obot_enum);
+    } else {
+      // fall back to ascii reads
+      messages_version_ = operator[]("messages_version").get();
+      name_ = operator[]("name").get();
+      version_ = operator[]("version").get();
+      board_name_ = operator[]("board_name").get();
+      board_rev_ = operator[]("board_rev").get();
+      board_num_ = operator[]("board_num").get();
+      config_ = operator[]("config").get();
+      serial_number_ = operator[]("serial").get();
+    }
+
     // hex in base_path_ for convenience
 #if __has_include(<charconv>)
     char buffer[5] = {"0x"};
@@ -315,7 +362,7 @@ MotorCAN::MotorCAN(std::string address) {
 uint32_t MotorCAN::timeout_ms_ = 10;
 void MotorCAN::set_timeout_ms(int timeout_ms) {
     timeout_ms_ = timeout_ms;
-    static_cast<CANFile*>(motor_txt_.get())->timeout_ms_ = timeout_ms;
+    static_cast<CANPipe *>(motor_txt_.get())->timeout_ms_ = timeout_ms;
 }
 
 void MotorCAN::open() {
