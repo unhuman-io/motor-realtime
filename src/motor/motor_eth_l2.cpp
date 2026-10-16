@@ -794,6 +794,7 @@ std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interf
         throw RuntimeException(str);
     }
 
+    std::sort(devices.begin(), devices.end());
     return devices;
 }
 
