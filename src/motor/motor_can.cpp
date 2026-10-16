@@ -517,6 +517,7 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
         }
     } while (t.get_time_remaining_ns() > 0);
 
+    std::sort(devices.begin(), devices.end());
     return devices;
 }
 
