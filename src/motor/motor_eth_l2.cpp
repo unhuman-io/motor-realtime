@@ -318,9 +318,25 @@ class L2File : public TextFile {
         uint16_t word2;
         std::memcpy(&word2, mac.data()+4, 2);
         word2 = htons(word2);
+
+        mac_t dst_mac = get_interface_mac_address(fd_, interface_);
+        uint32_t dst_word1;
+        std::memcpy(&dst_word1, dst_mac.data(), 4);
+        dst_word1 = htonl(dst_word1);
+        uint16_t dst_word2;
+        std::memcpy(&dst_word2, dst_mac.data() + 4, 2);
+        dst_word2 = htons(dst_word2);
         // Set Berkeley Packet Filter to only receive packets with mac matching
         if (topic_id != 0) {
             struct sock_filter bpf_code[] = {
+                // 0. Load the first 4 bytes of the dst MAC (Offset 0)
+                {BPF_LD + BPF_W + BPF_ABS, 0, 0, 0},
+                // 1. If it DOES NOT match, jump 11 instructions forward (to reject)
+                {BPF_JMP + BPF_JEQ + BPF_K, 0, 11, dst_word1},
+                // 2. Load the last 2 bytes of the dst MAC (Offset 4)
+                {BPF_LD + BPF_H + BPF_ABS, 0, 0, 4},
+                // 3. If it DOES NOT match, jump 9 instructions forward (to reject)
+                {BPF_JMP + BPF_JEQ + BPF_K, 0, 9, dst_word2},
                 // Load first 4 bytes of Ethernet MAC
                 { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
                 // Compare with dst_mac_[0..3]
@@ -352,24 +368,17 @@ class L2File : public TextFile {
         } else {
           // if topic id is 0 (enumeration)
           // check dst_mac is us
-          mac_t src_mac = get_interface_mac_address(fd_, interface_);
-          uint32_t word1;
-          std::memcpy(&word1, src_mac.data(), 4);
-          word1 = htonl(word1);
-          uint16_t word2;
-          std::memcpy(&word2, src_mac.data() + 4, 2);
-          word2 = htons(word2);
 
           struct sock_filter bpf_code[] = {
               // 0. Load the first 4 bytes of the dst MAC (Offset 0)
               {BPF_LD + BPF_W + BPF_ABS, 0, 0, 0},
               // 1. If it DOES NOT match, jump 6 instructions forward (to reject)
-              {BPF_JMP + BPF_JEQ + BPF_K, 0, 6, word1},
+              {BPF_JMP + BPF_JEQ + BPF_K, 0, 6, dst_word1},
 
               // 2. Load the last 2 bytes of the dst MAC (Offset 4)
               {BPF_LD + BPF_H + BPF_ABS, 0, 0, 4},
               // 3. If it DOES NOT match, jump 4 instructions forward (to reject)
-              {BPF_JMP + BPF_JEQ + BPF_K, 0, 4, word2},
+              {BPF_JMP + BPF_JEQ + BPF_K, 0, 4, dst_word2},
 
               // 4. Load 2 bytes from payload at offset 20
               // (14 bytes eth header + 6 bytes into payload)
