@@ -1,5 +1,6 @@
 #pragma once
 #include <atomic>
+#include <deque>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -18,6 +19,10 @@ namespace obot {
 // live and the registers are a sample, until gdb continues. `monitor live` in
 // gdb gets back to that after a stop. When gdb leaves,
 // the node's breakpoints are removed and it continues.
+//
+// gdb says which threads run with vCont, which the node takes as it is. In
+// non-stop mode (set non-stop on, before target remote) the threads stop and
+// run one by one, and the node tells of stops by notifications.
 //
 //   motor_util -f can0:1 --no-list gdbserver
 //   (gdb) target remote :3293
@@ -45,6 +50,8 @@ class GDBServer {
       void send_raw(const std::string &data);
       void send_packet(const std::string &payload);
       void check_target();
+      void check_threads();
+      uint32_t read_status(uint32_t &event_count);
 
       std::function<std::string(std::string_view)> writeread_;
       std::atomic<bool> &signal_exit_;
@@ -54,6 +61,13 @@ class GDBServer {
       State state_ = State::LIVE;
       bool close_ = false;
       std::string last_packet_;
+      // gdb's non-stop mode: each thread stops and runs by itself
+      bool non_stop_ = false;
+      bool notified_ = false; // a stop notification is out, not acknowledged
+      std::deque<std::string> stops_; // stop replies gdb has yet to get
+      uint32_t known_stopped_ = 0; // threads gdb knows as stopped, a bit each
+      uint32_t event_count_ = 0;
+      std::string last_stop_;
 };
 
 }

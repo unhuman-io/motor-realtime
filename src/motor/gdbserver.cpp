@@ -48,6 +48,7 @@ bool starts_with(const std::string &s, std::string_view prefix) {
 
 const size_t max_request = 63; // characters of a text request, with its $
 const int running_poll_ms = 5; // how often the node is asked if it stopped
+const int non_stop_poll_ms = 10; // the same in non-stop mode, for any thread
 const int keepalive_ms = 500;  // and otherwise, so that it knows of a host
 
 } // namespace
@@ -163,7 +164,7 @@ bool GDBServer::handle(const std::string &packet, std::string &reply) {
   if (packet.empty())
     return true;
   if (starts_with(packet, "qSupported")) {
-    reply = "PacketSize=800;qXfer:features:read+";
+    reply = "PacketSize=800;qXfer:features:read+;QNonStop+;vContSupported+";
   } else if (starts_with(packet, "qXfer:features:read:target.xml:")) {
     static const std::string xml = target_description();
     size_t offset = 0, length = 0;
@@ -180,6 +181,53 @@ bool GDBServer::handle(const std::string &packet, std::string &reply) {
     reply = "1";
   } else if (starts_with(packet, "qSymbol")) {
     reply = "OK";
+  } else if (packet == "vCont?") {
+    reply = "vCont;c;C;s;S;t";
+  } else if (starts_with(packet, "QNonStop:")) {
+    reply = target(packet);
+    non_stop_ = reply == "OK" && packet.back() == '1';
+    stops_.clear();
+    notified_ = false;
+    known_stopped_ = 0;
+    read_status(event_count_);
+  } else if (packet == "vStopped") {
+    // the next thread that stopped, after the one of the notification
+    if (stops_.empty()) {
+      notified_ = false;
+      reply = "OK";
+    } else {
+      reply = stops_.front();
+      stops_.pop_front();
+    }
+  } else if (starts_with(packet, "vCont;")) {
+    reply = packet.size() + 1 > max_request ? "E01" : target(packet);
+    if (non_stop_) {
+      // what stays stopped is not said again, gdb knows of it. What
+      // has stopped by now is yet to be told.
+      uint32_t count;
+      known_stopped_ &= read_status(count);
+      return true;
+    }
+    if (reply != "OK")
+      return true;
+    state_ = State::RUNNING;
+    return false;
+  } else if (packet[0] == '?' && non_stop_) {
+    // every thread that is stopped: the first here, the others by vStopped
+    stops_.clear();
+    known_stopped_ = read_status(event_count_);
+    for (uint32_t thread = 1; thread <= 8; thread++) {
+      if (known_stopped_ & (1u << (thread - 1))) {
+        stops_.push_back("T00thread:" + std::to_string(thread) + ";");
+      }
+    }
+    if (stops_.empty()) {
+      reply = "OK";
+    } else {
+      reply = stops_.front();
+      stops_.pop_front();
+      notified_ = true;
+    }
   } else if (packet[0] == 'c' || packet[0] == 's') {
     // The stop reply comes when the node has stopped, see check_target
     target(packet.substr(0, 1));
@@ -222,8 +270,59 @@ bool GDBServer::handle(const std::string &packet, std::string &reply) {
   return true;
 }
 
+// The node's Y: the threads that are stopped, a bit each, the number of
+// stops so far and the reply for the last of them
+uint32_t GDBServer::read_status(uint32_t &event_count) {
+  const std::string status = target("Y");
+  const size_t first = status.find(';');
+  const size_t second = status.find(';', first + 1);
+  if (first == std::string::npos || second == std::string::npos)
+    return 0;
+  event_count = std::stoul(status.substr(0, first), nullptr, 16);
+  last_stop_ = status.substr(second + 1);
+  return std::stoul(status.substr(first + 1, second - first - 1), nullptr, 16);
+}
+
+// Non-stop: gdb is told of each thread that has stopped since, the first by a
+// notification and the others when it asks
+void GDBServer::check_threads() {
+  uint32_t event_count = event_count_;
+  const uint32_t stopped = read_status(event_count);
+  uint32_t event_thread = 0;
+  const size_t at = last_stop_.find("thread:");
+  if (at != std::string::npos)
+    event_thread = std::stoul(last_stop_.substr(at + 7), nullptr, 16);
+  for (uint32_t thread = 1; thread <= 8; thread++) {
+    const uint32_t bit = 1u << (thread - 1);
+    if (!(stopped & bit))
+      continue;
+    if (thread == event_thread && event_count != event_count_) {
+      stops_.push_back(last_stop_);
+    } else if (!(known_stopped_ & bit)) {
+      stops_.push_back("T00thread:" + std::to_string(thread) + ";");
+    }
+  }
+  event_count_ = event_count;
+  known_stopped_ = stopped;
+  if (!stops_.empty() && !notified_) {
+    const std::string payload = "Stop:" + stops_.front();
+    stops_.pop_front();
+    uint8_t checksum = 0;
+    for (char c : payload)
+      checksum += c;
+    char checksum_str[3];
+    snprintf(checksum_str, sizeof(checksum_str), "%02x", checksum);
+    send_raw("%" + payload + "#" + checksum_str);
+    notified_ = true;
+  }
+}
+
 // Has the node stopped while gdb waits for it, and a sign of life otherwise
 void GDBServer::check_target() {
+  if (non_stop_) {
+    check_threads();
+    return;
+  }
   const std::string status = target("y");
   if (state_ == State::RUNNING && !status.empty() && status[0] == 'T') {
     state_ = State::STOPPED;
@@ -236,6 +335,10 @@ void GDBServer::serve() {
   char buf[4096];
   state_ = State::LIVE;
   close_ = false;
+  non_stop_ = false;
+  stops_.clear();
+  notified_ = false;
+  target("QNonStop:0"); // whatever an earlier gdb left the node in
   // A node without the packets, its bootloader for one, answers nothing gdb
   // can use: gdb then waits for a stop that never comes, at full cpu load
   const std::string stop = target("?");
@@ -247,10 +350,12 @@ void GDBServer::serve() {
   }
   auto last_check = std::chrono::steady_clock::now();
   while (!signal_exit_ && !close_) {
-    const int period_ms =
-        state_ == State::RUNNING ? running_poll_ms : keepalive_ms;
-    if (wait_readable(connfd_,
-                      state_ == State::RUNNING ? running_poll_ms : 50)) {
+    const int period_ms = non_stop_                  ? non_stop_poll_ms
+                          : state_ == State::RUNNING ? running_poll_ms
+                                                     : keepalive_ms;
+    if (wait_readable(connfd_, state_ == State::RUNNING || non_stop_
+                                   ? running_poll_ms
+                                   : 50)) {
       ssize_t n = read(connfd_, buf, sizeof(buf));
       if (n <= 0)
         break;
@@ -261,9 +366,10 @@ void GDBServer::serve() {
         in.erase(0, 1);
         if (verbose_)
           std::cout << "from gdb: interrupt" << std::endl;
-        target("b");
-        if (state_ != State::RUNNING)
+        if (!non_stop_) {
+          target("b");
           state_ = State::RUNNING;
+        }
       } else if (in[0] == '-') {
         in.erase(0, 1);
         send_raw(last_packet_);
@@ -284,7 +390,7 @@ void GDBServer::serve() {
         std::string reply;
         if (ok && handle(packet, reply))
           send_packet(reply);
-        if (ok && state_ == State::RUNNING) {
+        if (ok && (state_ == State::RUNNING || non_stop_)) {
           check_target(); // a step is done by now
           last_check = std::chrono::steady_clock::now();
         }
