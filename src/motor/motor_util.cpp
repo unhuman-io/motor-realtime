@@ -373,6 +373,12 @@ int _main(int argc, char** argv) {
     app.add_flag("--api", api_mode, "Enter API mode");
     app.add_flag("--api-timing", api_timing, "Print API response times");
     auto gdbserver = app.add_subcommand("gdbserver", "Use gdb protocol over api");
+    int gdb_port = 3293;
+    bool gdb_verbose = false;
+    gdbserver
+        ->add_option("--port", gdb_port, "TCP port for gdb's target remote")
+        ->capture_default_str();
+    gdbserver->add_flag("--verbose", gdb_verbose, "Print the packets");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
@@ -788,9 +794,11 @@ int _main(int argc, char** argv) {
             std::cout << "Select one motor to use gdbserver" << std::endl;
             return 1;
         }
-        GDBServer gdb([motor_text = motors[0]->motor_text()](std::string_view s) mutable {
-            return motor_text->writeread(std::string(s));
-        }, signal_exit);
+        GDBServer gdb(
+            [motor_text = motors[0]->motor_text()](std::string_view s) mutable {
+              return motor_text->writeread(std::string(s));
+            },
+            signal_exit, gdb_port, gdb_verbose);
         gdb.start();
     }
 

@@ -1,270 +1,300 @@
-
-#include <netdb.h> 
-#include <netinet/in.h> 
-#include <stdlib.h> 
-#include <string.h> 
-#include <string>
-#include <sys/socket.h> 
-#include <sys/types.h> 
-#include <unistd.h>
-#include <iostream>
-#include <string_view>
-#include <thread>
-#include <chrono>
-#include "exception.h"
-#include <poll.h>
-
-// in gdb
-// set debug remote 1
-// target remote :3293
-
-const int PORT = 3293;
-
 #include "gdbserver.h"
+#include "exception.h"
+#include <chrono>
+#include <iostream>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <poll.h>
+#include <string.h>
+#include <string>
+#include <string_view>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 namespace obot {
 
-GDBServer::GDBServer(std::function<std::string(std::string_view)> writeread, std::atomic<bool> &signal_exit)
-    : writeread_(writeread), signal_exit_(signal_exit) {
-    int len; 
-    struct sockaddr_in cli; 
-    
-    sockfd = socket(AF_INET, SOCK_STREAM, 0); 
-    if (sockfd == -1) { 
-        throw RuntimeException("socket creation failed");
-    }
-    int option = 1;
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+namespace {
 
-    std::cout << "socket created successfully" << std::endl;
-    struct sockaddr_in servaddr{};
-    
-    servaddr.sin_family = AF_INET; 
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY); 
-    servaddr.sin_port = htons(PORT); 
-    
-    if ((bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr))) != 0) { 
-        throw RuntimeException("socket bind failed: " + std::string(strerror(errno))); 
-    } 
-    std::cout << "socket successfully bound" << std::endl; 
-    
-    if ((listen(sockfd, 0)) != 0) { 
-        throw RuntimeException("Listen failed"); 
-    } 
-    std::cout << "server listening" << std::endl;
+// The registers as the node numbers them: the first 17 are its g packet, gdb
+// asks for the others one at a time
+std::string target_description() {
+  std::string xml = "<?xml version=\"1.0\"?><!DOCTYPE target SYSTEM "
+                    "\"gdb-target.dtd\"><target version=\"1.0\">"
+                    "<architecture>arm</architecture><feature "
+                    "name=\"org.gnu.gdb.arm.m-profile\">";
+  for (int i = 0; i < 13; i++) {
+    xml += "<reg name=\"r" + std::to_string(i) + "\" bitsize=\"32\" regnum=\"" +
+           std::to_string(i) + "\"/>";
+  }
+  xml += "<reg name=\"sp\" bitsize=\"32\" type=\"data_ptr\" regnum=\"13\"/>"
+         "<reg name=\"lr\" bitsize=\"32\" regnum=\"14\"/>"
+         "<reg name=\"pc\" bitsize=\"32\" type=\"code_ptr\" regnum=\"15\"/>"
+         "<reg name=\"xpsr\" bitsize=\"32\" regnum=\"16\"/></feature>"
+         "<feature name=\"org.gnu.gdb.arm.vfp\">";
+  for (int i = 0; i < 16; i++) {
+    xml += "<reg name=\"d" + std::to_string(i) +
+           "\" bitsize=\"64\" type=\"ieee_double\" regnum=\"" +
+           std::to_string(17 + i) + "\"/>";
+  }
+  xml += "<reg name=\"fpscr\" bitsize=\"32\" type=\"int\" group=\"float\" "
+         "regnum=\"33\"/></feature></target>";
+  return xml;
+}
 
-    pollfd tmp {
-        .fd = sockfd,
-        .events = POLLIN
-    };
-    int retval = 0;
-    while(!signal_exit_ && retval == 0) {
-        retval = poll(&tmp, 1, 1 /* ms */);
-        if (retval < 0) {
-            if (signal_exit_) {
-                return;
-            }
-            throw RuntimeErrnoException("poll error");
-        } else if (retval > 0) {
-            std::cout << "poll continue" << std::endl;
-            break;
-        }
-    }
+bool starts_with(const std::string &s, std::string_view prefix) {
+  return s.compare(0, prefix.size(), prefix) == 0;
+}
 
-    len = sizeof(cli);
-        connfd_ = accept(sockfd, (struct sockaddr*)&cli, (socklen_t*) &len); 
-    if (connfd_ < 0) { 
-        throw RuntimeException("server accept failed..."); 
-    }
-    std::cout << "server accepted the client" << std::endl;
+const size_t max_request = 63; // characters of a text request, with its $
+const int running_poll_ms = 5; // how often the node is asked if it stopped
+const int keepalive_ms = 500;  // and otherwise, so that it knows of a host
 
+} // namespace
+
+GDBServer::GDBServer(std::function<std::string(std::string_view)> writeread,
+                     std::atomic<bool> &signal_exit, int port, bool verbose)
+    : writeread_(writeread), signal_exit_(signal_exit), verbose_(verbose) {
+  sockfd_ = socket(AF_INET, SOCK_STREAM, 0);
+  if (sockfd_ == -1) {
+    throw RuntimeException("socket creation failed");
+  }
+  int option = 1;
+  setsockopt(sockfd_, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+  struct sockaddr_in servaddr{};
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  servaddr.sin_port = htons(port);
+  if (bind(sockfd_, (struct sockaddr *)&servaddr, sizeof(servaddr)) != 0) {
+    throw RuntimeException("socket bind failed: " +
+                           std::string(strerror(errno)));
+  }
+  if (listen(sockfd_, 1) != 0) {
+    throw RuntimeException("listen failed");
+  }
+  std::cout << "gdbserver listening on port " << port << std::endl;
 }
 
 GDBServer::~GDBServer() {
-    std::cout << "closing gdb server sockets" << std::endl;
+  if (connfd_ >= 0)
     close(connfd_);
-    close(sockfd);
+  if (sockfd_ >= 0)
+    close(sockfd_);
 }
 
-void GDBServer::send_response(std::string response) {
-    std::cout << "sending response: " << response << std::endl;
-    int n = write(connfd_, response.c_str(), response.size());
-    if (n < 0) {
-        throw RuntimeException("write error");
+bool GDBServer::wait_readable(int fd, int timeout_ms) {
+  pollfd tmp{.fd = fd, .events = POLLIN, .revents = 0};
+  int retval = poll(&tmp, 1, timeout_ms);
+  if (retval < 0 && !signal_exit_ && errno != EINTR) {
+    throw RuntimeErrnoException("poll error");
+  }
+  return retval > 0;
+}
+
+void GDBServer::send_raw(const std::string &data) {
+  if (verbose_)
+    std::cout << "to gdb: " << data << std::endl;
+  size_t sent = 0;
+  while (sent < data.size()) {
+    ssize_t n =
+        send(connfd_, data.data() + sent, data.size() - sent, MSG_NOSIGNAL);
+    if (n <= 0) {
+      close_ = true;
+      return;
     }
+    sent += n;
+  }
 }
 
-void GDBServer::periodically_check_status() {
-    for (;;) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        auto status = writeread_("$y"); // status
-        std::cout << "periodic status response: " << status << std::endl;
-        if (status != "continued") {
-            send_gdb_packet("S05");
-            break;
+void GDBServer::send_packet(const std::string &payload) {
+  uint8_t checksum = 0;
+  for (char c : payload)
+    checksum += c;
+  char checksum_str[3];
+  snprintf(checksum_str, sizeof(checksum_str), "%02x", checksum);
+  last_packet_ = "$" + payload + "#" + checksum_str;
+  send_raw(last_packet_);
+}
+
+// A request to the node and its reply. A lost frame is tried again.
+std::string GDBServer::target(const std::string &request) {
+  for (int attempt = 0; attempt < 3; attempt++) {
+    try {
+      std::string reply = writeread_("$" + request);
+      while (!reply.empty() && (reply.back() == '\0' || reply.back() == ' '))
+        reply.pop_back(); // padding of long replies
+      if (verbose_)
+        std::cout << "node: $" << request << " -> " << reply << std::endl;
+      return reply;
+    } catch (const std::exception &e) {
+      if (verbose_)
+        std::cout << "node: $" << request << " failed: " << e.what()
+                  << std::endl;
+    }
+  }
+  return "E01";
+}
+
+// M address,length:hex in as many requests as it takes
+std::string GDBServer::memory_write(const std::string &packet) {
+  const size_t comma = packet.find(','), colon = packet.find(':');
+  if (comma == std::string::npos || colon == std::string::npos || colon < comma)
+    return "E01";
+  uint32_t address = std::stoul(packet.substr(1, comma - 1), nullptr, 16);
+  const std::string hex = packet.substr(colon + 1);
+  const size_t chunk = 24; // bytes, a multiple of 4: words stay whole
+  if (hex.empty())
+    return "OK";
+  for (size_t offset = 0; offset < hex.size(); offset += 2 * chunk) {
+    const std::string part = hex.substr(offset, 2 * chunk);
+    char header[32];
+    snprintf(header, sizeof(header),
+             "M%x,%zx:", address + static_cast<uint32_t>(offset / 2),
+             part.size() / 2);
+    const std::string reply = target(header + part);
+    if (reply != "OK")
+      return reply.empty() ? "E01" : reply;
+  }
+  return "OK";
+}
+
+bool GDBServer::handle(const std::string &packet, std::string &reply) {
+  reply.clear();
+  if (packet.empty())
+    return true;
+  if (starts_with(packet, "qSupported")) {
+    reply = "PacketSize=800;qXfer:features:read+";
+  } else if (starts_with(packet, "qXfer:features:read:target.xml:")) {
+    static const std::string xml = target_description();
+    size_t offset = 0, length = 0;
+    if (sscanf(packet.c_str() + packet.rfind(':') + 1, "%zx,%zx", &offset,
+               &length) != 2) {
+      reply = "E01";
+    } else if (offset >= xml.size()) {
+      reply = "l";
+    } else {
+      reply = (offset + length < xml.size() ? "m" : "l") +
+              xml.substr(offset, length);
+    }
+  } else if (packet == "qAttached") {
+    reply = "1";
+  } else if (starts_with(packet, "qSymbol")) {
+    reply = "OK";
+  } else if (packet[0] == 'c' || packet[0] == 's') {
+    // The stop reply comes when the node has stopped, see check_target
+    target(packet.substr(0, 1));
+    state_ = State::RUNNING;
+    return false;
+  } else if (packet[0] == 'D' || packet[0] == 'k' ||
+             starts_with(packet, "vKill")) {
+    if (packet[0] != 'k')
+      reply = "OK";
+    close_ = true; // the node is detached when the connection is closed
+    return packet[0] != 'k';
+  } else if (packet[0] == 'M') {
+    reply = memory_write(packet);
+  } else if (packet[0] == '?') {
+    reply = target("?");
+    if (state_ == State::RUNNING)
+      state_ = State::LIVE;
+  } else if (std::string_view("mgpPHTZz").find(packet[0]) !=
+                 std::string_view::npos ||
+             packet == "qC" || packet == "qfThreadInfo" ||
+             packet == "qsThreadInfo" ||
+             starts_with(packet, "qThreadExtraInfo,") ||
+             starts_with(packet, "qRcmd,")) {
+    reply = packet.size() + 1 > max_request ? "E01" : target(packet);
+  }
+  // anything else is not supported: the empty reply
+  return true;
+}
+
+// Has the node stopped while gdb waits for it, and a sign of life otherwise
+void GDBServer::check_target() {
+  const std::string status = target("y");
+  if (state_ == State::RUNNING && !status.empty() && status[0] == 'T') {
+    state_ = State::STOPPED;
+    send_packet(status);
+  }
+}
+
+void GDBServer::serve() {
+  std::string in;
+  char buf[4096];
+  state_ = State::LIVE;
+  close_ = false;
+  auto last_check = std::chrono::steady_clock::now();
+  while (!signal_exit_ && !close_) {
+    const int period_ms =
+        state_ == State::RUNNING ? running_poll_ms : keepalive_ms;
+    if (wait_readable(connfd_,
+                      state_ == State::RUNNING ? running_poll_ms : 50)) {
+      ssize_t n = read(connfd_, buf, sizeof(buf));
+      if (n <= 0)
+        break;
+      in.append(buf, n);
+    }
+    while (!in.empty() && !close_) {
+      if (in[0] == '\x03') {
+        in.erase(0, 1);
+        if (verbose_)
+          std::cout << "from gdb: interrupt" << std::endl;
+        target("b");
+        if (state_ != State::RUNNING)
+          state_ = State::RUNNING;
+      } else if (in[0] == '-') {
+        in.erase(0, 1);
+        send_raw(last_packet_);
+      } else if (in[0] == '$') {
+        const size_t end = in.find('#');
+        if (end == std::string::npos || in.size() < end + 3)
+          break; // the rest is yet to come
+        const std::string packet = in.substr(1, end - 1);
+        uint8_t checksum = 0;
+        for (char c : packet)
+          checksum += c;
+        const bool ok =
+            checksum == std::stoul(in.substr(end + 1, 2), nullptr, 16);
+        in.erase(0, end + 3);
+        if (verbose_)
+          std::cout << "from gdb: " << packet << std::endl;
+        send_raw(ok ? "+" : "-");
+        std::string reply;
+        if (ok && handle(packet, reply))
+          send_packet(reply);
+        if (ok && state_ == State::RUNNING) {
+          check_target(); // a step is done by now
+          last_check = std::chrono::steady_clock::now();
         }
+      } else {
+        in.erase(0, 1); // + and what is not a packet
+      }
     }
-}
-
-void GDBServer::send_gdb_packet(std::string response) {
-    uint8_t checksum = 0;
-    for (size_t i = 0; i < response.size(); i++) {
-        checksum += response[i];
+    const auto now = std::chrono::steady_clock::now();
+    if (now - last_check >= std::chrono::milliseconds(period_ms)) {
+      last_check = now;
+      check_target();
     }
-    char checksum_str[3];
-    snprintf(checksum_str, sizeof(checksum_str), "%02x", checksum);
-    std::string gdb_response = "$" + response + "#" + checksum_str;
-    std::cout << "gdb response: " << gdb_response << std::endl;
-    int n = write(connfd_, gdb_response.c_str(), gdb_response.size());
-    if (n < 0) {
-        throw RuntimeException("write error");
-    }
-    std::cout << "write result " << n << std::endl;
-    if (n == 0) {
-        std::cout << "write closed pipe" << std::endl;
-        throw RuntimeException("write closed pipe");
-    }
+  }
+  target("D");
 }
 
 void GDBServer::start() {
-    const int MAX=1000;
-    char buf[MAX]; 
-    while (!signal_exit_) {
-        bzero(buf, MAX);
-
-        pollfd tmp {
-            .fd = connfd_,
-            .events = POLLIN
-        };
-        int retval = poll(&tmp, 1, 1 /* ms */);
-        if (retval < 0) {
-            if (signal_exit_) {
-                return;
-            }
-            throw RuntimeErrnoException("poll error");
-        } else if (retval == 0) {
-            continue;
-        }
-    
-        int reval = read(connfd_, buf, sizeof(buf)); 
-        std::cout << "read result " << reval << std::endl;
-        if (reval < 0) {
-            throw RuntimeException("read error");
-        }
-        if (reval == 0) {
-            throw RuntimeException("read closed pipe");
-        }
-
-
-        std::cout << "From gdb: " <<  buf << std::endl;
-        std::string response;
-        std::string_view str(buf);
-        bool ack = false;
-        if (str.rfind("$", 0) == 0) {
-            send_ack();
-            ack = true;
-        } else if (str.rfind("+", 0) == 0) {
-            //ignore
-            str.remove_prefix(1);
-            if (str.rfind("$", 0) == 0) {
-                send_ack();
-                ack = true;
-            }
-        } else if (str.rfind("\x003", 0) == 0) {
-            //interrupt
-            send_ack();
-            ack = true;
-        } else {
-            //else "-"
-            send_nack();
-        }
-        if (!ack) {
-            continue;
-        }
-
-        if (str.rfind("$qSupported", 0) == 0) {
-            std::cout << "gdb command: " << str.substr(1) << std::endl;
-            response = "read+;write+";//;QNonStop+";
-        } else if (str.rfind("$g", 0) == 0) {
-            std::cout << "gdb command: " << str.substr(1) << std::endl;
-            auto item = writeread_("$g");
-            if (item != "error") {
-                response = item;
-            } else {
-                response = std::string(17*4*2, '0');
-            }
-        } else if (str.rfind("$?", 0) == 0) {
-            std::cout << "gdb command: " << str.substr(1) << std::endl;
-            response = "S05"; // "T05thread:pbdeab.bdeab;"
-        } else if (str.rfind("$Hc-1", 0) == 0) {
-            std::cout << "gdb command: " << str.substr(1) << std::endl;
-            response = "OK";
-        } else if (str.rfind("$qAttached", 0) == 0) {
-            std::cout << "gdb command: " << str.substr(1) << std::endl;
-            response = "1";
-        } else if (str.rfind("$qOffsets", 0) == 0) {
-            std::cout << "gdb command: " << str.substr(1) << std::endl;
-            response = "Text=00000000;Data=00000000;Bss=00000000";
-        } else if (str.rfind("$mbf284", 0) == 0) {
-            std::cout << "gdb command: " << str.substr(1) << std::endl;
-            response = "12345678";
-        } else if (str.rfind("$m", 0) == 0) {
-            std::string_view memory_read = str.substr(0, str.size() - 3);
-            std::cout << "gdb command: " << memory_read << std::endl;
-            response = writeread_(memory_read);
-        } else if (str.rfind("$M", 0) == 0) {
-            std::string_view memory_write = str.substr(0, str.size() - 3);
-            std::cout << "gdb command: " << memory_write << std::endl;
-            response = writeread_(memory_write);
-        } else if (str.rfind("$P", 0) == 0) {
-            std::string_view reg_write = str.substr(0, str.size() - 3);
-            std::cout << "gdb reg write command: " << reg_write << std::endl;
-            response = writeread_(reg_write);
-        } else if (str.rfind("$QNonStop", 0) == 0) {
-            std::cout << "gdb non stop command: " << str.substr(0) << std::endl;
-            response = "OK";
-        } else if (str.rfind("$c", 0) == 0) {
-            std::cout << "gdb c command: " << str.substr(0) << std::endl;
-            auto item = writeread_("$c");
-            std::cout << "item response: " << item << std::endl;
-            std::thread status_thread(&GDBServer::periodically_check_status, this);
-            status_thread.detach();
-            continue;
-        } else if (str.rfind("\x003", 0) == 0) {
-            std::cout << "gdb interrupt command" << std::endl;
-            std::string_view interrupt = "$b";
-            auto item = writeread_(interrupt);
-            std::cout << "item response: " << item << std::endl;
-            response = "S05";
-        } else if (str.rfind("$s", 0) == 0) {
-            std::cout << "gdb si command" << std::endl;
-            auto item = writeread_("$s");
-            std::cout << "item response: " << item << std::endl;
-            response = "S05";
-        } else if (str.rfind("$p", 0) == 0) {
-            std::cout << "gdb p command" << str.substr(1) << std::endl;
-            response = writeread_(str.substr(0, str.size() - 3));
-        } else if (str.rfind("$Z", 0) == 0) {
-            std::cout << "gdb breakpoint command" << std::endl;
-            auto item = writeread_(str.substr(0, str.size() - 3));
-            std::cout << "item response: " << item << std::endl;
-            response = "OK";
-        } else if (str.rfind("$z", 0) == 0) {
-            std::cout << "gdb remove breakpoint command" << std::endl;
-            auto item = writeread_(str.substr(0, str.size() - 3));
-            std::cout << "item response: " << item << std::endl;
-            response = "OK";
-        } else {
-            response = "";
-        }
-
-        send_gdb_packet(response);
-
-
-        //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-
-         
-    } 
-
+  while (!signal_exit_) {
+    if (!wait_readable(sockfd_, 100))
+      continue;
+    connfd_ = accept(sockfd_, nullptr, nullptr);
+    if (connfd_ < 0) {
+      throw RuntimeException("server accept failed");
+    }
+    int option = 1;
+    setsockopt(connfd_, IPPROTO_TCP, TCP_NODELAY, &option, sizeof(option));
+    std::cout << "gdb connected" << std::endl;
+    serve();
+    close(connfd_);
+    connfd_ = -1;
+    std::cout << "gdb disconnected, node continues" << std::endl;
+  }
 }
+
 } // namespace obot
