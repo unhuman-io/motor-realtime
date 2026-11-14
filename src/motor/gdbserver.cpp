@@ -193,6 +193,19 @@ bool GDBServer::handle(const std::string &packet, std::string &reply) {
     return packet[0] != 'k';
   } else if (packet[0] == 'M') {
     reply = memory_write(packet);
+  } else if (packet == "qRcmd,6c697665") {
+    // monitor live: the node continues and gdb keeps its prompt, as when it
+    // connected. gdb has no breakpoints in the node while it has the prompt.
+    target("c");
+    state_ = State::LIVE;
+    const std::string text =
+        "node continues: memory is live, the registers are a sample "
+        "(maintenance flush register-cache for a new one)\n";
+    static const char hex[] = "0123456789abcdef";
+    for (unsigned char c : text) {
+      reply += hex[c >> 4];
+      reply += hex[c & 0xF];
+    }
   } else if (packet[0] == '?') {
     reply = target("?");
     if (state_ == State::RUNNING)

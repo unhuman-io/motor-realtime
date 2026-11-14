@@ -15,7 +15,8 @@ namespace obot {
 // stopping while gdb waits.
 //
 // The node is not stopped when gdb connects, though gdb is told so: memory is
-// live and the registers are a sample, until gdb continues. When gdb leaves,
+// live and the registers are a sample, until gdb continues. `monitor live` in
+// gdb gets back to that after a stop. When gdb leaves,
 // the node's breakpoints are removed and it continues.
 //
 //   motor_util -f can0:1 --no-list gdbserver
