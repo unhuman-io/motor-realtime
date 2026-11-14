@@ -223,6 +223,15 @@ void GDBServer::serve() {
   char buf[4096];
   state_ = State::LIVE;
   close_ = false;
+  // A node without the packets, its bootloader for one, answers nothing gdb
+  // can use: gdb then waits for a stop that never comes, at full cpu load
+  const std::string stop = target("?");
+  if (stop.empty() || stop[0] != 'T') {
+    std::cerr << "the node does not answer gdb's packets (reply to ?: '" << stop
+              << "'): is it in its bootloader? Closing the connection."
+              << std::endl;
+    return;
+  }
   auto last_check = std::chrono::steady_clock::now();
   while (!signal_exit_ && !close_) {
     const int period_ms =
