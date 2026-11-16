@@ -267,6 +267,35 @@ class CANFile : public TextFile {
     std::string lock_file_;
 };
 
+// A node's reply to an enum request that goes to it alone. false without a
+// reply, and with the empty reply of firmware from before EnumResponse.
+static bool read_enum(const std::string &ifname, uint32_t devnum,
+                      int timeout_ms, EnumResponse &response) {
+  int fd = MotorCAN::open_socket(ifname);
+  struct can_filter rfilter[1];
+  rfilter[0].can_id = 0xf << 7 | devnum;
+  rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
+  struct canfd_frame frame = {};
+  frame.can_id = 0xf << 7 | devnum;
+  frame.flags = CANFD_BRS;
+  bool result = false;
+  if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) ==
+          0 &&
+      ::write(fd, &frame, sizeof(frame)) == sizeof(frame)) {
+    pollfd tmp = {};
+    tmp.fd = fd;
+    tmp.events = POLLIN;
+    if (::poll(&tmp, 1, timeout_ms) > 0 &&
+        ::read(fd, &frame, sizeof(frame)) > 0 &&
+        frame.len >= sizeof(response)) {
+      std::memcpy(&response, frame.data, sizeof(response));
+      result = true;
+    }
+  }
+  ::close(fd);
+  return result;
+}
+
 MotorCAN::MotorCAN(std::string address) {
     int n = address.find(":");
     if (n == std::string::npos) {
@@ -295,15 +324,22 @@ MotorCAN::MotorCAN(std::string address) {
     }
 
     motor_txt_ = std::move(std::unique_ptr<CANFile>(new CANFile(dev_path_, devnum_)));
-	
-    messages_version_ = operator[]("messages_version").get();
-    name_ = operator[]("name").get();
-    version_ = operator[]("version").get();
-    board_name_ = operator[]("board_name").get();
-    board_rev_ = operator[]("board_rev").get();
-    board_num_ = operator[]("board_num").get();
-    config_ = operator[]("config").get();
-    serial_number_ = operator[]("serial").get();
+
+    // The description is the node's enum reply: nothing is asked through the
+    // text api, which a node may not have. Earlier firmware has it only there.
+    EnumResponse enum_response;
+    if (read_enum(dev_path_, devnum_, timeout_ms_, enum_response)) {
+      parse_enum(enum_response);
+    } else {
+      messages_version_ = operator[]("messages_version").get();
+      name_ = operator[]("name").get();
+      version_ = operator[]("version").get();
+      board_name_ = operator[]("board_name").get();
+      board_rev_ = operator[]("board_rev").get();
+      board_num_ = operator[]("board_num").get();
+      config_ = operator[]("config").get();
+      serial_number_ = operator[]("serial").get();
+    }
     // hex in base_path_ for convenience
 #if __has_include(<charconv>)
     char buffer[5] = {"0x"};
