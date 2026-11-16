@@ -1,7 +1,10 @@
 #pragma once
 #include <atomic>
 #include <deque>
+#include <chrono>
+#include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -41,17 +44,47 @@ class GDBServer {
         RUNNING,
         STOPPED
       }; // LIVE: running, gdb takes it as stopped
-      bool wait_readable(int fd, int timeout_ms);
+      // What gdb gets for a packet. None: not yet, it waits for the node to
+      // stop and the stop reply is its answer (check_target).
+      using Reply = std::optional<std::string>;
+      struct Handler;
+      static const Handler handlers_[];
+
+      // A connection, from gdb's first byte to its last
       void serve();
-      // The reply for gdb, false for none
-      bool handle(const std::string &packet, std::string &reply);
-      std::string target(const std::string &request);
-      std::string memory_write(const std::string &packet);
+      bool begin();
+      void receive(std::string &in);
+      void packet_from_gdb(const std::string &packet, bool intact);
+      void interrupt();
+      bool wait_readable(int fd, int timeout_ms);
       void send_raw(const std::string &data);
       void send_packet(const std::string &payload);
+      void send_notification(const std::string &payload);
+
+      // gdb's packets, see handlers_ for which is which
+      Reply handle(const std::string &packet);
+      Reply supported(const std::string &packet);
+      Reply features(const std::string &packet);
+      Reply attached(const std::string &packet);
+      Reply symbols(const std::string &packet);
+      Reply resume_actions(const std::string &packet);
+      Reply set_non_stop(const std::string &packet);
+      Reply next_stop(const std::string &packet);
+      Reply resume_threads(const std::string &packet);
+      Reply stop_reason(const std::string &packet);
+      Reply resume(const std::string &packet);
+      Reply detach(const std::string &packet);
+      Reply kill(const std::string &packet);
+      Reply memory_write(const std::string &packet);
+      Reply monitor_live(const std::string &packet);
+      Reply pass_on(const std::string &packet);
+
+      // The node
+      std::string target(const std::string &request);
       void check_target();
       void check_threads();
       uint32_t read_status(uint32_t &event_count);
+      std::string take_stop();
 
       std::function<std::string(std::string_view)> writeread_;
       std::atomic<bool> &signal_exit_;
@@ -68,6 +101,7 @@ class GDBServer {
       uint32_t known_stopped_ = 0; // threads gdb knows as stopped, a bit each
       uint32_t event_count_ = 0;
       std::string last_stop_;
+      std::chrono::steady_clock::time_point last_check_; // of the node
 };
 
 }
