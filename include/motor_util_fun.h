@@ -1,11 +1,14 @@
 #pragma once
 
-#include <time.h>
-#include <cstdint>
 #include "exception.h"
-#include <vector>
 #include "motor_messages.h"
 #include <chrono>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <string>
+#include <time.h>
+#include <vector>
 
 namespace obot {
 
@@ -22,6 +25,30 @@ class MotorDescription {
     std::string board_num() const { return board_num_; }
     std::string messages_version() const { return messages_version_; }
     std::string config() const { return config_; }
+    // The description out of a node's enum reply, as the text api gives it. A
+    // node leaves what it doesn't know zero, which is an empty string here.
+    void parse_enum(const EnumResponse &e) {
+      auto text = [](const char *s, size_t size) {
+        return std::string(s, strnlen(s, size));
+      };
+      char c[40];
+      messages_version_ = std::to_string(e.messages_version[0]) + "." +
+                          std::to_string(e.messages_version[1]);
+      std::snprintf(c, sizeof(c), "%02x%02x%02x%02x%02x%02x",
+                    e.serial_number[0], e.serial_number[1], e.serial_number[2],
+                    e.serial_number[3], e.serial_number[4], e.serial_number[5]);
+      serial_number_ = c;
+      std::snprintf(c, sizeof(c), "v%u.%u-%u-g%07x%s", e.version[0],
+                    e.version[1], e.version_commits,
+                    static_cast<unsigned>(e.version_hash & ~ENUM_VERSION_DIRTY),
+                    e.version_hash & ENUM_VERSION_DIRTY ? "-dirty" : "");
+      version_ = c;
+      name_ = text(e.name, sizeof(e.name));
+      board_name_ = text(e.board_name, sizeof(e.board_name));
+      board_rev_ = board_name_.empty() ? "" : std::to_string(e.board_rev);
+      board_num_ = board_name_.empty() ? "" : std::to_string(e.board_num);
+      config_ = "";
+    }
     virtual std::string short_version() const {
         std::string s = version();
         if (auto pos = s.find("~"); pos != std::string::npos) {
