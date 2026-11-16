@@ -1,5 +1,6 @@
 #include "gdbserver.h"
 #include "exception.h"
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <netinet/in.h>
@@ -47,9 +48,13 @@ bool starts_with(const std::string &s, std::string_view prefix) {
 }
 
 const size_t max_request = 63; // characters of a text request, with its $
-const int running_poll_ms = 5; // how often the node is asked if it stopped
-const int non_stop_poll_ms = 10; // the same in non-stop mode, for any thread
-const int keepalive_ms = 500;  // and otherwise, so that it knows of a host
+// How often the node is asked if it stopped, of the can bus that others use
+// too: often for a moment after gdb's last packet, which a step, a next or a
+// breakpoint nearby answers within, and seldom from then on.
+const int quick_poll_ms = 10;
+const int quick_ms = 200; // the moment
+const int running_poll_ms = 100;
+const int keepalive_ms = 500;  // with nothing to stop: it knows of a host
 const int idle_read_ms = 50;   // how long gdb is waited for at a time
 const uint32_t max_threads = 8;
 
@@ -434,6 +439,7 @@ void GDBServer::send_notification(const std::string &payload) {
 void GDBServer::interrupt() {
   if (verbose_)
     std::cout << "from gdb: interrupt" << std::endl;
+  last_request_ = std::chrono::steady_clock::now();
   if (!non_stop_) {
     target("b");
     state_ = State::RUNNING; // the stop reply comes when the node has stopped
@@ -446,6 +452,7 @@ void GDBServer::packet_from_gdb(const std::string &packet, bool intact) {
   send_raw(intact ? "+" : "-");
   if (!intact)
     return;
+  last_request_ = std::chrono::steady_clock::now();
   if (const Reply reply = handle(packet))
     send_packet(*reply);
   if (state_ == State::RUNNING || non_stop_)
@@ -502,23 +509,29 @@ void GDBServer::serve() {
     return;
   std::string in;
   char buf[4096];
-  last_check_ = std::chrono::steady_clock::now();
+  using std::chrono::milliseconds;
+  using std::chrono::steady_clock;
+  last_check_ = last_request_ = steady_clock::now();
   while (!signal_exit_ && !close_) {
-    // gdb waits for a stop: the node is asked often. Otherwise only to keep
-    // it knowing of a host.
+    // gdb waits for a stop, of any thread in non-stop mode: the node is asked
+    // if it has. Otherwise only to keep it knowing of a host.
     const bool waiting = state_ == State::RUNNING || non_stop_;
-    const int check_period_ms = non_stop_ ? non_stop_poll_ms
-                                : waiting ? running_poll_ms
-                                          : keepalive_ms;
-    if (wait_readable(connfd_, waiting ? running_poll_ms : idle_read_ms)) {
+    const bool quick =
+        steady_clock::now() - last_request_ < milliseconds(quick_ms);
+    const milliseconds check_period(!waiting ? keepalive_ms
+                                    : quick  ? quick_poll_ms
+                                             : running_poll_ms);
+    const auto left = std::chrono::duration_cast<milliseconds>(
+        last_check_ + check_period - steady_clock::now());
+    if (wait_readable(connfd_,
+                      std::clamp<int>(left.count(), 0, idle_read_ms))) {
       ssize_t n = read(connfd_, buf, sizeof(buf));
       if (n <= 0)
         break;
       in.append(buf, n);
     }
     receive(in);
-    if (std::chrono::steady_clock::now() - last_check_ >=
-        std::chrono::milliseconds(check_period_ms))
+    if (steady_clock::now() - last_check_ >= check_period)
       check_target();
   }
   target("D");
