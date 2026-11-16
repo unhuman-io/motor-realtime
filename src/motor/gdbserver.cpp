@@ -188,8 +188,10 @@ bool GDBServer::handle(const std::string &packet, std::string &reply) {
     non_stop_ = reply == "OK" && packet.back() == '1';
     stops_.clear();
     notified_ = false;
-    known_stopped_ = 0;
-    read_status(event_count_);
+    // what is stopped already is for gdb's ? to tell, not for a notification
+    // while it is still connecting: a node can have a thread that is always
+    // stopped
+    known_stopped_ = read_status(event_count_);
   } else if (packet == "vStopped") {
     // the next thread that stopped, after the one of the notification
     if (stops_.empty()) {
