@@ -22,6 +22,7 @@
 #include "terminal.h"
 #include <cxxabi.h>
 #include "gdbserver.h"
+#include "can_time_sync.h"
 #include "motor_eth_l2.h"
 
 using namespace obot;
@@ -379,6 +380,15 @@ int _main(int argc, char** argv) {
         ->add_option("--port", gdb_port, "TCP port for gdb's target remote")
         ->capture_default_str();
     gdbserver->add_flag("--verbose", gdb_verbose, "Print the packets");
+    auto time_sync = app.add_subcommand("time_sync", "Send this host's time to the nodes of CAN interface(s), periodically. Doesn't connect to motors");
+    std::vector<std::string> time_interfaces = {"can0"};
+    double time_period_s = 1;
+    int time_domain = 0;
+    bool time_verbose = false;
+    time_sync->add_option("--interface", time_interfaces, "CAN interface(s)")->expected(1,-1)->capture_default_str();
+    time_sync->add_option("--period", time_period_s, "Seconds between two times")->capture_default_str();
+    time_sync->add_option("--domain", time_domain, "Time domain")->check(CLI::Range(0, 15))->capture_default_str();
+    time_sync->add_flag("--verbose", time_verbose, "Print each time sent");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
@@ -387,6 +397,10 @@ int _main(int argc, char** argv) {
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });
+
+    if (*time_sync) {
+        return obot::can_time_sync(time_interfaces, time_period_s, static_cast<uint8_t>(time_domain), time_verbose, signal_exit);
+    }
 
     if (command_gpio) {
         command.misc.gpio = 1;
