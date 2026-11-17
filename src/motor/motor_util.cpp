@@ -381,11 +381,12 @@ int _main(int argc, char** argv) {
         ->capture_default_str();
     gdbserver->add_flag("--verbose", gdb_verbose, "Print the packets");
     auto time_sync = app.add_subcommand("time_sync", "Send this host's time to the nodes of CAN interface(s), periodically. Doesn't connect to motors");
-    std::vector<std::string> time_interfaces = {"can0"};
+    time_sync->footer(obot::can_time_sync_help);
+    std::vector<std::string> time_interfaces = {"any"};
     double time_period_s = 1;
     int time_domain = 0;
     bool time_verbose = false;
-    time_sync->add_option("--interface", time_interfaces, "CAN interface(s)")->expected(1,-1)->capture_default_str();
+    time_sync->add_option("--interface", time_interfaces, "CAN interface(s), any: all that are up")->expected(1,-1)->capture_default_str();
     time_sync->add_option("--period", time_period_s, "Seconds between two times")->capture_default_str();
     time_sync->add_option("--domain", time_domain, "Time domain")->check(CLI::Range(0, 15))->capture_default_str();
     time_sync->add_flag("--verbose", time_verbose, "Print each time sent");

@@ -24,6 +24,8 @@ _motor_util_completion()
         case ${COMP_WORDS[$i]} in
             set) subcommand=set ; break ;; 
             read) subcommand=read ; break ;;
+            time_sync) subcommand=time_sync ; break ;;
+            gdbserver) subcommand=gdbserver ; break ;;
             -n|--names) subcommand=names ; break ;;
             -p|--paths) subcommand=paths ; break ;;
             -d|--devpaths) subcommand=devpaths ; break ;;
@@ -65,6 +67,26 @@ _motor_util_completion()
         read) words="--poll --ppoll --aread --nonblock --frequency --statistics --read-write-statistics --text --fast_log --fast_log2 -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision -m --short --print-reserved set -h --help";
             case $last in
                 --frequency|--timestamp_frequency|-p|--precision) return 0 ;;
+            esac ;;
+        time_sync) words="--interface --period --domain --verbose -h --help --help-all";
+            # the can interfaces: type 280 in sysfs, and any for all that are up
+            local can_interfaces="any" type_file
+            for type_file in /sys/class/net/*/type; do
+                [ "$(cat $type_file 2>/dev/null)" == 280 ] && can_interfaces+=" $(basename $(dirname $type_file))"
+            done
+            case $last in
+                --period) return 0 ;;
+                --domain) words="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15" ;;
+                --interface) words=$can_interfaces ;;
+                *)
+                    # --interface takes several: more of them, or the next option
+                    local k=$((COMP_CWORD-1))
+                    while [[ $k -gt 0 && ${COMP_WORDS[$k]} != -* && ${COMP_WORDS[$k]} != time_sync ]]; do (( k-- )); done
+                    [[ ${COMP_WORDS[$k]} == --interface ]] && words="$can_interfaces $words" ;;
+            esac ;;
+        gdbserver) words="--port --verbose -h --help";
+            case $last in
+                --port) return 0 ;;
             esac ;;
         names) words="$(motor_util --list-names-only) $base_words" ;;
         paths) words="$(motor_util --list-path-only) $base_words" ;;
