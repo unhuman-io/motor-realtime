@@ -4,7 +4,6 @@
 #include <linux/can/raw.h>
 #include <linux/net_tstamp.h>
 #include <net/if.h>
-#include <net/if_arp.h>
 #include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -50,6 +49,7 @@ namespace {
 const canid_t time_id = 0 << 7 | 0x7F;  // the time message, to all nodes
 const uint8_t sync_type = 0x10, follow_up_type = 0x18;
 const int echo_timeout_ms = 100;
+const int arphrd_can = 280;  // ARPHRD_CAN, which the headers of older C libraries do not have
 const int64_t second_ns = 1000000000;
 
 int64_t to_ns(const timespec &t) { return t.tv_sec * second_ns + t.tv_nsec; }
@@ -78,7 +78,7 @@ std::vector<std::string> can_time_sync_interfaces() {
     unsigned flags = 0;
     std::ifstream(sys + "/type") >> type;
     std::ifstream(sys + "/flags") >> std::hex >> flags;
-    if (type == ARPHRD_CAN && (flags & IFF_UP)) interfaces.push_back(i->if_name);
+    if (type == arphrd_can && (flags & IFF_UP)) interfaces.push_back(i->if_name);
   }
   if_freenameindex(names);
   std::sort(interfaces.begin(), interfaces.end());
