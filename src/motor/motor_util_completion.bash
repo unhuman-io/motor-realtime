@@ -68,7 +68,7 @@ _motor_util_completion()
             case $last in
                 --frequency|--timestamp_frequency|-p|--precision) return 0 ;;
             esac ;;
-        time_sync) words="--interface --period --domain --verbose -h --help --help-all";
+        time_sync) words="--interface --period --domain --verbose --software -h --help --help-all";
             # the can interfaces: type 280 in sysfs, and any for all that are up
             local can_interfaces="any" type_file
             for type_file in /sys/class/net/*/type; do

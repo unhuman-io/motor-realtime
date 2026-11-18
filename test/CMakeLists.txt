@@ -5,3 +5,7 @@ add_test(NAME test_simulated_motor COMMAND test_simulated_motor)
 add_executable(test_motor test_motor.cpp)
 target_link_libraries(test_motor motor_manager)
 add_test(NAME test_motor COMMAND test_motor)
+
+add_executable(test_can_time_sync test_can_time_sync.cpp)
+target_link_libraries(test_can_time_sync motor_manager)
+add_test(NAME test_can_time_sync COMMAND test_can_time_sync)

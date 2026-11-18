@@ -385,11 +385,12 @@ int _main(int argc, char** argv) {
     std::vector<std::string> time_interfaces = {"any"};
     double time_period_s = 1;
     int time_domain = 0;
-    bool time_verbose = false;
+    bool time_verbose = false, time_software = false;
     time_sync->add_option("--interface", time_interfaces, "CAN interface(s), any: all that are up")->expected(1,-1)->capture_default_str();
     time_sync->add_option("--period", time_period_s, "Seconds between two times")->capture_default_str();
     time_sync->add_option("--domain", time_domain, "Time domain")->check(CLI::Range(0, 15))->capture_default_str();
     time_sync->add_flag("--verbose", time_verbose, "Print each time sent");
+    time_sync->add_flag("--software", time_software, "Don't try the interface's hardware timestamp of a sent frame");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
@@ -400,7 +401,7 @@ int _main(int argc, char** argv) {
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });
 
     if (*time_sync) {
-        return obot::can_time_sync(time_interfaces, time_period_s, static_cast<uint8_t>(time_domain), time_verbose, signal_exit);
+        return obot::can_time_sync(time_interfaces, time_period_s, static_cast<uint8_t>(time_domain), time_verbose, signal_exit, time_software);
     }
 
     if (command_gpio) {

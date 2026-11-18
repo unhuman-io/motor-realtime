@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <fstream>
@@ -19,6 +20,7 @@
 #include <map>
 #include <memory>
 #include <stdexcept>
+#include <vector>
 
 namespace obot {
 
@@ -42,12 +44,19 @@ const char *const can_time_sync_help =
     "same sequence it has the host's time for that moment, and sets its clock by it. "
     "A SYNC without its follow up sets nothing.\n"
     "\n"
-    "When the SYNC was sent is the kernel's time for the frame: with most drivers "
-    "when it went to the driver, not when it was on the bus.";
+    "When the SYNC was sent is the interface's hardware time for the frame, where "
+    "its driver gives one for sent frames. Else it falls back to software, and says "
+    "so: the kernel's time for the frame, which with most drivers is when it went to "
+    "the driver, not when it was on the bus.";
 
 namespace {
 const canid_t time_id = 0 << 7 | 0x7F;  // the time message, to all nodes
 const uint8_t sync_type = 0x10, follow_up_type = 0x18;
+// CANDeviceClock
+const size_t max_samples = 48;              // seconds that it looks back
+const double max_rate = 500e-6;             // more than two crystals differ by
+const int64_t jump_ns = 5000000;            // off by more: a clock was set
+const int64_t host_clock_ns = 100000000;    // this close to the kernel's time is no clock of its own
 const int echo_timeout_ms = 100;
 const int arphrd_can = 280;  // ARPHRD_CAN, which the headers of older C libraries do not have
 const int64_t second_ns = 1000000000;
@@ -85,8 +94,63 @@ std::vector<std::string> can_time_sync_interfaces() {
   return interfaces;
 }
 
-CANTimeSync::CANTimeSync(const std::string &interface, uint8_t domain)
-    : interface_(interface), domain_(domain & 0xF) {
+int64_t CANDeviceClock::difference_at(int64_t device_ns) const {
+  // How fast the two run apart. The frames that took least are the ones along
+  // the lower edge of all of them, the difference over the time: the rate is
+  // the slope of that edge at the middle of the time they span, which is the
+  // line below all frames that is closest to them. (The lower convex hull,
+  // and its side over the middle.)
+  double rate = 0;
+  if (samples_.size() >= 2) {
+    std::vector<Sample> hull;
+    for (const Sample &sample : samples_) {
+      while (hull.size() >= 2) {
+        const Sample &a = hull[hull.size() - 2], &b = hull[hull.size() - 1];
+        const double turn =
+            static_cast<double>(b.device_ns - a.device_ns) * static_cast<double>(sample.difference_ns - a.difference_ns) -
+            static_cast<double>(b.difference_ns - a.difference_ns) * static_cast<double>(sample.device_ns - a.device_ns);
+        if (turn > 0) break;  // b is below the line from a to this one: it stays
+        hull.pop_back();
+      }
+      hull.push_back(sample);
+    }
+    const int64_t middle = samples_.front().device_ns / 2 + samples_.back().device_ns / 2;
+    size_t side = 0;
+    while (side + 2 < hull.size() && hull[side + 1].device_ns < middle) side++;
+    rate = static_cast<double>(hull[side + 1].difference_ns - hull[side].difference_ns) /
+           static_cast<double>(hull[side + 1].device_ns - hull[side].device_ns);
+    rate = std::clamp(rate, -max_rate, max_rate);
+  }
+  // and how far apart they are now: that line, which is the least of the
+  // frames, each brought to now at that rate
+  int64_t difference = INT64_MAX;
+  for (const Sample &sample : samples_) {
+    difference = std::min(difference, sample.difference_ns +
+        static_cast<int64_t>(rate * static_cast<double>(device_ns - sample.device_ns)));
+  }
+  return difference;
+}
+
+int64_t CANDeviceClock::host_time(int64_t device_ns, int64_t kernel_ns) {
+  const int64_t difference = kernel_ns - device_ns;
+  // the driver has made it this host's time already
+  if (difference > -host_clock_ns && difference < host_clock_ns) return device_ns;
+  // one of the clocks was set: from the start
+  if (!samples_.empty() && std::llabs(difference - difference_at(device_ns)) > jump_ns) {
+    samples_.clear();
+  }
+  // Of each second on the interface's clock the frame that took least is kept
+  if (!samples_.empty() && samples_.back().device_ns / second_ns == device_ns / second_ns) {
+    if (difference < samples_.back().difference_ns) samples_.back() = {device_ns, difference};
+  } else {
+    samples_.push_back({device_ns, difference});
+    if (samples_.size() > max_samples) samples_.pop_front();
+  }
+  return device_ns + difference_at(device_ns);
+}
+
+CANTimeSync::CANTimeSync(const std::string &interface, uint8_t domain, bool software)
+    : interface_(interface), domain_(domain & 0xF), software_(software) {
   const auto fail = [this](const std::string &what) {
     const int saved = errno;
     if (fd_ >= 0) ::close(fd_);
@@ -100,7 +164,9 @@ CANTimeSync::CANTimeSync(const std::string &interface, uint8_t domain)
   // Only this socket's own SYNC comes back here, with the kernel's time for it
   can_filter filter = {time_id, CAN_SFF_MASK | CAN_EFF_FLAG | CAN_RTR_FLAG};
   const int on = 1;
-  const int timestamps = SOF_TIMESTAMPING_RX_SOFTWARE | SOF_TIMESTAMPING_SOFTWARE;
+  // the kernel's time of a frame, and the interface's where it has one
+  const int timestamps = SOF_TIMESTAMPING_RX_SOFTWARE | SOF_TIMESTAMPING_SOFTWARE |
+                         SOF_TIMESTAMPING_RX_HARDWARE | SOF_TIMESTAMPING_RAW_HARDWARE;
   if (::setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &filter, sizeof(filter)) < 0 ||
       ::setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_RECV_OWN_MSGS, &on, sizeof(on)) < 0 ||
       ::setsockopt(fd_, SOL_SOCKET, SO_TIMESTAMPING, &timestamps, sizeof(timestamps)) < 0) {
@@ -163,6 +229,11 @@ CANTimeSync::Result CANTimeSync::send() {
         timespec stamps[3];
         std::memcpy(stamps, CMSG_DATA(c), sizeof(stamps));
         time_ns = to_ns(stamps[0]);  // the kernel's, in CLOCK_REALTIME
+        const int64_t device_ns = to_ns(stamps[2]);  // the interface's, in its own clock
+        if (!software_ && device_ns != 0 && time_ns != 0) {
+          time_ns = device_clock_.host_time(device_ns, time_ns);
+          result.hardware = true;
+        }
       }
     }
     // The kernel starts to keep the times of frames a moment after the first
@@ -189,11 +260,13 @@ CANTimeSync::Result CANTimeSync::send() {
 }
 
 int can_time_sync(const std::vector<std::string> &interfaces, double period_s,
-                  uint8_t domain, bool verbose, std::atomic<bool> &signal_exit) {
+                  uint8_t domain, bool verbose, std::atomic<bool> &signal_exit,
+                  bool software) {
   const bool any = std::find(interfaces.begin(), interfaces.end(), "any") != interfaces.end();
   struct Sender {
     std::unique_ptr<CANTimeSync> sync;
     std::string error;  // of the last time, which is said once
+    int hardware = -1;  // whether the last time was the interface's: also said once
   };
   std::map<std::string, Sender> senders;
   // With "any" the interfaces are looked for again each period: one that
@@ -210,7 +283,7 @@ int can_time_sync(const std::vector<std::string> &interfaces, double period_s,
     }
     for (const std::string &name : names) {
       if (senders.count(name)) continue;
-      senders[name].sync = std::make_unique<CANTimeSync>(name, domain);
+      senders[name].sync = std::make_unique<CANTimeSync>(name, domain, software);
       std::cout << name << ": sending the time every " << period_s << " s" << std::endl;
     }
   };
@@ -242,10 +315,21 @@ int can_time_sync(const std::vector<std::string> &interfaces, double period_s,
         }
         sender.error = result.error;
       }
+      if (result.error.empty() && result.hardware != sender.hardware && !software) {
+        if (result.hardware) {
+          std::cout << name << ": hardware timestamps for the times sent" << std::endl;
+        } else {
+          std::cout << name << ": no hardware timestamp for a sent frame from this "
+                    << "interface: falling back to software, the kernel's time for it"
+                    << std::endl;
+        }
+        sender.hardware = result.hardware;
+      }
       if (verbose && result.error.empty()) {
         std::cout << name << " " << result.time_ns / second_ns << "." << std::setw(9)
                   << std::setfill('0') << result.time_ns % second_ns << std::setfill(' ')
-                  << " after " << result.delay_ns / 1000 << " us" << std::endl;
+                  << " after " << result.delay_ns / 1000 << " us"
+                  << (result.hardware ? " hardware" : " software") << std::endl;
       }
     }
     const int64_t at = to_ns(next) + period_ns;
