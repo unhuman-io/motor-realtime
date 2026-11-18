@@ -28,7 +28,13 @@ set(CPACK_OUTPUT_FILE_PREFIX packages)
 EXECUTE_PROCESS( COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCH)
 set(CPACK_PACKAGE_FILE_NAME motor-realtime-${ARCH})
 configure_file(rt_version.h.in rt_version.h)
-configure_file(postinst.in postinst)
+# The package's maintainer scripts run with / as the working directory, so they need the
+# full path the files are installed to (CPack's DEB generator installs under /usr unless
+# told otherwise).
+if(NOT CPACK_PACKAGING_INSTALL_PREFIX)
+    set(CPACK_PACKAGING_INSTALL_PREFIX /usr)
+endif()
+configure_file(postinst.in postinst @ONLY)
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA postinst)
 INCLUDE(CPack)
 

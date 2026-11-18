@@ -1,4 +1,12 @@
 #!/bin/bash
 
-setcap cap_net_raw+ep ${CMAKE_INSTALL_BINDIR}/motor_util
-setcap cap_net_raw+ep ${CMAKE_INSTALL_BINDIR}/eth2vcan
+# Lets motor_util and eth2vcan open raw sockets (CAN, ethernet) without root.
+# Not every build installs both programs, and a missing capability is not a reason to
+# leave the package half installed.
+for program in motor_util eth2vcan; do
+    path=@CPACK_PACKAGING_INSTALL_PREFIX@/@CMAKE_INSTALL_BINDIR@/$program
+    if [ -e "$path" ]; then
+        setcap cap_net_raw+ep "$path" || echo "motor-realtime: could not set cap_net_raw on $path" >&2
+    fi
+done
+exit 0
