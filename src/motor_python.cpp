@@ -3,6 +3,7 @@
 #include <pybind11/operators.h>
 #include "motor_manager.h"
 #include "rt_version.h"
+#include "motor_can.h"
 #include <sstream>
 
 namespace py = pybind11;
@@ -125,6 +126,7 @@ PYBIND11_MODULE(motor, m)
         .value("FindLimits", ModeDesired::FIND_LIMITS)
         .value("Admittance", ModeDesired::ADMITTANCE)
         .value("Tuning", ModeDesired::TUNING)
+        .value("MotorTorque", ModeDesired::MOTOR_TORQUE)
         .value("DriverEnable", ModeDesired::DRIVER_ENABLE)
         .value("DriverDisable", ModeDesired::DRIVER_DISABLE)
         .value("ClearFaults", ModeDesired::CLEAR_FAULTS)
@@ -136,7 +138,11 @@ PYBIND11_MODULE(motor, m)
         .export_values();
 
     m.def("mode_color", &mode_color)
-     .def("max_api_packet_size", []{ return MAX_API_LONG_DATA_SIZE; });
+     .def("max_api_packet_size", []{ return MAX_API_LONG_DATA_SIZE; })
+     // Set before get_motors_can(); Motor.set_timeout_ms() only reaches motors that
+     // already exist, so it cannot widen discovery.
+     .def("set_can_default_timeout_ms", &MotorCAN::set_default_timeout_ms, py::arg("timeout_ms"))
+     .def("get_can_default_timeout_ms", &MotorCAN::get_default_timeout_ms);
 
     py::enum_<TuningMode>(m, "TuningMode")
         .value("Sine", TuningMode::SINE)
@@ -165,6 +171,13 @@ PYBIND11_MODULE(motor, m)
         .def_readwrite("tuning_mode", &TuningCommand::tuning_mode)
         .def_readwrite("bias", &TuningCommand::bias)
         .def_readwrite("frequency", &TuningCommand::frequency);
+
+    py::class_<MotorTorqueCommand>(m, "MotorTorqueCommand")
+        .def_readwrite("motor_torque", &MotorTorqueCommand::motor_torque);
+
+    py::class_<CurrentCommand>(m, "CurrentCommand")
+        .def_readwrite("iq", &CurrentCommand::iq)
+        .def_readwrite("id", &CurrentCommand::id);
 
     py::enum_<StepperMode>(m, "StepperMode")
         .value("StepperCurrent", StepperMode::STEPPER_CURRENT)
@@ -371,7 +384,26 @@ PYBIND11_MODULE(motor, m)
                 py::print("Error: json file " + json_ip_file + " not accessible");
             }
             return m.get_motors_by_ip(ips, connect, print_unconnected, allow_simulated);
-        }, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false);
+        }, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false)
+        .def("get_motors_by_eth_l2", [](MotorManager &m, std::vector<std::string> l2_string, bool connect, bool print_unconnected, bool allow_simulated) {
+            std::string config_dir = get_config_dir();
+            auto json = py::module::import("json");
+            std::string json_mac_file = config_dir + "device_mac_map.json";
+
+            if (access(json_mac_file.c_str(), F_OK) == 0) {
+                auto file = py::module::import("io").attr("open")(json_mac_file, "r");
+                auto motor_macs = json.attr("load")(file);
+                for (auto &address : l2_string) {
+                    if (motor_macs.contains(address)) {
+                        address = motor_macs[py::str(address)].cast<std::string>();
+                    }
+                }
+                return m.get_motors_by_eth_l2(l2_string, connect, print_unconnected, allow_simulated);
+            } else {
+                py::print("Error: json file " + json_mac_file + " not accessible");
+            }
+            return m.get_motors_by_eth_l2(l2_string, connect, print_unconnected, allow_simulated);
+        }, py::arg("l2_string"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false);
 
     m.def("get_config_dir", &get_config_dir);
     m.def("diff_mcu_time", [](uint32_t t1, uint32_t t2)

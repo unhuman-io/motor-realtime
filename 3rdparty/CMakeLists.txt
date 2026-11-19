@@ -1,8 +1,8 @@
 if(BUILD_MOTOR_UTIL)
-    file(DOWNLOAD "https://github.com/CLIUtils/CLI11/releases/download/v2.3.2/CLI11.hpp" 3rdparty/CLI11.hpp
-        EXPECTED_MD5 b67d76d9df58edcd8b301cad0c0e323b)
-    file(DOWNLOAD "https://github.com/CLIUtils/CLI11/raw/v2.3.2/LICENSE" 3rdparty/LICENSE/LICENSE-CLI11
-        EXPECTED_MD5 afb20fe5f67e21074b10b864d9563c11)
+    file(DOWNLOAD "https://github.com/CLIUtils/CLI11/releases/download/v2.7.2/CLI11.hpp" 3rdparty/CLI11.hpp
+        EXPECTED_HASH SHA256=ffa9a30da295c5858fb5f91f9f45771bab09471d7010a34c7c68c857a330dd76)
+    file(DOWNLOAD "https://github.com/CLIUtils/CLI11/raw/v2.7.2/LICENSE" 3rdparty/LICENSE/LICENSE-CLI11
+        EXPECTED_MD5 744e78b25a90f01b35b087d9fb985ed4)
     add_library(cli11 INTERFACE)
     install(FILES ${CMAKE_BINARY_DIR}/3rdparty/LICENSE/LICENSE-CLI11 DESTINATION 
         ${CMAKE_INSTALL_DATADIR}/${CMAKE_PROJECT_NAME}/LICENSE)

@@ -78,14 +78,18 @@ class SysfsFile : public TextFile {
     // locked/blocked to one caller so that a read is a response to write
     virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
-        lockf(fd_, F_LOCK, 0);
+        if (int retval = lockf(fd_, F_LOCK, 0); retval < 0) {
+            throw RuntimeErrnoException("error locking");
+        }
         auto retval = write(data_out, length_out);
         if (retval >= 0) {
             ::lseek(fd_, 0, SEEK_SET);
             retval = read(data_in, length_in);
         }
         ::lseek(fd_, 0, SEEK_SET);
-        lockf(fd_, F_ULOCK, 0);
+        if (int retval = lockf(fd_, F_ULOCK, 0); retval < 0) {
+            throw RuntimeErrnoException("error unlocking");
+        }
         return retval;
     }
  private:
@@ -121,14 +125,18 @@ class USBFile : public TextFile {
     // locked/blocked to one caller so that a read is a response to write
     virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
-        lockf(fd_, F_LOCK, 0);
+        if (int retval = lockf(fd_, F_LOCK, 0); retval < 0) {
+            throw RuntimeErrnoException("error locking");
+        }
         auto retval = write(data_out, length_out);
         if (retval >= 0) {
             ::lseek(fd_, 0, SEEK_SET);
             retval = read(data_in, length_in);
         }
         ::lseek(fd_, 0, SEEK_SET);
-        lockf(fd_, F_ULOCK, 0);
+        if (int retval = lockf(fd_, F_ULOCK, 0); retval < 0) {
+            throw RuntimeErrnoException("error unlocking");
+        }
         return retval;
     }
     uint32_t timeout_ms_ = 100;
@@ -175,7 +183,8 @@ class USBFile : public TextFile {
                 } else if (data[1] == 2) {
                     // long packet
                     uint16_t total_length = (uint8_t) data[4] | (data[5] << 8);
-                    uint16_t packet_number = (uint8_t) data[6] | (data[7] << 8);
+                    // todo: use packet_number
+                    // uint16_t packet_number = (uint8_t) data[6] | (data[7] << 8);
                     const uint8_t header_size = 8;
                     uint16_t total_count_received = retval - header_size;
                     // std::cout << "long packet: " << total_length << " " << packet_number << " " << total_count_received << " " << length << std::endl;
@@ -327,6 +336,7 @@ class Motor : public MotorDescription {
         return fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK); }
     virtual int clear_nonblock() { nonblock_ = false;
         return fcntl(fd_, F_SETFL, fd_flags_ & ~O_NONBLOCK); }
+    virtual void set_cmd_status_req() { cmd_status_req_ = true; }
     bool is_nonblocking() const { return nonblock_; }
     virtual ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
 			ssize_t read_error = read(); 
@@ -375,11 +385,31 @@ class Motor : public MotorDescription {
         fd_flags_ = fcntl(fd_, F_GETFL); 
         return fd_;
     }
-    int close() { return ::close(fd_); }
-    int fd_ = 0;
+    // Close only a descriptor this Motor actually opened.
+    //
+    // fd_ defaults to -1 rather than 0 because a Motor whose transport does not use the
+    // base descriptor never assigns it. MotorEthL2 is exactly that: its open() is empty and
+    // its two L2Files carry their own descriptors, so with a 0 default every eth-L2 Motor
+    // closed file descriptor 0 on destruction. MotorManager::get_motors_by_eth_l2 builds one
+    // per candidate address, including addresses that do not answer, so a discovery sweep
+    // closed fd 0 once per candidate. Where fd 0 was open, that destroyed it and the number
+    // was then recycled onto whatever opened next.
+    //
+    // Clearing the field before closing also makes a second close a no-op rather than a
+    // close of a number that may since have been reused.
+    int close() {
+        int fd = fd_;
+        fd_ = -1;
+        if (fd < 0) {
+            return 0;
+        }
+        return ::close(fd);
+    }
+    int fd_ = -1;
     int fd_flags_;
     bool nonblock_ = false;
     bool no_write_ = false;
+    bool cmd_status_req_ = false;
     Status status_ = {};
     Command command_ = {};
     std::string attr_path_;

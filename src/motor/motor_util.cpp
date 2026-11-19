@@ -1,6 +1,7 @@
 #include "motor_manager.h"
 #include "motor.h"
 #include "motor_uart.h"
+#include "motor_can.h"
 #include <iostream>
 #include <iomanip>
 #include <chrono>
@@ -21,6 +22,7 @@
 #include "terminal.h"
 #include <cxxabi.h>
 #include "gdbserver.h"
+#include "motor_eth_l2.h"
 
 using namespace obot;
 
@@ -89,7 +91,9 @@ void raw_packet_printer(bool set_api, bool set, bool ip_option, std::vector<std:
         packet_data = parser.generatePacket(packet_data, length, packet_id, &length_out);
         length = length_out;
     }
-    write(1, packet_data, length);
+    if (int retval = write(1, packet_data, length); retval < 0) {
+        throw RuntimeErrnoException("error writing to stdout");
+    }
     exit(0);
 }
 
@@ -172,6 +176,32 @@ struct ReadOptions {
     bool print_reserved;
 };
 
+// AI generated formatter for fully expanded --help-all
+class DeepHelpFormatter : public CLI::Formatter {
+public:
+    std::string make_expanded(const CLI::App *sub, CLI::AppFormatMode mode) const override {
+        std::string out = std::string(ANSI_YELLOW) + std::string(sub->get_name()) + std::string(ANSI_RESET) + "\n";
+        out += make_description(sub);
+        out += make_positionals(sub);
+        out += make_groups(sub, CLI::AppFormatMode::Sub);
+
+        auto subcommands = sub->get_subcommands(
+            [](const CLI::App *app) { 
+                return !app->get_name().empty() && app->get_group() != ""; 
+            }
+        );
+
+        if(!subcommands.empty()) {
+            out += "\nSubcommands:\n";
+            for(const CLI::App *scom : subcommands) {
+                out += "  ---\n";
+                out += make_expanded(scom, mode);
+            }
+        }
+        return out;
+    }
+};
+
 int _main(int argc, char** argv) {
     CLI::App app{"Utility for communicating with motor drivers\n"
                  "\n"
@@ -181,6 +211,7 @@ int _main(int argc, char** argv) {
                  "    /etc/motor_util/\n"
                  "    /usr/share/motor-realtime/\n"};
     bool verbose_list = false, no_list = false, version = false, list_names=false, list_path=false, list_devpath=false, list_serial_number=false, list_devnum=false;
+    bool list_ethernet_interfaces = false;
     bool no_dfu_list = false;
     bool user_space_driver = false;
     std::vector<std::string> names = {};
@@ -199,6 +230,8 @@ int _main(int argc, char** argv) {
     std::string config_dir = get_config_dir();
     std::string json_ip_file_default = config_dir + "device_ip_map.json";
     std::string json_ip_file = json_ip_file_default;
+    std::string json_mac_file_default = config_dir + "device_mac_map.json";
+    std::string json_mac_file = json_mac_file_default;
     bool no_print_unconnected = false;
     Command command = {};
     std::vector<std::pair<std::string, ModeDesired>> mode_map;
@@ -221,6 +254,7 @@ int _main(int argc, char** argv) {
     int run_stats = 100;
     int timeout_ms = 10;
     bool allow_simulated = false;
+    bool use_cmd_status_req = false;
     Motor::MessagesCheck check_messages_version = Motor::MessagesCheck::MAJOR;
     std::vector<std::pair<std::string, Motor::MessagesCheck>> messages_check_map {
         {"none", Motor::MessagesCheck::NONE}, {"major", Motor::MessagesCheck::MAJOR},
@@ -232,6 +266,8 @@ int _main(int argc, char** argv) {
         .csv = false, .reconnect = false, .read_write_statistics = false,
         .bits={100,1}, .compute_velocity = false, .timestamp_frequency_hz=170e6, .precision=5};
     bool get_log = false;
+    app.formatter(std::make_shared<DeepHelpFormatter>());
+    app.set_help_all_flag("--help-all", "Expand all help options and subcommands");
     auto set = app.add_subcommand("set", "Send data to motor(s)");
     set->add_option("--host_time", command.host_timestamp, "Host time");
     set->add_option("--mode", command.mode_desired, "Mode desired")->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -242,6 +278,12 @@ int _main(int argc, char** argv) {
     set->add_option("--torque_dot", command.torque_dot_desired, "Torque dot desired");
     set->add_option("--reserved", command.reserved, "Reserved command");
     set->add_option("--gpio", command_gpio, "GPIO output");
+    set->add_flag("--cmd-status-req", use_cmd_status_req, "Request status on set");
+    auto current_command_mode = set->add_subcommand("current", "Current control mode")->final_callback([&](){command.mode_desired = ModeDesired::CURRENT;})->fallthrough();
+    current_command_mode->add_option("--iq", command.current.iq, "Q axis current (A peak)");
+    current_command_mode->add_option("--id", command.current.id, "D axis current (A peak)");
+    auto motor_torque_mode = set->add_subcommand("motor_torque", "Motor torque control mode")->final_callback([&](){command.mode_desired = ModeDesired::MOTOR_TORQUE;})->fallthrough();
+    motor_torque_mode->add_option("--motor_torque", command.motor_torque.motor_torque, "Motor torque (Nm)");
     auto state_mode = set->add_subcommand("state", "State control mode")->final_callback([&](){command.mode_desired = ModeDesired::STATE;})->fallthrough();
     state_mode->add_option("--kp", command.state.kp, "Position error gain");
     state_mode->add_option("--kd", command.state.kd, "Velocity error gain");
@@ -310,6 +352,7 @@ int _main(int argc, char** argv) {
     app.add_flag("--list-devpath-only", list_devpath, "Print only connected motor devpaths");
     app.add_flag("--list-serial-number-only", list_serial_number, "Print only connected motor serial numbers");
     app.add_flag("--list-devnum-only", list_devnum, "Print only usb device numbers");
+    app.add_flag("--list-ethernet-interfaces-only", list_ethernet_interfaces, "Print the system ethernet interfaces");
     app.add_flag("--no-dfu-list", no_dfu_list, "Don't list stm devices in dfu mode");
     app.add_flag("-u,--user-space", user_space_driver, "Connect through user space usb");
     auto name_option = app.add_option("-n,--names", names, "Connect only to NAME(S)")->type_name("NAME")->expected(-1);
@@ -317,7 +360,8 @@ int _main(int argc, char** argv) {
     app.add_option("-p,--paths", paths, "Connect only to PATHS(S)")->type_name("PATH")->expected(-1);
     app.add_option("-d,--devpaths", devpaths, "Connect only to DEVPATHS(S)")->type_name("DEVPATH")->expected(-1);
     app.add_option("-s,--serial_numbers", serial_numbers, "Connect only to SERIAL_NUMBERS(S)")->type_name("SERIAL_NUMBER")->expected(-1);
-    auto eth_l2_option = app.add_option("-e,--eth-l2", macs, "Connect to motor eth l2 MAC(S)")->type_name("MAC")->expected(0,-1)->default_str("{}");
+    auto eth_l2_option = app.add_option("-e,--eth-l2", macs, "Connect to motor eth l2 [INTERFACE-]MAC(S)")->type_name("[INTERFACE-]MAC")->expected(0,-1)->default_str("any");
+    app.add_option("--json-mac-file", json_mac_file, "Use json file to map mac addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     auto ip_option = app.add_option("-i,--ips", ips, "Connect to IP(S). If left empty, connect to all ips specified in --json-ip-file")->type_name("IP")->expected(0,-1)->default_str("{}");
     app.add_option("-j,--json-ip-file", json_ip_file, "Use json file to map ip addresses")->type_name("JSON_FILE")->expected(1)->capture_default_str();
     app.add_flag("--no-print-unconnected", no_print_unconnected, "Don't print unconnected motors, currently only used with --ips");
@@ -329,6 +373,12 @@ int _main(int argc, char** argv) {
     app.add_flag("--api", api_mode, "Enter API mode");
     app.add_flag("--api-timing", api_timing, "Print API response times");
     auto gdbserver = app.add_subcommand("gdbserver", "Use gdb protocol over api");
+    int gdb_port = 3293;
+    bool gdb_verbose = false;
+    gdbserver
+        ->add_option("--port", gdb_port, "TCP port for gdb's target remote")
+        ->capture_default_str();
+    gdbserver->add_flag("--verbose", gdb_verbose, "Print the packets");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
@@ -363,6 +413,15 @@ int _main(int argc, char** argv) {
         }
         raw_packet_parser(); // doesn't exit without signal
         exit(1);
+    }
+
+    if (list_ethernet_interfaces) {
+        auto e = get_eth_interfaces();
+        for (auto &i : e) {
+            std::cout << i << " ";
+        }
+        std:: cout << std::endl;
+        return 0;
     }
 
     MotorManager m(user_space_driver, check_messages_version);
@@ -417,6 +476,26 @@ int _main(int argc, char** argv) {
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
     if (*eth_l2_option) {
+        std::vector<std::string> mac_aliases;
+        // translate name aliases to macs via json file
+        if (access(json_mac_file.c_str(), F_OK) == 0) {
+            try {
+                auto motor_macs = nlohmann::ordered_json::parse(std::ifstream(json_mac_file));
+                for (auto &address : macs) {
+                    if (motor_macs.find(address) != motor_macs.end()) {
+                        address = motor_macs[address].get<std::string>();
+                    }
+                }
+                
+            } catch (nlohmann::json::parse_error &e) {
+                std::cerr << "Error: json file " << json_mac_file << " could not be parsed: " << e.what() << std::endl;
+            }
+        } else {
+            if (json_mac_file != json_mac_file_default) {
+                std::cerr << "Error: json file " << json_mac_file << " not accessible" << std::endl;
+            }
+        }
+
         auto tmp_motors = m.get_motors_by_eth_l2(macs, true, !no_print_unconnected);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
     }
@@ -440,6 +519,11 @@ int _main(int argc, char** argv) {
     }
 
     if (*can_option) {
+        // enumerate_can_devices() and the identity queries in MotorCAN's constructor run
+        // before there are any motors to apply --set-timeout to, so set the default here.
+        if (*set_timeout_option) {
+            MotorCAN::set_default_timeout_ms(timeout_ms);
+        }
         std::vector<std::shared_ptr<Motor>> tmp_motors;
         tmp_motors = m.get_motors_can(can_devs);
         motors.insert(motors.end(), tmp_motors.begin(), tmp_motors.end());
@@ -632,6 +716,11 @@ int _main(int argc, char** argv) {
     if (*set && motors.size()) {
         m.set_commands(std::vector<Command>(motors.size(), command));
         std::cout << ANSI_BOLD << "Writing commands: \n" << m.command_headers() << ANSI_RESET << std::endl << m.commands() << std::endl;
+        if (use_cmd_status_req) {
+            for (auto &m : motors) {
+                m->set_cmd_status_req();
+            }
+        }
         m.write_saved_commands();
     }
 
@@ -705,9 +794,11 @@ int _main(int argc, char** argv) {
             std::cout << "Select one motor to use gdbserver" << std::endl;
             return 1;
         }
-        GDBServer gdb([motor_text = motors[0]->motor_text()](std::string_view s) mutable {
-            return motor_text->writeread(std::string(s));
-        }, signal_exit);
+        GDBServer gdb(
+            [motor_text = motors[0]->motor_text()](std::string_view s) mutable {
+              return motor_text->writeread(std::string(s));
+            },
+            signal_exit, gdb_port, gdb_verbose);
         gdb.start();
     }
 
@@ -939,7 +1030,7 @@ int _main(int argc, char** argv) {
 
                 // option to not sleep
                 // while (std::chrono::steady_clock::now() < next_time);
-                std::this_thread::sleep_until(next_time);
+                interruptible_sleep_until(next_time);
             }
         }
     }

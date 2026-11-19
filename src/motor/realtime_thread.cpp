@@ -30,8 +30,12 @@
 #endif
 
 #ifdef __arm__
+#ifndef __NR_sched_setattr
 #define __NR_sched_setattr		380
+#endif
+#ifndef __NR_sched_getattr
 #define __NR_sched_getattr		381
+#endif
 #endif
 
 namespace obot {
@@ -72,7 +76,7 @@ return syscall(__NR_sched_getattr, pid, attr, size, flags);
 
 void RealtimeThread::run() { 
 	done_ = false;
-	thread_ = new std::thread([=]{run_deadline();}); 
+	thread_ = new std::thread([this]{run_deadline();}); 
 }
 
 void RealtimeThread::done() {

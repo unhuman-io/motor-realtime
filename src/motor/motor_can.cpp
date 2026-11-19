@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#if __has_include(<charconv>)
+#include <charconv>
+#endif
 
 #include <net/if.h>
 #include <sys/types.h>
@@ -32,9 +35,25 @@ class CANFile : public TextFile {
         }
         int err = ::lseek(fd_lock_, 0, SEEK_SET);
         if (err < 0) {
+            ::close(fd_lock_);
             throw RuntimeException("Error lseek lock file " + lock_file_ + ": " + std::to_string(errno) + ": " + strerror(errno));
         }
-        open();
+        try {
+            open();
+        } catch (...) {
+            ::close(fd_lock_);
+            throw;
+        }
+    }
+
+    // Both descriptors belong to this object: the lock file and the CAN socket. A destroyed
+    // CANFile used to leave both open until the process exited.
+    ~CANFile() override {
+        close();
+        if (fd_lock_ >= 0) {
+            ::close(fd_lock_);
+            fd_lock_ = -1;
+        }
     }
 
     void open() {
@@ -44,13 +63,18 @@ class CANFile : public TextFile {
         rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
         if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
+            int saved = errno;
+            close();
             throw RuntimeException("Error setting filter for " + ifname_ + ":" + std::to_string(devnum_) + ": "
-                + std::to_string(errno) + ": " + strerror(errno));
+                + std::to_string(saved) + ": " + strerror(saved));
         }
     }
 
     void close() {
-        ::close(fd_);
+        if (fd_ >= 0) {
+            ::close(fd_);
+            fd_ = -1;
+        }
     }
 
     void flush() {
@@ -63,8 +87,14 @@ class CANFile : public TextFile {
             poll_result = ::poll(&tmp, 1,0);
             if (poll_result > 0) {
                 int nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
+                if (nbytes < 0) {
+                    throw RuntimeErrnoException("Read error during flush");
+                }
             }
         } while(poll_result > 0);
+        if (poll_result < 0) {
+            throw RuntimeErrnoException("Poll error durning flush");
+        }
     }
 
     // use a lock file to provide exclusive access to the CAN device during a 
@@ -109,7 +139,6 @@ class CANFile : public TextFile {
         tmp.events = POLLIN;
         int count = 0;
         int nbytes = 0;
-        bool success = false;
         int length_recv = 0;
         int poll_result = ::poll(&tmp, 1, timeout_ms_ /* ms */);
         int can_id = 5 << 7 | devnum_;
@@ -117,7 +146,6 @@ class CANFile : public TextFile {
             nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
             if (nbytes > 0) {
                 if (frame.can_id == can_id) {
-                    success = true;
                     length_recv = std::min(length, (unsigned int) frame.len);
                     if (frame.data[0] != 0) {
                         // an ascii packet, not a special control packet
@@ -231,13 +259,42 @@ class CANFile : public TextFile {
         return retval;
     }
 
-    int fd_;
+    int fd_ = -1;
     uint32_t devnum_;
-    int timeout_ms_ = 10;
-    int fd_lock_;
+    int timeout_ms_ = MotorCAN::get_default_timeout_ms();
+    int fd_lock_ = -1;
     std::string ifname_;
     std::string lock_file_;
 };
+
+// A node's reply to an enum request that goes to it alone. false without a
+// reply, and with the empty reply of firmware from before EnumResponse.
+static bool read_enum(const std::string &ifname, uint32_t devnum,
+                      int timeout_ms, EnumResponse &response) {
+  int fd = MotorCAN::open_socket(ifname);
+  struct can_filter rfilter[1];
+  rfilter[0].can_id = 0xf << 7 | devnum;
+  rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
+  struct canfd_frame frame = {};
+  frame.can_id = 0xf << 7 | devnum;
+  frame.flags = CANFD_BRS;
+  bool result = false;
+  if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) ==
+          0 &&
+      ::write(fd, &frame, sizeof(frame)) == sizeof(frame)) {
+    pollfd tmp = {};
+    tmp.fd = fd;
+    tmp.events = POLLIN;
+    if (::poll(&tmp, 1, timeout_ms) > 0 &&
+        ::read(fd, &frame, sizeof(frame)) > 0 &&
+        frame.len >= sizeof(response)) {
+      std::memcpy(&response, frame.data, sizeof(response));
+      result = true;
+    }
+  }
+  ::close(fd);
+  return result;
+}
 
 MotorCAN::MotorCAN(std::string address) {
     int n = address.find(":");
@@ -267,15 +324,28 @@ MotorCAN::MotorCAN(std::string address) {
     }
 
     motor_txt_ = std::move(std::unique_ptr<CANFile>(new CANFile(dev_path_, devnum_)));
-	
-    messages_version_ = operator[]("messages_version").get();
-    name_ = operator[]("name").get();
-    version_ = operator[]("version").get();
-    board_name_ = operator[]("board_name").get();
-    board_rev_ = operator[]("board_rev").get();
-    board_num_ = operator[]("board_num").get();
-    config_ = operator[]("config").get();
-    serial_number_ = operator[]("serial").get();
+
+    // The description is the node's enum reply: nothing is asked through the
+    // text api, which a node may not have. Earlier firmware has it only there.
+    EnumResponse enum_response;
+    if (read_enum(dev_path_, devnum_, timeout_ms_, enum_response)) {
+      parse_enum(enum_response);
+    } else {
+      messages_version_ = operator[]("messages_version").get();
+      name_ = operator[]("name").get();
+      version_ = operator[]("version").get();
+      board_name_ = operator[]("board_name").get();
+      board_rev_ = operator[]("board_rev").get();
+      board_num_ = operator[]("board_num").get();
+      config_ = operator[]("config").get();
+      serial_number_ = operator[]("serial").get();
+    }
+    // hex in base_path_ for convenience
+#if __has_include(<charconv>)
+    char buffer[5] = {"0x"};
+    std::to_chars(buffer+2, buffer+4, devnum_, 16);
+    base_path_ = buffer;
+#endif
 }
 
 uint32_t MotorCAN::timeout_ms_ = 10;
@@ -325,20 +395,41 @@ int MotorCAN::open_socket(std::string if_name) {
 }
 
 ssize_t MotorCAN::read() {
+    int current_timeout = 0;
+    if (send_read_request_ && !cmd_status_req_) {
+        struct canfd_frame frame = {
+            .can_id = (3 << 7) | devnum_,
+            .len = 0,
+            .flags = CANFD_BRS
+        };
+        if (int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
+            nbytes < 0) {
+            throw RuntimeErrnoException("write read request error");
+        }
+        // In send_read_request mode allow up to timeout_ms_ for a response
+        // This could still be tripped up if an unrequested status message comes in
+        // But that should not be the normal case
+        current_timeout = timeout_ms_;
+    } else if (cmd_status_req_) {
+        // also keep the timeout
+        current_timeout = timeout_ms_;
+    }
+
     struct canfd_frame frame;
     pollfd tmp;
     tmp.fd = fd_;
     tmp.events = POLLIN;
 
     int poll_result;
-    int nbytes;
+    int nbytes = 0;
     do {
-        poll_result = ::poll(&tmp, 1, 0 /* ms */);
+        poll_result = ::poll(&tmp, 1, current_timeout /* ms */);
+        current_timeout = 0;
         if (poll_result > 0) {
             nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
             if (nbytes > 0) {
-                if (frame.can_id == 3 << 7 | devnum_) {
-                    int length = std::min(nbytes, (int)sizeof(status_));
+                if (frame.can_id == ((3 << 7) | devnum_)) {
+                    int length = std::min((size_t)frame.len, sizeof(status_));
                     std::memcpy(&status_, frame.data, length);
                 }
             }
@@ -348,10 +439,12 @@ ssize_t MotorCAN::read() {
 }
 
 ssize_t MotorCAN::write() {
-    struct canfd_frame frame = {};
-	frame.can_id  = 2 << 7 | devnum_; // 1 : command, 2: command/req status
-	frame.len = 48; //sizeof(command_);
-    frame.flags = CANFD_BRS;
+    struct canfd_frame frame = {
+        // 1 : command, 2: command/req status
+        .can_id = ((cmd_status_req_ ? 2 : 1) << 7) | devnum_,
+	    .len = 48, //sizeof(command_);
+        .flags = CANFD_BRS
+    };
 	std::memcpy(frame.data, &command_, sizeof(command_));
 
 	int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
@@ -460,6 +553,7 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
         }
     } while (t.get_time_remaining_ns() > 0);
 
+    std::sort(devices.begin(), devices.end());
     return devices;
 }
 

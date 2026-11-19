@@ -1,0 +1,5 @@
+# sudo cp 99-smsc95xx-power.rules /etc/udev/rules.d/
+
+# Disable autosuspend for SMSC95xx devices, which creates ~100 ms latency sometimes
+SUBSYSTEM=="usb", ATTR{idVendor}=="184f", ATTR{idProduct}=="0051", ACTION=="add|bind|change", \
+    ATTR{power/control}="on"

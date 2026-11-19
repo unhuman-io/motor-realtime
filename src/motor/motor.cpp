@@ -169,7 +169,7 @@ USBFile::~USBFile() {}
 
 UserSpaceMotor::~UserSpaceMotor() { close(); }
 
-SimulatedMotor::~SimulatedMotor() { ::close(fd_); }
+SimulatedMotor::~SimulatedMotor() { close(); }
 
 static std::vector<std::string> mode_color_list = MOTOR_MODE_COLORS;
 static std::vector<std::string> mode_upper_color_list = MOTOR_MODE_UPPER_COLORS;

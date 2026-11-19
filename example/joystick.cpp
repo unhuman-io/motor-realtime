@@ -42,7 +42,9 @@ class Task : public MotorThread {
         timeout_ts.tv_nsec=100 * 1000;
 		int retval = ppoll(poll_fds, 1, &timeout_ts, nullptr);
 		if (retval) {
-            read(fd_, &joystick, sizeof(joystick));
+            if (int retval = read(fd_, &joystick, sizeof(joystick)); retval < 0) {
+                throw RuntimeErrnoException("error reading");
+            }
             uint16_t ud = (joystick.l_stick[2] << 4l) | ((joystick.l_stick[1] & 0xF0) >> 4);
             uint16_t lr = joystick.l_stick[0] | ((joystick.l_stick[1] & 0xF) << 8l);
             //uint16_t ud = joystick.l_stick[1] >> 4;
@@ -52,7 +54,7 @@ class Task : public MotorThread {
             //double enable = (joystick.buttons[0] & 0x200) ? 1.0 : 0.0;
             double enable = (joystick.buttons[3] & 0x8) ? 1.0 : 0.0;
             current_desired_[0] = enable*current_gain*(ud2 + lr2);
-            double j2 = current_gain*(ud2 - lr2);
+            // double j2 = current_gain*(ud2 - lr2);
             //std::cout << "ud: " << std::setw(12) << ud2 << ", lr:" << lr2 << std::endl;
            // std::cout << current_desired_[0] << std::endl;
             motor_manager_.set_command_count(x_++);

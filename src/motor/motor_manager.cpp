@@ -49,11 +49,11 @@ static std::vector<std::string> udev (bool user_space_driver=false)
 		// path in /sys/devices/pci*
 		const char *path = udev_list_entry_get_name(dev_list_entry);
 		struct udev_device *dev = udev_device_new_from_syspath(udev, path);
-        const char * devpath = udev_device_get_devpath(dev);
+        // const char * devpath = udev_device_get_devpath(dev);
 
         // TODO better way of identifying other than interface number 0
 		//if (std::string("00") == udev_device_get_sysattr_value(dev, "device/bInterfaceNumber")) {
-			devpath = udev_device_get_devnode(dev);
+			const char * devpath = udev_device_get_devnode(dev);
             if (devpath) {
                 dev_paths.push_back(devpath);
             }
@@ -207,46 +207,49 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<s
     return m;
 }
 
-std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vector<std::string> interface_macs, bool connect, bool print_unconnected, bool allow_simulated, std::vector<std::string> ip_aliases) {
+std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vector<std::string> interface_macs, bool connect, bool print_unconnected, bool allow_simulated) {
     std::vector<std::shared_ptr<Motor>> m(interface_macs.size());
-    std::vector<std::future<std::shared_ptr<MotorSocket>>> futures(interface_macs.size());
+    std::vector<std::future<std::shared_ptr<MotorEthL2>>> futures(interface_macs.size());
+    std::vector<std::string> new_interface_macs;
     for (uint8_t i=0; i<interface_macs.size(); i++) {
         std::string& interface_mac = interface_macs[i];
-        std::string ip_alias;
-        if (ip_aliases.size() > i) {
-            ip_alias = ip_aliases[i];
-        }
-        EthL2FileMode type = EthL2FileMode::ETH_L2_RAW;
-
-        futures[i] = std::async(std::launch::async, [&interface_mac, ip_alias]
-        {
-            std::shared_ptr<MotorSocket> motor;
-            if (interface_mac.rfind("-") != std::string::npos) {
-                motor = std::make_shared<MotorEthL2<EthL2FileMode::ETH_L2_CAN>>(interface_mac, ip_alias);
+        if (int n = interface_mac.find(":"); n != std::string::npos) {
+            new_interface_macs.emplace_back(interface_mac);
+        } else if (int n = interface_mac.find("-"); n == std::string::npos) {
+            // only interface or any given, broadcast 03:ff:ff:ff:ff:ff to enumerate all
+            std::vector<std::string> additional_interface_macs = MotorEthL2::enumerate_eth_l2_devices(interface_mac);
+            if (additional_interface_macs.size() == 0) {
+                std::cerr << "No eth l2 devices found for: " << interface_mac << std::endl;;
             } else {
-                motor = std::make_shared<MotorEthL2<>>(interface_mac, ip_alias);
+                new_interface_macs.insert(new_interface_macs.end(), additional_interface_macs.begin(), additional_interface_macs.end());
             }
-            return motor;
+        } else {
+            new_interface_macs.emplace_back(interface_mac);
+        }
+    }
+    futures.resize(new_interface_macs.size());
+    m.resize(new_interface_macs.size());
+    for (int i=0; i<new_interface_macs.size(); i++) {
+        std::string& interface_mac = new_interface_macs[i];
+        futures[i] = std::async(std::launch::async, [&interface_mac]
+        {
+            return std::make_shared<MotorEthL2>(interface_mac);
         });
     }
     int j = 0;
-    for (uint8_t i=0; i<interface_macs.size(); i++) {
+    for (uint8_t i=0; i<new_interface_macs.size(); i++) {
         try {
-            std::shared_ptr<MotorSocket> motor = futures[i].get();
+            std::shared_ptr<MotorEthL2> motor = futures[i].get();
             if (motor->connected()) {
                 m[j++] = motor;
             } else {
                 if (print_unconnected) {
-                    std::cerr << "Motor Eth L2: " << motor->address_ << " (" << motor->interface_;
-                    if (motor->alias_.size()) {
-                        std::cerr << ": " << motor->alias_;
-                    }
-                    std::cerr << ") not connected" << std::endl;
+                    std::cerr << "Motor Eth L2 not connected" << std::endl;
                 }
             }
         } catch (const std::exception &e) {
             if (print_unconnected) {
-                std::cerr << "Motor Eth L2 exception: " << e.what() << std::endl;
+                std::cerr << new_interface_macs[i] << " exception: " << e.what() << std::endl;
             }
         }
     }

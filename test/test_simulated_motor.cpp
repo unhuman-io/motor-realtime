@@ -1,3 +1,6 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include "motor_manager.h"
 #include <cassert>
 #include <iostream>

@@ -75,12 +75,10 @@ void MotorIP::open() {
     int n_results = 0;
     while(res) {
         n_results++;
-        socklen_t addr_len = 0;
         if (res->ai_family != AF_INET) {
           throw RuntimeException(ip_ + ":" + port_ + ", not ipv4");
         }
         ptr = &((struct sockaddr_in *) res->ai_addr)->sin_addr;
-        addr_len = sizeof(sockaddr_in);
         inet_ntop (res->ai_family, ptr, addrstr, 100);
         addrstr_ = addrstr;
         res = res->ai_next;
@@ -373,7 +371,7 @@ ssize_t MotorIP::read() {
 
 ssize_t MotorIP::write() {
   //std::cout << "write " << std::endl;
-  return realtime_communication_.write((char *) &command_, sizeof(command_));
+  return realtime_communication_.write((char *) &command_, sizeof(command_), cmd_status_req_);
 }
 
 void MotorIP::rx_data() {
