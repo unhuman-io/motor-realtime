@@ -22,6 +22,7 @@
 #include "terminal.h"
 #include <cxxabi.h>
 #include "gdbserver.h"
+#include "can_time_sync.h"
 #include "motor_eth_l2.h"
 
 using namespace obot;
@@ -379,6 +380,15 @@ int _main(int argc, char** argv) {
         ->add_option("--port", gdb_port, "TCP port for gdb's target remote")
         ->capture_default_str();
     gdbserver->add_flag("--verbose", gdb_verbose, "Print the packets");
+    auto time_sync = app.add_subcommand("time_sync", "Send this host's time to the nodes of CAN interface(s), periodically. Doesn't connect to motors");
+    time_sync->footer("Each time is two CAN FD frames to all nodes (id 0x07F): a SYNC of one byte, and a "
+                      "follow up that says when the SYNC was sent. See can_time_sync.h.");
+    std::vector<std::string> time_interfaces = {"can0"};
+    uint32_t time_frequency_hz = 1;
+    bool time_verbose = false;
+    time_sync->add_option("--interface", time_interfaces, "CAN interface(s)")->expected(1,-1)->capture_default_str();
+    time_sync->add_option("--frequency", time_frequency_hz, "Times per second")->check(CLI::PositiveNumber)->capture_default_str();
+    time_sync->add_flag("--verbose", time_verbose, "Print each time sent");
     auto run_stats_option = app.add_option("--run-stats", run_stats, "Check firmware run timing")->type_name("NUM_SAMPLES")->expected(0,1)->capture_default_str();
     auto set_timeout_option = app.add_option("--set-timeout", timeout_ms, "Set timeout in ms")->expected(0,1)->capture_default_str();
     auto can_option = app.add_option("-f,--can", can_devs, "Connect to CAN_DEVS(S)")->type_name("CAN_DEV")->expected(0,-1)->capture_default_str();
@@ -387,6 +397,34 @@ int _main(int argc, char** argv) {
     CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT,[](int /* signum */){ signal_exit = true; });
+
+    if (*time_sync) {
+        std::vector<std::unique_ptr<obot::CANTimeSync>> syncs;
+        for (const std::string &interface : time_interfaces) {
+            syncs.push_back(std::make_unique<obot::CANTimeSync>(interface));
+        }
+        RealtimeThread thread(time_frequency_hz, [&]() {
+            for (auto &sync : syncs) {
+                try {
+                    const auto time = sync->send().time_since_epoch();
+                    if (time_verbose) {
+                        const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(time);
+                        std::cout << sync->interface() << " " << seconds.count() << "." << std::setw(9) << std::setfill('0')
+                                  << (time - seconds).count() << std::setfill(' ')
+                                  << (sync->hardware() ? " hardware" : " software") << std::endl;
+                    }
+                } catch (const std::runtime_error &e) {
+                    std::cerr << e.what() << std::endl;
+                }
+            }
+        });
+        thread.run();
+        while (!signal_exit) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        thread.done();
+        return 0;
+    }
 
     if (command_gpio) {
         command.misc.gpio = 1;

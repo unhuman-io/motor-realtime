@@ -24,6 +24,8 @@ _motor_util_completion()
         case ${COMP_WORDS[$i]} in
             set) subcommand=set ; break ;; 
             read) subcommand=read ; break ;;
+            time_sync) subcommand=time_sync ; break ;;
+            gdbserver) subcommand=gdbserver ; break ;;
             -n|--names) subcommand=names ; break ;;
             -p|--paths) subcommand=paths ; break ;;
             -d|--devpaths) subcommand=devpaths ; break ;;
@@ -51,7 +53,7 @@ _motor_util_completion()
     local words
     local base_words="-l --list -c --check-messages-version --no-list --list-names-only --list-path-only 
       --list-devpath-only --list-serial-number-only --list-devnum-only --no-dfu-list -n --names -i --ips    
-      -j --json-ip-file --json-mac-file --no-print-unconnected --get-log -e --eth-l2 gdbserver
+      -j --json-ip-file --json-mac-file --no-print-unconnected --get-log -e --eth-l2 gdbserver time_sync
       -a --uart-paths --uart-raw -f --can -p --paths -d --devpaths -s --serial_numbers set read --set-api 
       --api --api-timing --run-stats --set-timeout -v --version -u --user-space --allow-simulated --lock 
       --list-ethernet-interfaces-only
@@ -65,6 +67,15 @@ _motor_util_completion()
         read) words="--poll --ppoll --aread --nonblock --frequency --statistics --read-write-statistics --text --fast_log --fast_log2 -s --timestamp-in-seconds -t --host-time-seconds --publish --csv -f -r --reconnect --bits -v --compute-velocity --timestamp_frequency -p --precision -m --short --print-reserved set -h --help";
             case $last in
                 --frequency|--timestamp_frequency|-p|--precision) return 0 ;;
+            esac ;;
+        time_sync) words="--interface --frequency --verbose -h --help";
+            case $last in
+                --frequency) return 0 ;;
+                --interface) words=$(ls /sys/class/net | grep can) ;;
+            esac ;;
+        gdbserver) words="--port --verbose -h --help";
+            case $last in
+                --port) return 0 ;;
             esac ;;
         names) words="$(motor_util --list-names-only) $base_words" ;;
         paths) words="$(motor_util --list-path-only) $base_words" ;;
