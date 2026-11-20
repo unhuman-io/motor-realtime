@@ -102,6 +102,7 @@ class GDBServer {
       uint32_t event_count_ = 0;
       std::string last_stop_;
       std::chrono::steady_clock::time_point last_check_; // of the node
+      std::chrono::steady_clock::time_point last_request_; // of gdb
 };
 
 }
