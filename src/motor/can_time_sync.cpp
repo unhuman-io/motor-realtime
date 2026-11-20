@@ -7,12 +7,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <cerrno>
-#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
-#include <vector>
 
 #include "motor_can.h"
 
@@ -21,73 +18,12 @@ namespace obot {
 namespace {
 const canid_t time_id = 0 << 7 | 0x7F;  // the time message, to all nodes
 const std::chrono::milliseconds echo_timeout{100};
-// CANDeviceClock
-const size_t max_samples = 48;                  // seconds that it looks back
-const double max_rate = 500e-6;                 // more than two crystals differ by
-const std::chrono::milliseconds jump{5};        // off by more: a clock was set
-const std::chrono::milliseconds host_clock{100};    // this close to the kernel's time is no clock of its own
-const int64_t second_ns = 1000000000;
+const std::chrono::milliseconds host_clock{100};    // an interface's time this close to the kernel's is this host's time
 
 CANTime to_time(const timespec &t) {
     return CANTime(std::chrono::seconds(t.tv_sec) + std::chrono::nanoseconds(t.tv_nsec));
 }
 }  // namespace
-
-int64_t CANDeviceClock::difference_at(int64_t device_ns) const {
-    // How fast the two run apart. The frames that took least are the ones
-    // along the lower edge of all of them, the difference over the time: the
-    // rate is the slope of that edge at the middle of the time they span,
-    // which is the line below all frames that is closest to them. (The lower
-    // convex hull, and its side over the middle.)
-    double rate = 0;
-    if (samples_.size() >= 2) {
-        std::vector<Sample> hull;
-        for (const Sample &sample : samples_) {
-            while (hull.size() >= 2) {
-                const Sample &a = hull[hull.size() - 2], &b = hull[hull.size() - 1];
-                const double turn =
-                    static_cast<double>(b.device_ns - a.device_ns) * static_cast<double>(sample.difference_ns - a.difference_ns) -
-                    static_cast<double>(b.difference_ns - a.difference_ns) * static_cast<double>(sample.device_ns - a.device_ns);
-                if (turn > 0) break;    // b is below the line from a to this one: it stays
-                hull.pop_back();
-            }
-            hull.push_back(sample);
-        }
-        const int64_t middle = samples_.front().device_ns / 2 + samples_.back().device_ns / 2;
-        size_t side = 0;
-        while (side + 2 < hull.size() && hull[side + 1].device_ns < middle) side++;
-        rate = static_cast<double>(hull[side + 1].difference_ns - hull[side].difference_ns) /
-               static_cast<double>(hull[side + 1].device_ns - hull[side].device_ns);
-        rate = std::min(std::max(rate, -max_rate), max_rate);
-    }
-    // and how far apart they are now: that line, which is the least of the
-    // frames, each brought to now at that rate
-    int64_t difference = INT64_MAX;
-    for (const Sample &sample : samples_) {
-        difference = std::min(difference, sample.difference_ns +
-            static_cast<int64_t>(rate * static_cast<double>(device_ns - sample.device_ns)));
-    }
-    return difference;
-}
-
-CANTime CANDeviceClock::host_time(std::chrono::nanoseconds device, CANTime kernel) {
-    const std::chrono::nanoseconds difference = kernel.time_since_epoch() - device;
-    // the driver has made it this host's time already
-    if (difference > -host_clock && difference < host_clock) return CANTime(device);
-    const int64_t device_ns = device.count(), difference_ns = difference.count();
-    // one of the clocks was set: from the start
-    if (!samples_.empty() && std::llabs(difference_ns - difference_at(device_ns)) > std::chrono::nanoseconds(jump).count()) {
-        samples_.clear();
-    }
-    // Of each second on the interface's clock the frame that took least is kept
-    if (!samples_.empty() && samples_.back().device_ns / second_ns == device_ns / second_ns) {
-        if (difference_ns < samples_.back().difference_ns) samples_.back() = {device_ns, difference_ns};
-    } else {
-        samples_.push_back({device_ns, difference_ns});
-        if (samples_.size() > max_samples) samples_.pop_front();
-    }
-    return CANTime(device + std::chrono::nanoseconds(difference_at(device_ns)));
-}
 
 CANTimeSync::CANTimeSync(const std::string &interface)
     : interface_(interface), fd_(MotorCAN::open_socket(interface)) {
@@ -151,14 +87,12 @@ CANTime CANTimeSync::send() {
         hardware_ = false;
         const cmsghdr *c = CMSG_FIRSTHDR(&message);
         if (c != nullptr && c->cmsg_level == SOL_SOCKET && c->cmsg_type == SO_TIMESTAMPING) {
-            timespec stamps[3];     // the kernel's, unused, the interface's on its own clock
+            timespec stamps[3];     // the kernel's, one that is no longer filled in, the interface's
             std::memcpy(stamps, CMSG_DATA(c), sizeof(stamps));
             const CANTime kernel = to_time(stamps[0]), device = to_time(stamps[2]);
             if (kernel != CANTime()) sent = kernel;
-            if (kernel != CANTime() && device != CANTime()) {
-                sent = device_clock_.host_time(device.time_since_epoch(), kernel);
-                hardware_ = true;
-            }
+            hardware_ = device > sent - host_clock && device < sent + host_clock;
+            if (hardware_) sent = device;
         }
         break;
     }
