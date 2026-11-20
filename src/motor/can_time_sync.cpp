@@ -49,13 +49,12 @@ CANTime CANTimeSync::send() {
     const auto fail = [this](const std::string &what) {
         return std::runtime_error(interface_ + ": time not sent: " + what);
     };
-    TimeSyncFrame time = {};
-    time.sequence = sequence_++;
+    const uint8_t sequence = sequence_++;
     canfd_frame frame = {};
     frame.can_id = time_id;
-    frame.len = sizeof(time);
+    frame.len = 1;
     frame.flags = CANFD_BRS;
-    std::memcpy(frame.data, &time, sizeof(time));
+    frame.data[0] = sequence;
     if (::write(fd_, &frame, sizeof(frame)) != sizeof(frame)) {
         throw fail(std::string("SYNC: ") + strerror(errno));
     }
@@ -78,7 +77,7 @@ CANTime CANTimeSync::send() {
         message.msg_control = control;
         message.msg_controllen = sizeof(control);
         if (::recvmsg(fd_, &message, 0) != sizeof(echo) || !(message.msg_flags & MSG_CONFIRM) ||
-            std::memcmp(echo.data, frame.data, sizeof(time)) != 0) {
+            echo.len != 1 || echo.data[0] != sequence) {
             continue;
         }
         // The kernel begins to keep the times of frames a moment after the
@@ -98,10 +97,12 @@ CANTime CANTimeSync::send() {
     }
 
     const auto seconds = std::chrono::time_point_cast<std::chrono::seconds>(sent);
-    time.follow_up = 1;
-    time.seconds = static_cast<uint32_t>(seconds.time_since_epoch().count());
-    time.nanoseconds = static_cast<uint32_t>((sent - seconds).count());
-    std::memcpy(frame.data, &time, sizeof(time));
+    TimeSyncFollowUp follow_up = {};
+    follow_up.sequence = sequence;
+    follow_up.seconds = static_cast<uint32_t>(seconds.time_since_epoch().count());
+    follow_up.nanoseconds = static_cast<uint32_t>((sent - seconds).count());
+    frame.len = sizeof(follow_up);
+    std::memcpy(frame.data, &follow_up, sizeof(follow_up));
     if (::write(fd_, &frame, sizeof(frame)) != sizeof(frame)) {
         throw fail(std::string("follow up: ") + strerror(errno));
     }

@@ -381,8 +381,8 @@ int _main(int argc, char** argv) {
         ->capture_default_str();
     gdbserver->add_flag("--verbose", gdb_verbose, "Print the packets");
     auto time_sync = app.add_subcommand("time_sync", "Send this host's time to the nodes of CAN interface(s), periodically. Doesn't connect to motors");
-    time_sync->footer("Each time is two CAN FD frames to all nodes (id 0x07F): a SYNC, and a follow up "
-                      "that says when the SYNC was sent. See can_time_sync.h.");
+    time_sync->footer("Each time is two CAN FD frames to all nodes (id 0x07F): a SYNC of one byte, and a "
+                      "follow up that says when the SYNC was sent. See can_time_sync.h.");
     std::vector<std::string> time_interfaces = {"can0"};
     uint32_t time_frequency_hz = 1;
     bool time_verbose = false;

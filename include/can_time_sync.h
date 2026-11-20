@@ -6,19 +6,18 @@
 namespace obot {
 
 // This host's time to the nodes of a CAN interface: motor_util time_sync.
-// Two CAN FD frames to all nodes on id 0x07F, both this struct, little
-// endian: a SYNC, then a follow up with the time at which that SYNC was sent.
-// A node notes when the SYNC arrived on its own clock, and with the follow up
-// of the same sequence has the host's time for that moment (obot-controller
-// obot3/control/clock.cppm has the same struct).
-struct TimeSyncFrame {
-    uint8_t sequence;       // of the pair
-    uint8_t follow_up;      // 0: the SYNC, 1: its follow up
-    uint8_t reserved[2];
-    uint32_t seconds;       // in the follow up: when the SYNC was sent, since 1970
+// Two CAN FD frames to all nodes on id 0x07F: a SYNC of one byte, its
+// sequence, then a follow up, this struct, little endian, with the time at
+// which that SYNC was sent. A node notes when the SYNC arrived on its own
+// clock, and with the follow up of the same sequence has the host's time for
+// that moment (obot-controller obot3/control/clock.cppm has the same struct).
+struct TimeSyncFollowUp {
+    uint8_t sequence;       // of the SYNC that it is about
+    uint8_t reserved[3];
+    uint32_t seconds;       // when that SYNC was sent, since 1970
     uint32_t nanoseconds;
 };
-static_assert(sizeof(TimeSyncFrame) == 12, "a CAN FD frame length");
+static_assert(sizeof(TimeSyncFollowUp) == 12, "a CAN FD frame length");
 
 using CANTime = std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds>;
 
