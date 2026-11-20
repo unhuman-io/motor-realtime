@@ -68,21 +68,10 @@ _motor_util_completion()
             case $last in
                 --frequency|--timestamp_frequency|-p|--precision) return 0 ;;
             esac ;;
-        time_sync) words="--interface --period --domain --verbose --software -h --help --help-all";
-            # the can interfaces: type 280 in sysfs, and any for all that are up
-            local can_interfaces="any" type_file
-            for type_file in /sys/class/net/*/type; do
-                [ "$(cat $type_file 2>/dev/null)" == 280 ] && can_interfaces+=" $(basename $(dirname $type_file))"
-            done
+        time_sync) words="--interface --frequency --verbose -h --help";
             case $last in
-                --period) return 0 ;;
-                --domain) words="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15" ;;
-                --interface) words=$can_interfaces ;;
-                *)
-                    # --interface takes several: more of them, or the next option
-                    local k=$((COMP_CWORD-1))
-                    while [[ $k -gt 0 && ${COMP_WORDS[$k]} != -* && ${COMP_WORDS[$k]} != time_sync ]]; do (( k-- )); done
-                    [[ ${COMP_WORDS[$k]} == --interface ]] && words="$can_interfaces $words" ;;
+                --frequency) return 0 ;;
+                --interface) words=$(ls /sys/class/net | grep can) ;;
             esac ;;
         gdbserver) words="--port --verbose -h --help";
             case $last in

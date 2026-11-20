@@ -9,6 +9,12 @@
 
 using namespace obot;
 
+// in ns, as the simulation counts
+static int64_t host_time_ns(CANDeviceClock &clock, int64_t device_ns, int64_t kernel_ns) {
+    return clock.host_time(std::chrono::nanoseconds(device_ns), CANTime(std::chrono::nanoseconds(kernel_ns)))
+        .time_since_epoch().count();
+}
+
 // CANDeviceClock against an interface that is simulated: a clock of its own
 // that started at some time and runs fast or slow, and a kernel time for each
 // frame that is late by an interrupt, which takes 20 us at least, 30 us more
@@ -34,7 +40,7 @@ struct Simulation {
             const int64_t true_ns = start_ns + elapsed_ns;
             const int64_t device_ns = device_start_ns + static_cast<int64_t>(static_cast<double>(elapsed_ns) * (1 + rate));
             const int64_t late_ns = 20000 + static_cast<int64_t>(interrupt_ns(random)) + (random() % 100 == 0 ? 1000000 : 0);
-            const double error_us = static_cast<double>(clock.host_time(device_ns, true_ns + late_ns) - true_ns) / 1e3;
+            const double error_us = static_cast<double>(host_time_ns(clock, device_ns, true_ns + late_ns) - true_ns) / 1e3;
             if (since_jump++ * period_s >= 40) {
                 least_late_us = std::min(least_late_us, error_us);
                 most_late_us = std::max(most_late_us, error_us);
@@ -65,8 +71,8 @@ int main() {
     // Times that the driver has made this host's already are taken as they are
     CANDeviceClock host_clock;
     const int64_t now_ns = 1794950000ll * 1000000000;
-    assert(host_clock.host_time(now_ns, now_ns + 35000) == now_ns);
-    assert(host_clock.host_time(now_ns + 1000000000, now_ns + 1000000000 + 900000) == now_ns + 1000000000);
+    assert(host_time_ns(host_clock, now_ns, now_ns + 35000) == now_ns);
+    assert(host_time_ns(host_clock, now_ns + 1000000000, now_ns + 1000000000 + 900000) == now_ns + 1000000000);
     std::cout << "ok" << std::endl;
     return 0;
 }
