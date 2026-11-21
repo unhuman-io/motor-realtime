@@ -20,13 +20,14 @@ const canid_t time_id = 0 << 7 | 0x7F;  // the time message, to all nodes
 const std::chrono::milliseconds echo_timeout{100};
 const std::chrono::milliseconds host_clock{100};    // an interface's time this close to the kernel's is this host's time
 
-CANTime to_time(const timespec &t) {
+CANTime to_time(const timespec& t) {
     return CANTime(std::chrono::seconds(t.tv_sec) + std::chrono::nanoseconds(t.tv_nsec));
 }
 }  // namespace
 
-CANTimeSync::CANTimeSync(const std::string &interface)
-    : interface_(interface), fd_(MotorCAN::open_socket(interface)) {
+CANTimeSync::CANTimeSync(const std::string& interface) :
+    interface_(interface),
+    fd_(MotorCAN::open_socket(interface)) {
     // Of all frames only this socket's own time frames come back to it, with
     // the kernel's time for them and the interface's where it has one. A sent
     // frame comes back as a received one, so these are the receive times.
@@ -46,7 +47,7 @@ CANTimeSync::CANTimeSync(const std::string &interface)
 CANTimeSync::~CANTimeSync() { ::close(fd_); }
 
 CANTime CANTimeSync::send() {
-    const auto fail = [this](const std::string &what) {
+    const auto fail = [this](const std::string& what) {
         return std::runtime_error(interface_ + ": time not sent: " + what);
     };
     const uint8_t sequence = sequence_++;
@@ -65,7 +66,8 @@ CANTime CANTimeSync::send() {
     const auto deadline = std::chrono::steady_clock::now() + echo_timeout;
     while (true) {
         const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
-            deadline - std::chrono::steady_clock::now()).count();
+                              deadline - std::chrono::steady_clock::now())
+                              .count();
         pollfd poll_fd = {fd_, POLLIN, 0};
         if (left <= 0 || ::poll(&poll_fd, 1, left) <= 0) throw fail("the SYNC did not come back");
         canfd_frame echo;
@@ -84,7 +86,7 @@ CANTime CANTimeSync::send() {
         // first socket asks, so the first frames may come back without one
         sent = std::chrono::system_clock::now();
         hardware_ = false;
-        const cmsghdr *c = CMSG_FIRSTHDR(&message);
+        const cmsghdr* c = CMSG_FIRSTHDR(&message);
         if (c != nullptr && c->cmsg_level == SOL_SOCKET && c->cmsg_type == SO_TIMESTAMPING) {
             timespec stamps[3];     // the kernel's, one that is no longer filled in, the interface's
             std::memcpy(stamps, CMSG_DATA(c), sizeof(stamps));

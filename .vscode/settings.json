@@ -1,4 +1,12 @@
 {
+    // C and C++ are formatted on save with .clang-format, by the clang-format
+    // on the PATH, which has to be version 23 (pipx install clang-format==23.1.5),
+    // through the extension xaver.clang-format
+    "[c]": { "editor.defaultFormatter": "xaver.clang-format", "editor.formatOnSave": true },
+    "[cpp]": { "editor.defaultFormatter": "xaver.clang-format", "editor.formatOnSave": true },
+    "clang-format.executable": "clang-format",
+    "clang-format.style": "file",
+    "clang-format.fallbackStyle": "none",
     "files.associations": {
         "typeinfo": "cpp"
     },

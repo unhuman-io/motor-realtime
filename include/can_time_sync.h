@@ -23,10 +23,10 @@ using CANTime = std::chrono::time_point<std::chrono::system_clock, std::chrono::
 
 class CANTimeSync {
  public:
-    explicit CANTimeSync(const std::string &interface);
+    explicit CANTimeSync(const std::string& interface);
     ~CANTimeSync();
-    CANTimeSync(const CANTimeSync &) = delete;
-    CANTimeSync &operator=(const CANTimeSync &) = delete;
+    CANTimeSync(const CANTimeSync&) = delete;
+    CANTimeSync& operator=(const CANTimeSync&) = delete;
 
     // One SYNC and its follow up. Returns when the SYNC was sent, by the
     // frame as this socket gets it back: the interface's hardware time for
@@ -38,7 +38,7 @@ class CANTimeSync {
     // be sent.
     CANTime send();
     bool hardware() const { return hardware_; }     // the last time was the interface's
-    const std::string &interface() const { return interface_; }
+    const std::string& interface() const { return interface_; }
 
  private:
     std::string interface_;

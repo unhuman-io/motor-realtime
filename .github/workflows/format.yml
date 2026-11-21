@@ -1,0 +1,16 @@
+name: format
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  clang-format:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true    # .clang-format is the one of motor_messages
+    - name: clang-format
+      # the version that .clang-format is written for. To format: the same without --dry-run --Werror, with -i
+      run: pipx run clang-format==23.1.5 --dry-run --Werror $(git ls-files '*.h' '*.hpp' '*.c' '*.cc' '*.cpp')

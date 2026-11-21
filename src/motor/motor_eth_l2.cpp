@@ -28,30 +28,27 @@
 namespace obot {
 
 class RuntimeHexDumpException : public RuntimeException {
-  public:
-    RuntimeHexDumpException(const std::string& msg, uint8_t *data_ptr, int length) :
+ public:
+    RuntimeHexDumpException(const std::string& msg, uint8_t* data_ptr, int length) :
         RuntimeException(
-            msg + "\n" + hex_dump(data_ptr, length)
-        ) {}
-    static std::string hex_dump(uint8_t *data_ptr, int length) {
+            msg + "\n" + hex_dump(data_ptr, length)) {}
+    static std::string hex_dump(uint8_t* data_ptr, int length) {
         std::stringstream stream;
         stream << "    hex dump length: " << length;
         stream << std::hex << std::setfill('0') << std::setw(2);
-        for (int i = 0; i < length; i++ ) {
+        for (int i = 0; i < length; i++) {
             if (i % 16 == 0) {
                 stream << "\n    ";
             }
-            stream << std::setw(2) << (int) data_ptr[i] << " ";
-            
+            stream << std::setw(2) << (int)data_ptr[i] << " ";
         }
         return stream.str();
     }
 };
 
 
-
 // Returns a vector of pairs: {Item, Count}
-template<typename T>
+template <typename T>
 std::vector<std::pair<T, int>> get_duplicate_counts(std::vector<T> vec) {
     std::vector<std::pair<T, int>> duplicates;
     if (vec.empty()) return duplicates;
@@ -82,14 +79,13 @@ std::vector<std::pair<T, int>> get_duplicate_counts(std::vector<T> vec) {
     return duplicates;
 }
 
-enum class L2MessageType
-{
-    OBOT_CMD = 0x01,
-    OBOT_CMD_STATUS = 0x02,
-    OBOT_STATUS = 0x03,
-    OBOT_ASCII_CMD = 0x04,
+enum class L2MessageType {
+    OBOT_CMD            = 0x01,
+    OBOT_CMD_STATUS     = 0x02,
+    OBOT_STATUS         = 0x03,
+    OBOT_ASCII_CMD      = 0x04,
     OBOT_ASCII_RESPONSE = 0x05,
-    OBOT_ENUM = 0xF,
+    OBOT_ENUM           = 0xF,
 };
 
 constexpr int MAX_ETH_L2_PAYLOAD_SIZE = 3000;
@@ -123,15 +119,15 @@ struct TopicId {
 mac_t str2mac(std::string mac_str) {
     mac_t mac;
     if (sscanf(mac_str.c_str(), "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
-        &mac[0], &mac[1], &mac[2],
-        &mac[3], &mac[4], &mac[5]) == 6) {
+               &mac[0], &mac[1], &mac[2],
+               &mac[3], &mac[4], &mac[5]) == 6) {
     } else {
         throw RuntimeException("Invalid MAC address format (" + mac_str + ")");
     }
     return mac;
 }
 
-std::string mac2str(const mac_t &mac) {
+std::string mac2str(const mac_t& mac) {
     char hex_string[18];
     snprintf(hex_string, sizeof(hex_string), "%02x:%02x:%02x:%02x:%02x:%02x",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -139,8 +135,8 @@ std::string mac2str(const mac_t &mac) {
 }
 
 mac_t get_interface_mac_address(int fd, std::string interface) {
-    mac_t mac {};
-    if (interface != "any" ) {
+    mac_t mac{};
+    if (interface != "any") {
         struct ifreq ifr = {};
         std::strncpy(ifr.ifr_name, interface.c_str(), IFNAMSIZ - 1);
         if (ioctl(fd, SIOCGIFHWADDR, &ifr) == -1) {
@@ -151,28 +147,28 @@ mac_t get_interface_mac_address(int fd, std::string interface) {
     return mac;
 }
 
-std::string get_primary_ifname(const std::string &input_name) {
-  // 1. Get the unique hardware index for whatever name was provided
-  unsigned int if_index = if_nametoindex(input_name.c_str());
+std::string get_primary_ifname(const std::string& input_name) {
+    // 1. Get the unique hardware index for whatever name was provided
+    unsigned int if_index = if_nametoindex(input_name.c_str());
 
-  if (if_index == 0) {
-    // Interface doesn't exist or is down; fallback to the provided name
-    return input_name;
-  }
+    if (if_index == 0) {
+        // Interface doesn't exist or is down; fallback to the provided name
+        return input_name;
+    }
 
-  // 2. Map the index back to a name. The kernel always returns the primary
-  // name.
-  char primary_name[IF_NAMESIZE];
-  if (if_indextoname(if_index, primary_name) != nullptr) {
-    return std::string(primary_name);
-  }
+    // 2. Map the index back to a name. The kernel always returns the primary
+    // name.
+    char primary_name[IF_NAMESIZE];
+    if (if_indextoname(if_index, primary_name) != nullptr) {
+        return std::string(primary_name);
+    }
 
-  return input_name; // Fallback
+    return input_name; // Fallback
 }
 
 std::vector<std::string> get_eth_interfaces() {
     std::vector<std::string> interfaces;
-    struct ifaddrs *addrs,*tmp;
+    struct ifaddrs *addrs, *tmp;
 
     if (getifaddrs(&addrs)) {
         throw RuntimeException("Error getting interfaces: " + std::to_string(errno) + ": " + strerror(errno));
@@ -183,7 +179,7 @@ std::vector<std::string> get_eth_interfaces() {
         //std::cout << "interface: " << tmp->ifa_name << " flags " << tmp->ifa_flags << std::endl;
         // test if interface is ethernet
         if (tmp->ifa_flags & IFF_UP) {
-            struct sockaddr_ll *sll = (struct sockaddr_ll *)tmp->ifa_addr;
+            struct sockaddr_ll* sll = (struct sockaddr_ll*)tmp->ifa_addr;
             if (sll && sll->sll_hatype == ARPHRD_ETHER) {
                 //printf("Interface %s is Ethernet-compatible\n", tmp->ifa_name);
                 interfaces.push_back(tmp->ifa_name);
@@ -206,10 +202,13 @@ std::vector<std::string> get_eth_interfaces() {
 
 class L2File : public TextFile {
  public:
-    L2File(std::string interface, mac_t dst_mac, L2MessageType cmd_type, L2MessageType cmd_status_type, L2MessageType status_type) : 
-        cmd_type_(cmd_type), cmd_status_type_(cmd_status_type), status_type_(status_type),
-        dst_mac_(dst_mac), interface_(interface) {
-        
+    L2File(std::string interface, mac_t dst_mac, L2MessageType cmd_type, L2MessageType cmd_status_type, L2MessageType status_type) :
+        cmd_type_(cmd_type),
+        cmd_status_type_(cmd_status_type),
+        status_type_(status_type),
+        dst_mac_(dst_mac),
+        interface_(interface) {
+
 
         // lock file to prevent multiple instances at the same time
         lock_file_ = "/tmp/obot." + get_primary_ifname(interface_) + "-" +
@@ -249,11 +248,10 @@ class L2File : public TextFile {
         }
 
         node_id_ = dst_mac_[5];
-        TopicId topic_id {
-            .node_id = node_id_ ,
+        TopicId topic_id{
+            .node_id = node_id_,
             .bus_id = 0,
-            .type = static_cast<uint16_t>(status_type_)
-        };
+            .type = static_cast<uint16_t>(status_type_)};
         uint16_t topic_id_uint = 0;
         if (status_type_ != L2MessageType::OBOT_ENUM) {
             std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id_uint));
@@ -261,13 +259,13 @@ class L2File : public TextFile {
 
         set_eth_packet_filter(fd_, dst_mac_, htons(topic_id_uint));
         flush();
-                // still need to bind in order to send, I guess
+        // still need to bind in order to send, I guess
         sockaddr_ll server_addr = {};
         server_addr.sll_family = AF_PACKET;
         server_addr.sll_protocol = htons(0x88B5);
         server_addr.sll_ifindex = if_nametoindex(interface_.c_str());
-    
-        int retval = bind(fd_, (struct sockaddr *)&server_addr, sizeof(server_addr));
+
+        int retval = bind(fd_, (struct sockaddr*)&server_addr, sizeof(server_addr));
         if (retval < 0) {
             throw RuntimeErrnoException("bind failed for " + interface_);
         }
@@ -316,7 +314,7 @@ class L2File : public TextFile {
         std::memcpy(&word1, mac.data(), 4);
         word1 = htonl(word1);
         uint16_t word2;
-        std::memcpy(&word2, mac.data()+4, 2);
+        std::memcpy(&word2, mac.data() + 4, 2);
         word2 = htons(word2);
 
         mac_t dst_mac = get_interface_mac_address(fd_, interface_);
@@ -338,76 +336,76 @@ class L2File : public TextFile {
                 // 3. If it DOES NOT match, jump 9 instructions forward (to reject)
                 {BPF_JMP + BPF_JEQ + BPF_K, 0, 9, dst_word2},
                 // Load first 4 bytes of Ethernet MAC
-                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 6 }, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
+                {BPF_LD + BPF_W + BPF_ABS, 0, 0, 6}, // BPF_LD+BPF_W+BPF_ABS = 0x20, offset 6
                 // Compare with dst_mac_[0..3]
-                { BPF_JMP+BPF_JEQ+BPF_K, 0, 7, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+                {BPF_JMP + BPF_JEQ + BPF_K, 0, 7, word1}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
                 // Load next 2 bytes of Ethernet MAC
-                { BPF_LD+BPF_H+BPF_ABS, 0, 0, 10 }, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
+                {BPF_LD + BPF_H + BPF_ABS, 0, 0, 10}, // BPF_LD+BPF_H+BPF_ABS = 0x28, offset 10
                 // Compare with dst_mac_[4..5]
-                { BPF_JMP+BPF_JEQ+BPF_K, 0, 5, word2 }, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
+                {BPF_JMP + BPF_JEQ + BPF_K, 0, 5, word2}, // BPF_JMP+BPF_JEQ+BPF_K = 0x15
                 // Check first 4 bytes of payload accept zero
-                { BPF_LD+BPF_W+BPF_ABS, 0, 0, 14 },
-                { BPF_JMP+BPF_JEQ+BPF_K, 0, 3, 0 },
+                {BPF_LD + BPF_W + BPF_ABS, 0, 0, 14},
+                {BPF_JMP + BPF_JEQ + BPF_K, 0, 3, 0},
                 // Check packet type field
-                { BPF_LD+BPF_H+BPF_ABS, 0, 0, L2_HEADER_SIZE },
-                { BPF_JMP+BPF_JEQ+BPF_K, 0, 1, htons(topic_id) },
+                {BPF_LD + BPF_H + BPF_ABS, 0, 0, L2_HEADER_SIZE},
+                {BPF_JMP + BPF_JEQ + BPF_K, 0, 1, htons(topic_id)},
 
                 // Accept packet
-                { BPF_RET+BPF_K, 0, 0, 0xFFFFFFFF }, // BPF_RET+BPF_K = 0x06, accept
+                {BPF_RET + BPF_K, 0, 0, 0xFFFFFFFF}, // BPF_RET+BPF_K = 0x06, accept
                 // Reject packet
-                { BPF_RET+BPF_K, 0, 0, 0 }, // BPF_RET+BPF_K = 0x06, drop
+                {BPF_RET + BPF_K, 0, 0, 0}, // BPF_RET+BPF_K = 0x06, drop
             };
 
             struct sock_fprog bpf_prog = {
-                .len = sizeof(bpf_code)/sizeof(bpf_code[0]),
+                .len = sizeof(bpf_code) / sizeof(bpf_code[0]),
                 .filter = bpf_code,
             };
             if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog)); result < 0) {
                 throw RuntimeErrnoException("Failed to set BPF filter");
             }
         } else {
-          // if topic id is 0 (enumeration)
-          // check dst_mac is us
+            // if topic id is 0 (enumeration)
+            // check dst_mac is us
 
-          struct sock_filter bpf_code[] = {
-              // 0. Load the first 4 bytes of the dst MAC (Offset 0)
-              {BPF_LD + BPF_W + BPF_ABS, 0, 0, 0},
-              // 1. If it DOES NOT match, jump 6 instructions forward (to reject)
-              {BPF_JMP + BPF_JEQ + BPF_K, 0, 6, dst_word1},
+            struct sock_filter bpf_code[] = {
+                // 0. Load the first 4 bytes of the dst MAC (Offset 0)
+                {BPF_LD + BPF_W + BPF_ABS, 0, 0, 0},
+                // 1. If it DOES NOT match, jump 6 instructions forward (to reject)
+                {BPF_JMP + BPF_JEQ + BPF_K, 0, 6, dst_word1},
 
-              // 2. Load the last 2 bytes of the dst MAC (Offset 4)
-              {BPF_LD + BPF_H + BPF_ABS, 0, 0, 4},
-              // 3. If it DOES NOT match, jump 4 instructions forward (to reject)
-              {BPF_JMP + BPF_JEQ + BPF_K, 0, 4, dst_word2},
+                // 2. Load the last 2 bytes of the dst MAC (Offset 4)
+                {BPF_LD + BPF_H + BPF_ABS, 0, 0, 4},
+                // 3. If it DOES NOT match, jump 4 instructions forward (to reject)
+                {BPF_JMP + BPF_JEQ + BPF_K, 0, 4, dst_word2},
 
-              // 4. Load 2 bytes from payload at offset 20
-              // (14 bytes eth header + 6 bytes into payload)
-              {BPF_LD + BPF_H + BPF_ABS, 0, 0, 20},
-              // 5. Apply bitwise AND with 0x0780 mask
-              {BPF_ALU + BPF_AND + BPF_K, 0, 0, 0x0780},
-              // 6. If the result DOES NOT equal 0x0780, jump 1 instruction forward (to reject)
-              {BPF_JMP + BPF_JEQ + BPF_K, 0, 1, 0x0780},
+                // 4. Load 2 bytes from payload at offset 20
+                // (14 bytes eth header + 6 bytes into payload)
+                {BPF_LD + BPF_H + BPF_ABS, 0, 0, 20},
+                // 5. Apply bitwise AND with 0x0780 mask
+                {BPF_ALU + BPF_AND + BPF_K, 0, 0, 0x0780},
+                // 6. If the result DOES NOT equal 0x0780, jump 1 instruction forward (to reject)
+                {BPF_JMP + BPF_JEQ + BPF_K, 0, 1, 0x0780},
 
-              // 7. Accept packet
-              {BPF_RET + BPF_K, 0, 0, 0xFFFFFFFF},
+                // 7. Accept packet
+                {BPF_RET + BPF_K, 0, 0, 0xFFFFFFFF},
 
-              // 8. Reject packet
-              {BPF_RET + BPF_K, 0, 0, 0},
-          };
+                // 8. Reject packet
+                {BPF_RET + BPF_K, 0, 0, 0},
+            };
 
-          struct sock_fprog bpf_prog = {
-              .len = sizeof(bpf_code) / sizeof(bpf_code[0]),
-              .filter = bpf_code,
-          };
-          if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER,
-                                      &bpf_prog, sizeof(bpf_prog));
-              result < 0) {
-            throw RuntimeErrnoException("Failed to set BPF filter");
-          }
+            struct sock_fprog bpf_prog = {
+                .len = sizeof(bpf_code) / sizeof(bpf_code[0]),
+                .filter = bpf_code,
+            };
+            if (int result = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER,
+                                        &bpf_prog, sizeof(bpf_prog));
+                result < 0) {
+                throw RuntimeErrnoException("Failed to set BPF filter");
+            }
         }
     }
 
-    // use a lock file to provide exclusive access to the device during a 
+    // use a lock file to provide exclusive access to the device during a
     // write followed by read interface to the text api
     int lock() {
         int err = lockf(fd_lock_, F_LOCK, 1);
@@ -440,35 +438,33 @@ class L2File : public TextFile {
         return err;
     }
 
-    ssize_t _read(char * data, unsigned int length, bool request = false, bool flush = true) {
+    ssize_t _read(char* data, unsigned int length, bool request = false, bool flush = true) {
         if (request) {
             lock();
-            TopicId topic_id {
-                .node_id = node_id_ ,
+            TopicId topic_id{
+                .node_id = node_id_,
                 .bus_id = 0,
-                .type = static_cast<uint16_t>(status_type_)
-            };
+                .type = static_cast<uint16_t>(status_type_)};
             uint16_t topic_id_uint;
             std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id));
-            Payload payload {
+            Payload payload{
                 .topic_id = htons(topic_id_uint),
             };
-            std::memset(&l2_frame_out_.payload, 0, 64-L2_HEADER_SIZE);
+            std::memset(&l2_frame_out_.payload, 0, 64 - L2_HEADER_SIZE);
             std::memcpy(l2_frame_out_.payload, &payload, PAYLOAD_HEADER_SIZE);
             int length_out = MIN_ETH_L2_FRAME_SIZE;
             int result = send(fd_, &l2_frame_out_, length_out, 0);
             if (result < 0) {
-                std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out_, length_out) << std::endl;
+                std::cout << RuntimeHexDumpException::hex_dump((uint8_t*)&l2_frame_out_, length_out) << std::endl;
                 throw RuntimeErrnoException("eth write error");
             }
         }
-        pollfd poll_fd {
+        pollfd poll_fd{
             .fd = fd_,
-            .events = POLLIN
-        };
+            .events = POLLIN};
 
         int nbytes = -1;
-        L2Frame frame {};
+        L2Frame frame{};
         // flush but save read frame
         while (flush) {
             L2Frame tmp_frame;
@@ -502,8 +498,8 @@ class L2File : public TextFile {
         if (nbytes <= 0) {
             throw RuntimeErrnoException("eth read error " + name());
         }
-    
-        Payload payload {};
+
+        Payload payload{};
         std::memcpy(&payload, frame.payload, PAYLOAD_HEADER_SIZE);
         payload.topic_id = ntohs(payload.topic_id);
         payload.length = ntohs(payload.length);
@@ -515,19 +511,19 @@ class L2File : public TextFile {
         return length;
     }
 
-    virtual ssize_t read(char * data, unsigned int length) {
+    virtual ssize_t read(char* data, unsigned int length) {
         ssize_t retval = _read(data, length);
 
         if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
             // a control packet
-            APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data);
+            APIControlPacket* packet = reinterpret_cast<APIControlPacket*>(data);
             if (packet->type == TIMEOUT_REQUEST) {
                 // timeout request
                 if (retval == sizeof(APIControlPacket)) {
                     // timeout request
                     // retriggers the read with the new timeout
                     uint32_t old_timeout_ms = timeout_ms_;
-                    timeout_ms_ += packet->timeout_request.timeout_us/1000;
+                    timeout_ms_ += packet->timeout_request.timeout_us / 1000;
                     ssize_t retval = read(data, length);
                     timeout_ms_ = old_timeout_ms;
                     return retval;
@@ -545,12 +541,12 @@ class L2File : public TextFile {
                 std::memmove(data, data + header_size, total_count_received);
                 while (total_length > total_count_received) {
                     // assemble multiple packets
-                    char * data_ptr = data + total_count_received;
+                    char* data_ptr = data + total_count_received;
                     retval = _read(data_ptr, length, false, false);
                     if (retval < 0) {
                         return retval;
                     }
-                    APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data_ptr);
+                    APIControlPacket* packet = reinterpret_cast<APIControlPacket*>(data_ptr);
                     if (packet->type != LONG_PACKET) {
                         std::cerr << "Error: expected long packet, got " << packet->type << std::endl;
                         return -EINVAL;
@@ -578,34 +574,33 @@ class L2File : public TextFile {
     }
 
 
-    virtual ssize_t write(const char * data, unsigned int length, bool writeread = false) {
+    virtual ssize_t write(const char* data, unsigned int length, bool writeread = false) {
         lock();
         L2MessageType cmd_type = writeread ? cmd_status_type_ : cmd_type_;
-        TopicId topic_id {
-            .node_id = node_id_ ,
+        TopicId topic_id{
+            .node_id = node_id_,
             .bus_id = 0,
-            .type = static_cast<uint16_t>(cmd_type)
-        };
+            .type = static_cast<uint16_t>(cmd_type)};
         uint16_t topic_id_uint;
         std::memcpy(&topic_id_uint, &topic_id, sizeof(topic_id));
-        Payload payload {
+        Payload payload{
             .topic_id = htons(topic_id_uint),
             .length = htons(length),
         };
-        std::memset(&l2_frame_out_.payload, 0, 64-L2_HEADER_SIZE);
+        std::memset(&l2_frame_out_.payload, 0, 64 - L2_HEADER_SIZE);
         std::memcpy(l2_frame_out_.payload, &payload, PAYLOAD_HEADER_SIZE);
         length = std::min(length, static_cast<unsigned int>(MAX_ETH_L2_PAYLOAD_SIZE));
-        std::memcpy(l2_frame_out_.payload+PAYLOAD_HEADER_SIZE, data, length);
-        int length_out = std::max(length+PAYLOAD_HEADER_SIZE+L2_HEADER_SIZE, MIN_ETH_L2_FRAME_SIZE);
+        std::memcpy(l2_frame_out_.payload + PAYLOAD_HEADER_SIZE, data, length);
+        int length_out = std::max(length + PAYLOAD_HEADER_SIZE + L2_HEADER_SIZE, MIN_ETH_L2_FRAME_SIZE);
         int result = send(fd_, &l2_frame_out_, length_out, 0);
         if (result < 0) {
-            std::cout << RuntimeHexDumpException::hex_dump((uint8_t *) &l2_frame_out_, length_out) << std::endl;
+            std::cout << RuntimeHexDumpException::hex_dump((uint8_t*)&l2_frame_out_, length_out) << std::endl;
             throw RuntimeErrnoException("eth write error " + name());
         }
         return length_out;
     }
 
-    virtual ssize_t writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
+    virtual ssize_t writeread(const char* data_out, unsigned int length_out, char* data_in, unsigned int length_in) {
         //int err = lock();
         // if (err) {
         //     return err;
@@ -634,7 +629,7 @@ class L2File : public TextFile {
     int fd_lock_ = -1;
     L2Frame l2_frame_out_;
     uint8_t node_id_;
-    
+
     std::string lock_file_;
 };
 
@@ -646,7 +641,7 @@ MotorEthL2::MotorEthL2(std::string address) {
         mac = address;
     } else {
         interface = address.substr(0, n);
-        mac = address.substr(n+1,-1);
+        mac = address.substr(n + 1, -1);
     }
     mac_t dst_mac = str2mac(mac);
     devnum_ = dst_mac[5];
@@ -654,7 +649,7 @@ MotorEthL2::MotorEthL2(std::string address) {
 
     if (interface == "any") {
         auto interfaces = get_eth_interfaces();
-        for (auto & tmp_interface : interfaces) {
+        for (auto& tmp_interface : interfaces) {
             auto motor_txt = L2File(tmp_interface, dst_mac, L2MessageType::OBOT_ASCII_CMD, L2MessageType::OBOT_ASCII_CMD, L2MessageType::OBOT_ASCII_RESPONSE);
             try {
                 std::string str_out = "messages_version";
@@ -662,7 +657,7 @@ MotorEthL2::MotorEthL2(std::string address) {
                 motor_txt.writeread(str_out.c_str(), str_out.length(), str_in, 64);
                 interface = tmp_interface;
                 break;
-            } catch (RuntimeException &e) {}
+            } catch (RuntimeException& e) {}
         }
         if (interface == "any") {
             throw RuntimeException(mac + " not found");
@@ -675,7 +670,7 @@ MotorEthL2::MotorEthL2(std::string address) {
     open();
 
     motor_txt_ = std::move(std::unique_ptr<L2File>(new L2File(interface, dst_mac, L2MessageType::OBOT_ASCII_CMD, L2MessageType::OBOT_ASCII_CMD, L2MessageType::OBOT_ASCII_RESPONSE)));
-	
+
     messages_version_ = operator[]("messages_version").get();
     name_ = operator[]("name").get();
     version_ = operator[]("version").get();
@@ -696,14 +691,13 @@ void MotorEthL2::set_timeout_ms(int timeout_ms) {
 }
 
 void MotorEthL2::open() {
-    
 }
 
 
 ssize_t MotorEthL2::read() {
     L2Frame frame_in;
     int nbytes = 0;
-    if (int retval = realtime_file_->_read(reinterpret_cast<char *>(&frame_in), sizeof(frame_in), send_read_request_);
+    if (int retval = realtime_file_->_read(reinterpret_cast<char*>(&frame_in), sizeof(frame_in), send_read_request_);
         retval < 0) {
         throw RuntimeErrnoException("Error on EthL2 read");
     } else {
@@ -737,13 +731,13 @@ std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interf
     std::vector<std::unique_ptr<L2File>> l2_files;
     for (const std::string& interface : interfaces) {
         l2_files.push_back(std::make_unique<L2File>(
-            interface, 
-            mac_t{0x03, 0x00, 0x13, 0x00, 0xff, 0xff}, 
-            L2MessageType::OBOT_ENUM, 
-            L2MessageType::OBOT_ENUM, 
-            L2MessageType::OBOT_ENUM
-        ));
-        int nbytes = l2_files[l2_files.size()-1]->write(0, 0);;
+            interface,
+            mac_t{0x03, 0x00, 0x13, 0x00, 0xff, 0xff},
+            L2MessageType::OBOT_ENUM,
+            L2MessageType::OBOT_ENUM,
+            L2MessageType::OBOT_ENUM));
+        int nbytes = l2_files[l2_files.size() - 1]->write(0, 0);
+        ;
         if (nbytes < 0) {
             throw RuntimeErrnoException("Error writing broadcast to " + interface);
         }
@@ -780,7 +774,7 @@ std::vector<std::string> MotorEthL2::enumerate_eth_l2_devices(std::string interf
                         // buffer[6-11]: Source MAC (The Motor Controller's MAC)
                         // buffer[12-13]: EtherType
 
-                        std::string if_name = l2_files[i]->interface_; 
+                        std::string if_name = l2_files[i]->interface_;
                         obot::mac_t src_mac;
                         std::memcpy(src_mac.data(), &buffer[6], 6);
                         devices.push_back(if_name + "-" + mac2str(src_mac));

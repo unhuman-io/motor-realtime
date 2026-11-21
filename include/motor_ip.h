@@ -20,21 +20,22 @@ class UDPFile : public TextFile {
     * [ CRC (2) ]
     */
     struct ObotPacket {
-        ObotPacket() : start_bytes{0xCA, 0xFE} {}
+        ObotPacket() :
+            start_bytes{0xCA, 0xFE} {}
         uint8_t start_bytes[2];
         uint8_t frame_id;
         uint8_t length;
         uint8_t data[1024];
     };
-    UDPFile(figure::ProtocolParser &parser) :
+    UDPFile(figure::ProtocolParser& parser) :
         parser_(parser) {
         register_parser_callbacks();
     }
     int poll();
     virtual void flush();
-    virtual ssize_t read(char * /* data */, unsigned int /* length */, bool write_read = false);
-    virtual ssize_t write(const char * /* data */, unsigned int /* length */, bool write_read = false);
-    virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */);
+    virtual ssize_t read(char* /* data */, unsigned int /* length */, bool write_read = false);
+    virtual ssize_t write(const char* /* data */, unsigned int /* length */, bool write_read = false);
+    virtual ssize_t writeread(const char* /* *data_out */, unsigned int /* length_out */, char* /* data_in */, unsigned int /* length_in */);
 
     void set_api_mode() { api_mode_ = true; }
     int lock_communication();
@@ -48,16 +49,15 @@ class UDPFile : public TextFile {
     std::atomic<int> communication_lock_count_{};
 
     void register_parser_callbacks() {
-        parser_.registerCallback(recv_frame_id_, [this](const uint8_t* buf, uint16_t len){ 
-            this->rx_callback(buf, len); });
-        parser_.registerCallback(send_recv_frame_id_, [this](const uint8_t* buf, uint16_t len){ 
-            this->rx_callback(buf, len); });
+        parser_.registerCallback(recv_frame_id_, [this](const uint8_t* buf, uint16_t len) { this->rx_callback(buf, len); });
+        parser_.registerCallback(send_recv_frame_id_, [this](const uint8_t* buf, uint16_t len) { this->rx_callback(buf, len); });
     }
     void rx_callback(const uint8_t*, uint16_t);
     sockaddr_in addr_ = {};
+
  private:
-    ssize_t _read(char * /* data */, unsigned int /* length */, bool write_read = false);
-    figure::ProtocolParser &parser_;
+    ssize_t _read(char* /* data */, unsigned int /* length */, bool write_read = false);
+    figure::ProtocolParser& parser_;
     std::condition_variable rx_data_cv_;
     std::mutex rx_data_cv_m_; // protects rx_data_cv_, rx_buf_, rx_received_ and rx_len_
     uint8_t rx_buf_[1024];
@@ -71,7 +71,8 @@ class UDPFile : public TextFile {
 
 class MotorIP : public Motor {
  public:
-    MotorIP(std::string address, std::string ip_alias = "") : realtime_communication_(parser_) {
+    MotorIP(std::string address, std::string ip_alias = "") :
+        realtime_communication_(parser_) {
 
         int n = address.find(":");
         if (n == std::string::npos) {
@@ -79,7 +80,7 @@ class MotorIP : public Motor {
             port_ = "7770";
         } else {
             ip_ = address.substr(0, n);
-            port_ = address.substr(n+1,-1);
+            port_ = address.substr(n + 1, -1);
             if (!port_.size()) {
                 port_ = "7770";
             }
@@ -88,7 +89,7 @@ class MotorIP : public Motor {
         ip_alias_ = ip_alias;
 
         motor_txt_ = std::move(std::unique_ptr<UDPFile>(new UDPFile(parser_)));
-        UDPFile * motor_txt = static_cast<UDPFile *>(motor_txt_.get());
+        UDPFile* motor_txt = static_cast<UDPFile*>(motor_txt_.get());
         motor_txt->send_recv_frame_id_ = 4;
         motor_txt->recv_frame_id_ = 5;
         motor_txt->send_frame_id_ = 4;
@@ -102,11 +103,11 @@ class MotorIP : public Motor {
         realtime_communication_.fd_ = fd_;
         realtime_communication_.addr_ = addr_;
         realtime_communication_.fd_communication_lock_ = fd_communication_lock_;
-        rx_thread_ = std::thread([this]{ this->rx_data(); });
+        rx_thread_ = std::thread([this] { this->rx_data(); });
         connected_ = connect();
     }
     virtual ~MotorIP();
-    
+
     int create_communication_lock();
     virtual void set_timeout_ms(int timeout_ms) override;
     void open();

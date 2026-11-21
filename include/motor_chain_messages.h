@@ -15,18 +15,23 @@ namespace obot {
 static_assert(sizeof(MotorStatus) % sizeof(float) == 0);
 static_assert(sizeof(MotorCommand) % sizeof(float) == 0);
 
-struct MotorChainStatus{
+struct MotorChainStatus {
  private:
-    typedef Eigen::Map<const Eigen::VectorXf, Eigen::Unaligned, 
-        Eigen::InnerStride<sizeof(MotorStatus)/sizeof(float)>> ConstMotorStatusFloat;
-    typedef Eigen::Map<const Eigen::Matrix<uint32_t, Eigen::Dynamic, 1>, Eigen::Unaligned, 
-        Eigen::InnerStride<sizeof(MotorStatus)/sizeof(uint32_t)>> ConstMotorStatusTimestamp;  
-    typedef Eigen::Map<const Eigen::Matrix<int32_t, Eigen::Dynamic, 1>, Eigen::Unaligned, 
-        Eigen::InnerStride<sizeof(MotorStatus)/sizeof(int32_t)>> ConstMotorStatusInt32;
-    typedef Eigen::Map<const Eigen::Matrix<uint8_t, Eigen::Dynamic, 1>, Eigen::Unaligned, 
-        Eigen::InnerStride<sizeof(MotorStatus)/sizeof(uint8_t)>> ConstMotorStatusUint8;        
+    typedef Eigen::Map<const Eigen::VectorXf, Eigen::Unaligned,
+                       Eigen::InnerStride<sizeof(MotorStatus) / sizeof(float)>>
+        ConstMotorStatusFloat;
+    typedef Eigen::Map<const Eigen::Matrix<uint32_t, Eigen::Dynamic, 1>, Eigen::Unaligned,
+                       Eigen::InnerStride<sizeof(MotorStatus) / sizeof(uint32_t)>>
+        ConstMotorStatusTimestamp;
+    typedef Eigen::Map<const Eigen::Matrix<int32_t, Eigen::Dynamic, 1>, Eigen::Unaligned,
+                       Eigen::InnerStride<sizeof(MotorStatus) / sizeof(int32_t)>>
+        ConstMotorStatusInt32;
+    typedef Eigen::Map<const Eigen::Matrix<uint8_t, Eigen::Dynamic, 1>, Eigen::Unaligned,
+                       Eigen::InnerStride<sizeof(MotorStatus) / sizeof(uint8_t)>>
+        ConstMotorStatusUint8;
+
  public:
-    MotorChainStatus(std::vector<MotorStatus> &sv) :
+    MotorChainStatus(std::vector<MotorStatus>& sv) :
         MotorChainStatus(sv.data(), sv.size()) {}
     MotorChainStatus(MotorStatus* sa, int num_motors) :
         size_(num_motors),
@@ -39,8 +44,7 @@ struct MotorChainStatus{
         torque_(&sa[0].torque, size()),
         motor_encoder_(&sa[0].motor_encoder, size()),
         mode_(&sa[0].flags.mode, size()),
-        error_(reinterpret_cast<uint8_t*>(&sa[0].flags.error), size())
-        {}
+        error_(reinterpret_cast<uint8_t*>(&sa[0].flags.error), size()) {}
     int size() const { return size_; }
     ConstMotorStatusTimestamp const& mcu_timestamp() const { return mcu_timestamp_; }
     ConstMotorStatusTimestamp const& host_timestamp_received() const { return host_timestamp_received_; }
@@ -53,17 +57,18 @@ struct MotorChainStatus{
     ConstMotorStatusUint8 const& error() const { return error_; }
     Eigen::VectorXd dt_seconds(const MotorChainStatus& last) {
         //TODO unhardcode cpu frequency
-        return (mcu_timestamp() - last.mcu_timestamp()).cast<double>()/170e6; 
+        return (mcu_timestamp() - last.mcu_timestamp()).cast<double>() / 170e6;
     }
     Eigen::VectorXd motor_velocity(const MotorChainStatus& last) {
-        return (motor_position() - last.motor_position()).cast<double>().array()/dt_seconds(last).array();
+        return (motor_position() - last.motor_position()).cast<double>().array() / dt_seconds(last).array();
     }
     Eigen::VectorXd joint_velocity(const MotorChainStatus& last) {
-        return (joint_position() - last.joint_position()).cast<double>().array()/dt_seconds(last).array();
+        return (joint_position() - last.joint_position()).cast<double>().array() / dt_seconds(last).array();
     }
+
  private:
     int size_;
-    MotorStatus *data_;
+    MotorStatus* data_;
     ConstMotorStatusTimestamp mcu_timestamp_;
     ConstMotorStatusTimestamp host_timestamp_received_;
     ConstMotorStatusFloat motor_position_;
@@ -77,13 +82,15 @@ struct MotorChainStatus{
 
 struct MotorChainCommand {
  private:
-    typedef Eigen::Map<Eigen::VectorXf, Eigen::Unaligned, 
-        Eigen::InnerStride<sizeof(MotorCommand)/sizeof(float)>> MotorCommandFloat;
-    typedef Eigen::Map<Eigen::Matrix<uint8_t, Eigen::Dynamic, 1>, Eigen::Unaligned, 
-        Eigen::InnerStride<sizeof(MotorCommand)/sizeof(uint8_t)>> MotorCommandMode;
+    typedef Eigen::Map<Eigen::VectorXf, Eigen::Unaligned,
+                       Eigen::InnerStride<sizeof(MotorCommand) / sizeof(float)>>
+        MotorCommandFloat;
+    typedef Eigen::Map<Eigen::Matrix<uint8_t, Eigen::Dynamic, 1>, Eigen::Unaligned,
+                       Eigen::InnerStride<sizeof(MotorCommand) / sizeof(uint8_t)>>
+        MotorCommandMode;
 
  public:
-    MotorChainCommand(std::vector<MotorCommand> &cv) :
+    MotorChainCommand(std::vector<MotorCommand>& cv) :
         MotorChainCommand(cv.data(), cv.size()) {}
     MotorChainCommand(MotorCommand* ca, int num_motors) :
         size_(num_motors),
@@ -102,7 +109,7 @@ struct MotorChainCommand {
 
  private:
     int size_;
-    MotorCommand *data_;
+    MotorCommand* data_;
     MotorCommandMode mode_desired_;
     MotorCommandFloat current_desired_;
     MotorCommandFloat position_desired_;

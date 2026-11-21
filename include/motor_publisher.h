@@ -23,19 +23,20 @@ class MotorPublisher {
         Header header;
         T data;
     };
-    MotorPublisher(std::string shm_name = "motor_data") : shm_name_(shm_name) {
-        fd_ = shm_open(shm_name_.c_str(), O_RDWR  | O_CREAT, 0666);
+    MotorPublisher(std::string shm_name = "motor_data") :
+        shm_name_(shm_name) {
+        fd_ = shm_open(shm_name_.c_str(), O_RDWR | O_CREAT, 0666);
         if (int retval = ftruncate(fd_, sizeof(*data_)); retval < 0) {
             throw RuntimeErrnoException("error truncating " + shm_name);
         }
         memptr_ = mmap(nullptr,       /* let system pick where to put segment */
-                        sizeof(*data_),   /* how many bytes */
-                        PROT_READ | PROT_WRITE, /* access protections */
-                        MAP_SHARED, /* mapping visible to other processes */
-                        fd_,         /* file descriptor */
-                        0);
+                       sizeof(*data_),   /* how many bytes */
+                       PROT_READ | PROT_WRITE, /* access protections */
+                       MAP_SHARED, /* mapping visible to other processes */
+                       fd_,         /* file descriptor */
+                       0);
         std::memset(memptr_, 0, sizeof(*data_));
-        data_ = reinterpret_cast<CStack<Data> *>(memptr_);
+        data_ = reinterpret_cast<CStack<Data>*>(memptr_);
     }
     ~MotorPublisher() {
         data_->close();
@@ -52,12 +53,13 @@ class MotorPublisher {
         data_struct_.data = data;
         data_->push(data_struct_);
     }
+
  private:
     int fd_;
     Data data_struct_ = {};
     std::string shm_name_;
-    void * memptr_;
-    CStack<Data> *data_;
+    void* memptr_;
+    CStack<Data>* data_;
 };
 
 }  // namespace obot

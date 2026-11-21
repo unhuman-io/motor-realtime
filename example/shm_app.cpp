@@ -11,16 +11,16 @@ using namespace obot;
 
 class Task : public MotorThread {
  public:
-  Task(int frequency) : MotorThread(frequency) {
-	  
-  }
- protected:
-	virtual void post_init() {
+    Task(int frequency) :
+        MotorThread(frequency) {
+    }
 
-	}
-	virtual void pre_update() {
-		command_ = sub_.read();
-	}
+ protected:
+    virtual void post_init() {
+    }
+    virtual void pre_update() {
+        command_ = sub_.read();
+    }
 
     virtual void controller_update() {
         std::vector<MotorCommand> commands(motor_manager_.motors().size(), command_);
@@ -37,9 +37,8 @@ class Task : public MotorThread {
     MotorCommand command_ = {};
 };
 
-int main (int argc, char **argv)
-{	
-	Task task(1000);
-	auto app = MotorApp(argc, argv, &task);
-	return app.run();
+int main(int argc, char** argv) {
+    Task task(1000);
+    auto app = MotorApp(argc, argv, &task);
+    return app.run();
 }

@@ -1,0 +1,4 @@
+# The style is motor_messages': the include/motor_messages submodule has to be
+# checked out for clang-format to run. Settings of this repository alone would
+# go below. clang-format 23: pipx run clang-format==23.1.5 -i <files>
+BasedOnStyle: InheritParentConfig=include/motor_messages

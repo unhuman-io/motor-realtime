@@ -24,7 +24,8 @@ namespace obot {
 
 class CANFile : public TextFile {
  public:
-    CANFile(std::string ifname, uint32_t devnum) : devnum_(devnum) {
+    CANFile(std::string ifname, uint32_t devnum) :
+        devnum_(devnum) {
         ifname_ = ifname;
 
         // lock file to prevent multiple instances at the same time
@@ -59,14 +60,13 @@ class CANFile : public TextFile {
     void open() {
         fd_ = MotorCAN::open_socket(ifname_);
         struct can_filter rfilter[1];
-        rfilter[0].can_id   = 5 << 7 | devnum_;
+        rfilter[0].can_id = 5 << 7 | devnum_;
         rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
         if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
             int saved = errno;
             close();
-            throw RuntimeException("Error setting filter for " + ifname_ + ":" + std::to_string(devnum_) + ": "
-                + std::to_string(saved) + ": " + strerror(saved));
+            throw RuntimeException("Error setting filter for " + ifname_ + ":" + std::to_string(devnum_) + ": " + std::to_string(saved) + ": " + strerror(saved));
         }
     }
 
@@ -84,20 +84,20 @@ class CANFile : public TextFile {
         tmp.events = POLLIN;
         int poll_result;
         do {
-            poll_result = ::poll(&tmp, 1,0);
+            poll_result = ::poll(&tmp, 1, 0);
             if (poll_result > 0) {
                 int nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
                 if (nbytes < 0) {
                     throw RuntimeErrnoException("Read error during flush");
                 }
             }
-        } while(poll_result > 0);
+        } while (poll_result > 0);
         if (poll_result < 0) {
             throw RuntimeErrnoException("Poll error durning flush");
         }
     }
 
-    // use a lock file to provide exclusive access to the CAN device during a 
+    // use a lock file to provide exclusive access to the CAN device during a
     // write followed by read interface to the text api
     int lock() {
         int err = lockf(fd_lock_, F_LOCK, 1);
@@ -132,7 +132,7 @@ class CANFile : public TextFile {
         return err;
     }
 
-    ssize_t _read(char * data, unsigned int length) {
+    ssize_t _read(char* data, unsigned int length) {
         struct canfd_frame frame;
         pollfd tmp;
         tmp.fd = fd_;
@@ -146,11 +146,11 @@ class CANFile : public TextFile {
             nbytes = ::read(fd_, &frame, sizeof(struct canfd_frame));
             if (nbytes > 0) {
                 if (frame.can_id == can_id) {
-                    length_recv = std::min(length, (unsigned int) frame.len);
+                    length_recv = std::min(length, (unsigned int)frame.len);
                     if (frame.data[0] != 0) {
                         // an ascii packet, not a special control packet
                         // search for embedded 0 terminator
-                        length_recv = strnlen((const char*) frame.data, length_recv);
+                        length_recv = strnlen((const char*)frame.data, length_recv);
                     }
                     std::memcpy(data, frame.data, length_recv);
                 }
@@ -165,19 +165,19 @@ class CANFile : public TextFile {
         return length_recv;
     }
 
-    virtual ssize_t read(char * data, unsigned int length) {
+    virtual ssize_t read(char* data, unsigned int length) {
         ssize_t retval = _read(data, length);
-        
+
         if (retval >= sizeof(APIControlPacket) && data[0] == 0) {
             // a control packet
-            APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data);
+            APIControlPacket* packet = reinterpret_cast<APIControlPacket*>(data);
             if (packet->type == TIMEOUT_REQUEST) {
                 // timeout request
                 if (retval == sizeof(APIControlPacket)) {
                     // timeout request
                     // retriggers the read with the new timeout
                     uint32_t old_timeout_ms = timeout_ms_;
-                    timeout_ms_ += packet->timeout_request.timeout_us/1000;
+                    timeout_ms_ += packet->timeout_request.timeout_us / 1000;
                     ssize_t retval = read(data, length);
                     timeout_ms_ = old_timeout_ms;
                     return retval;
@@ -195,12 +195,12 @@ class CANFile : public TextFile {
                 std::memmove(data, data + header_size, total_count_received);
                 while (total_length > total_count_received) {
                     // assemble multiple packets
-                    char * data_ptr = data + total_count_received;
+                    char* data_ptr = data + total_count_received;
                     retval = _read(data_ptr, length);
                     if (retval < 0) {
                         return retval;
                     }
-                    APIControlPacket * packet = reinterpret_cast<APIControlPacket *>(data_ptr);
+                    APIControlPacket* packet = reinterpret_cast<APIControlPacket*>(data_ptr);
                     if (packet->type != LONG_PACKET) {
                         std::cerr << "Error: expected long packet, got " << packet->type << std::endl;
                         return -EINVAL;
@@ -225,11 +225,11 @@ class CANFile : public TextFile {
     }
 
 
-    virtual ssize_t write(const char * data, unsigned int length) {
+    virtual ssize_t write(const char* data, unsigned int length) {
         lock();
         struct canfd_frame frame = {};
-        length = std::min(length, (unsigned int) CANFD_MAX_DLEN-1);
-        frame.can_id  = 4 << 7 | devnum_;
+        length = std::min(length, (unsigned int)CANFD_MAX_DLEN - 1);
+        frame.can_id = 4 << 7 | devnum_;
         frame.len = length + 1;
         frame.flags = CANFD_BRS;
         std::memcpy(frame.data, data, length);
@@ -242,7 +242,7 @@ class CANFile : public TextFile {
         return nbytes;
     }
 
-    virtual ssize_t writeread(const char * data_out, unsigned int length_out, char * data_in, unsigned int length_in) {
+    virtual ssize_t writeread(const char* data_out, unsigned int length_out, char* data_in, unsigned int length_in) {
         //int err = lock();
         // if (err) {
         //     return err;
@@ -269,31 +269,31 @@ class CANFile : public TextFile {
 
 // A node's reply to an enum request that goes to it alone. false without a
 // reply, and with the empty reply of firmware from before EnumResponse.
-static bool read_enum(const std::string &ifname, uint32_t devnum,
-                      int timeout_ms, EnumResponse &response) {
-  int fd = MotorCAN::open_socket(ifname);
-  struct can_filter rfilter[1];
-  rfilter[0].can_id = 0xf << 7 | devnum;
-  rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
-  struct canfd_frame frame = {};
-  frame.can_id = 0xf << 7 | devnum;
-  frame.flags = CANFD_BRS;
-  bool result = false;
-  if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) ==
-          0 &&
-      ::write(fd, &frame, sizeof(frame)) == sizeof(frame)) {
-    pollfd tmp = {};
-    tmp.fd = fd;
-    tmp.events = POLLIN;
-    if (::poll(&tmp, 1, timeout_ms) > 0 &&
-        ::read(fd, &frame, sizeof(frame)) > 0 &&
-        frame.len >= sizeof(response)) {
-      std::memcpy(&response, frame.data, sizeof(response));
-      result = true;
+static bool read_enum(const std::string& ifname, uint32_t devnum,
+                      int timeout_ms, EnumResponse& response) {
+    int fd = MotorCAN::open_socket(ifname);
+    struct can_filter rfilter[1];
+    rfilter[0].can_id = 0xf << 7 | devnum;
+    rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
+    struct canfd_frame frame = {};
+    frame.can_id = 0xf << 7 | devnum;
+    frame.flags = CANFD_BRS;
+    bool result = false;
+    if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) ==
+            0 &&
+        ::write(fd, &frame, sizeof(frame)) == sizeof(frame)) {
+        pollfd tmp = {};
+        tmp.fd = fd;
+        tmp.events = POLLIN;
+        if (::poll(&tmp, 1, timeout_ms) > 0 &&
+            ::read(fd, &frame, sizeof(frame)) > 0 &&
+            frame.len >= sizeof(response)) {
+            std::memcpy(&response, frame.data, sizeof(response));
+            result = true;
+        }
     }
-  }
-  ::close(fd);
-  return result;
+    ::close(fd);
+    return result;
 }
 
 MotorCAN::MotorCAN(std::string address) {
@@ -302,21 +302,21 @@ MotorCAN::MotorCAN(std::string address) {
         throw RuntimeException("Error parsing address " + address + ": missing ':'");
     } else {
         dev_path_ = address.substr(0, n);
-        std::string tmp = address.substr(n+1,-1);
+        std::string tmp = address.substr(n + 1, -1);
         if (!tmp.size()) {
-           devnum_ = 1;
+            devnum_ = 1;
         } else {
             try {
                 // base 0 for auto-detect base
                 devnum_ = std::stoi(tmp, nullptr, 0);
-            } catch (std::exception &e) {
+            } catch (std::exception& e) {
                 throw RuntimeException("Error parsing address " + address + ": " + e.what());
             }
         }
     }
     open();
     struct can_filter rfilter[1];
-    rfilter[0].can_id   = 3 << 7 | devnum_;
+    rfilter[0].can_id = 3 << 7 | devnum_;
     rfilter[0].can_mask = 0x7FF | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
     if (setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
@@ -329,21 +329,21 @@ MotorCAN::MotorCAN(std::string address) {
     // text api, which a node may not have. Earlier firmware has it only there.
     EnumResponse enum_response;
     if (read_enum(dev_path_, devnum_, timeout_ms_, enum_response)) {
-      parse_enum(enum_response);
+        parse_enum(enum_response);
     } else {
-      messages_version_ = operator[]("messages_version").get();
-      name_ = operator[]("name").get();
-      version_ = operator[]("version").get();
-      board_name_ = operator[]("board_name").get();
-      board_rev_ = operator[]("board_rev").get();
-      board_num_ = operator[]("board_num").get();
-      config_ = operator[]("config").get();
-      serial_number_ = operator[]("serial").get();
+        messages_version_ = operator[]("messages_version").get();
+        name_ = operator[]("name").get();
+        version_ = operator[]("version").get();
+        board_name_ = operator[]("board_name").get();
+        board_rev_ = operator[]("board_rev").get();
+        board_num_ = operator[]("board_num").get();
+        config_ = operator[]("config").get();
+        serial_number_ = operator[]("serial").get();
     }
     // hex in base_path_ for convenience
 #if __has_include(<charconv>)
     char buffer[5] = {"0x"};
-    std::to_chars(buffer+2, buffer+4, devnum_, 16);
+    std::to_chars(buffer + 2, buffer + 4, devnum_, 16);
     base_path_ = buffer;
 #endif
 }
@@ -359,38 +359,38 @@ void MotorCAN::open() {
 }
 
 int MotorCAN::open_socket(std::string if_name) {
-	struct sockaddr_can addr;
-	struct ifreq ifr;
+    struct sockaddr_can addr;
+    struct ifreq ifr;
     int canfd_on = 1;
 
-	const char *ifname = if_name.c_str();
+    const char* ifname = if_name.c_str();
 
     int fd;
-	if ((fd = socket(PF_CAN, SOCK_RAW, CAN_RAW)) == -1) {
-		throw RuntimeException("Error opening socket for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
-	}
-    if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, &canfd_on, sizeof(canfd_on))){
+    if ((fd = socket(PF_CAN, SOCK_RAW, CAN_RAW)) == -1) {
+        throw RuntimeException("Error opening socket for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
+    }
+    if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, &canfd_on, sizeof(canfd_on))) {
         throw RuntimeException("Error enabling canfd for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
 
     strcpy(ifr.ifr_name, ifname);
-    
+
     if (if_name == "any") {
         ifr.ifr_ifindex = 0;
-    } else {	
-	    if(ioctl(fd, SIOCGIFINDEX, &ifr)) {
+    } else {
+        if (ioctl(fd, SIOCGIFINDEX, &ifr)) {
             throw RuntimeException("Error getting ifindex for " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
         }
     }
-	
-	addr.can_family  = AF_CAN;
-	addr.can_ifindex = ifr.ifr_ifindex;
 
-	// printf("%s at index %d\n", ifname, ifr.ifr_ifindex);
+    addr.can_family = AF_CAN;
+    addr.can_ifindex = ifr.ifr_ifindex;
 
-	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+    // printf("%s at index %d\n", ifname, ifr.ifr_ifindex);
+
+    if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
         throw RuntimeException("Error binding " + if_name + ": " + std::to_string(errno) + ": " + strerror(errno));
-	}
+    }
     return fd;
 }
 
@@ -400,8 +400,7 @@ ssize_t MotorCAN::read() {
         struct canfd_frame frame = {
             .can_id = (3 << 7) | devnum_,
             .len = 0,
-            .flags = CANFD_BRS
-        };
+            .flags = CANFD_BRS};
         if (int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
             nbytes < 0) {
             throw RuntimeErrnoException("write read request error");
@@ -442,12 +441,11 @@ ssize_t MotorCAN::write() {
     struct canfd_frame frame = {
         // 1 : command, 2: command/req status
         .can_id = ((cmd_status_req_ ? 2 : 1) << 7) | devnum_,
-	    .len = 48, //sizeof(command_);
-        .flags = CANFD_BRS
-    };
-	std::memcpy(frame.data, &command_, sizeof(command_));
+        .len = 48, //sizeof(command_);
+        .flags = CANFD_BRS};
+    std::memcpy(frame.data, &command_, sizeof(command_));
 
-	int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
+    int nbytes = ::write(fd_, &frame, sizeof(struct canfd_frame));
     if (nbytes < 0) {
         throw RuntimeException("Error writing can " + dev_path_ + ": " + std::to_string(errno) + ": " + strerror(errno));
     }
@@ -457,7 +455,7 @@ ssize_t MotorCAN::write() {
 
 static std::vector<std::string> get_can_interfaces() {
     std::vector<std::string> interfaces;
-    struct ifaddrs *addrs,*tmp;
+    struct ifaddrs *addrs, *tmp;
 
     if (getifaddrs(&addrs)) {
         throw RuntimeException("Error getting interfaces: " + std::to_string(errno) + ": " + strerror(errno));
@@ -473,15 +471,15 @@ static std::vector<std::string> get_can_interfaces() {
                 interfaces.push_back(tmp->ifa_name);
                 ::close(fd);
             }
-        } catch (RuntimeException &e) {}
-        
+        } catch (RuntimeException& e) {}
+
         tmp = tmp->ifa_next;
     }
     if (interfaces.empty()) {
         throw RuntimeException("No valid CAN interfaces found");
     } else {
         std::cout << "Found CAN interfaces: ";
-        for (auto &s : interfaces) {
+        for (auto& s : interfaces) {
             std::cout << s << " ";
         }
         std::cout << std::endl;
@@ -501,7 +499,7 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
 
     int fd = open_socket(interface);
     struct can_filter rfilter[1];
-    rfilter[0].can_id   = 0x780;
+    rfilter[0].can_id = 0x780;
     rfilter[0].can_mask = 0x780 | CAN_EFF_FLAG | CAN_RTR_FLAG;
 
     if (setsockopt(fd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter))) {
@@ -509,11 +507,11 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
     }
 
 
-    for (std::string &interface : interfaces) {
+    for (std::string& interface : interfaces) {
         int write_fd = open_socket(interface);
 
         struct canfd_frame frame = {};
-        frame.can_id  = 0xf << 7 | 0x7f | CAN_RTR_FLAG;
+        frame.can_id = 0xf << 7 | 0x7f | CAN_RTR_FLAG;
         frame.len = 0;
 
         int nbytes = ::write(write_fd, &frame, sizeof(struct canfd_frame));
@@ -538,7 +536,7 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
             struct sockaddr_can addr;
             socklen_t len = sizeof(addr);
             int nbytes = recvfrom(fd, &frame, sizeof(struct can_frame),
-                  0, (struct sockaddr*)&addr, &len);
+                                  0, (struct sockaddr*)&addr, &len);
             struct ifreq ifr = {};
             ifr.ifr_ifindex = addr.can_ifindex;
             ioctl(fd, SIOCGIFNAME, &ifr);
@@ -546,7 +544,10 @@ std::vector<std::string> MotorCAN::enumerate_can_devices(std::string interface) 
                 int devnum = frame.can_id & 0x7F;
                 devices.push_back(std::string(ifr.ifr_name) + ":" + std::to_string(devnum));
             } else {
-                throw RuntimeException("Error reading " + interface + "(" + std::string(ifr.ifr_name) + ")" ": " + std::to_string(errno) + ": " + strerror(errno));
+                throw RuntimeException("Error reading " + interface + "(" + std::string(ifr.ifr_name) +
+                                       ")"
+                                       ": " +
+                                       std::to_string(errno) + ": " + strerror(errno));
             }
         } else if (poll_result < 0) {
             throw RuntimeException("Error polling " + interface + ": " + std::to_string(errno) + ": " + strerror(errno));

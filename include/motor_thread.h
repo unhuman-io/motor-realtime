@@ -21,12 +21,13 @@ class MotorThread : public RealtimeThread {
     virtual ~MotorThread() {
         finish();
     }
-    const CStack<Data> &cstack() const { return cstack_; }
+    const CStack<Data>& cstack() const { return cstack_; }
     void init();
     void set_no_poll() { use_poll_ = false; }
     void set_poll_timeout(uint32_t ns) { poll_timeout_ns_ = ns; }
     MotorManager& motor_manager() { return motor_manager_; }
     virtual void keyboard_press(char c) {}
+
  protected:
     virtual void post_init() {}
     virtual void pre_update() {}
@@ -37,7 +38,7 @@ class MotorThread : public RealtimeThread {
     Data data_;
     MotorManager motor_manager_;
     CStack<Data> cstack_;
-    uint32_t poll_timeout_ns_ = 500*1000;
+    uint32_t poll_timeout_ns_ = 500 * 1000;
     bool user_space_driver_;
     bool use_poll_ = true;
     double cpu_frequency_hz_[MAX_MOTORS];
