@@ -3,7 +3,7 @@
 
 using namespace obot;
 
-int main (int /* argc */, char ** /* argv */) {
+int main(int /* argc */, char** /* argv */) {
     MotorManager m;
     m.get_connected_motors();
     double kp;

@@ -2,19 +2,20 @@
 #include <thread>
 #include <iostream>
 
-struct cstr{char s[100];};
+struct cstr {
+    char s[100];
+};
 
 int main(int /* argc */, char** /* argv */) {
     obot::MotorSubscriber<cstr> sub;
-    while(1) {
+    while (1) {
         std::string str = sub.read().s;
         if (str.size()) {
             std::cout << str;
         } else {
             std::cout << "no data" << std::endl;
         }
-        
+
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-
 }

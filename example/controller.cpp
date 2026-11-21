@@ -29,8 +29,8 @@ void Controller::set_current(std::vector<double> current) {
     current_desired_ = current;
 }
 
-void Controller::update(std::vector<Status> statuses, std::vector<Command> &commands) {
-    for (int i=0; i<statuses.size(); i++) {
+void Controller::update(std::vector<Status> statuses, std::vector<Command>& commands) {
+    for (int i = 0; i < statuses.size(); i++) {
         switch (mode_desired_[i]) {
             case OPEN:
             default:
@@ -45,8 +45,8 @@ void Controller::update(std::vector<Status> statuses, std::vector<Command> &comm
                 break;
             case POSITION:
                 commands[i].mode_desired = 2;
-                float current_desired = current_desired_[i] + position_controllers_[i].update(position_desired_[i], 
-                                    statuses[i].motor_position, statuses[i].mcu_timestamp);
+                float current_desired = current_desired_[i] + position_controllers_[i].update(position_desired_[i],
+                                                                                              statuses[i].motor_position, statuses[i].mcu_timestamp);
                 commands[i].current_desired = current_desired;
                 break;
         }
@@ -54,11 +54,11 @@ void Controller::update(std::vector<Status> statuses, std::vector<Command> &comm
 }
 
 double PositionController::update(double position_desired, double position_measured, int32_t count) {
-    double dt = (count - last_count_)/180e6;
-    double velocity_measured = (position_measured - position_last_)/dt;
+    double dt = (count - last_count_) / 180e6;
+    double velocity_measured = (position_measured - position_last_) / dt;
     position_last_ = position_measured;
     last_count_ = count;
 
-    double current_desired = kp*(position_desired - position_measured) - kd*velocity_measured;
+    double current_desired = kp * (position_desired - position_measured) - kd * velocity_measured;
     return current_desired;
 }

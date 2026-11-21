@@ -2,18 +2,18 @@
 
 namespace obot {
 
-static std::string udev_device_check_and_get_sysattr_value(struct udev_device *dev, const char * name) {
-    const char *value = udev_device_get_sysattr_value(dev, name);
+static std::string udev_device_check_and_get_sysattr_value(struct udev_device* dev, const char* name) {
+    const char* value = udev_device_get_sysattr_value(dev, name);
     if (value != nullptr) {
         return value;
     }
     return "";
 }
 
-Motor::Motor(std::string dev_path) { 
-    dev_path_ = dev_path; 
-    struct udev *udev = udev_new();
-    struct udev_device *dev = udev_device_new_from_subsystem_sysname(udev, "usbmisc", basename(const_cast<char *>(dev_path.c_str())));
+Motor::Motor(std::string dev_path) {
+    dev_path_ = dev_path;
+    struct udev* udev = udev_new();
+    struct udev_device* dev = udev_device_new_from_subsystem_sysname(udev, "usbmisc", basename(const_cast<char*>(dev_path.c_str())));
     if (!dev) {
         throw RuntimeException("No device: " + dev_path);
     }
@@ -23,12 +23,12 @@ Motor::Motor(std::string dev_path) {
     attr_path_ = text_api_path + "/device";
     motor_txt_ = std::move(std::unique_ptr<SysfsFile>(new SysfsFile(text_api_path + "/device/text_api")));
 
-    struct udev_device *dev_parent = udev_device_get_parent_with_subsystem_devtype(
-            dev,
-            "usb",
-            "usb_device");
-    serial_number_ = udev_device_check_and_get_sysattr_value(dev_parent, "serial"); 
-    base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev_parent)));
+    struct udev_device* dev_parent = udev_device_get_parent_with_subsystem_devtype(
+        dev,
+        "usb",
+        "usb_device");
+    serial_number_ = udev_device_check_and_get_sysattr_value(dev_parent, "serial");
+    base_path_ = basename(const_cast<char*>(udev_device_get_syspath(dev_parent)));
     version_ = udev_device_check_and_get_sysattr_value(dev_parent, "configuration");
     devnum_ = std::stoi(udev_device_check_and_get_sysattr_value(dev_parent, "devnum"));
 
@@ -47,13 +47,14 @@ Motor::~Motor() { close(); }
 
 std::string Motor::get_fast_log() {
     std::string s_read, s_out;
-    s_out += "timestamp, electrical_position, command_iq, command_id, measured_iq, measured_id, command_vq, command_vd,"
-             " vbus, ibus\n";
+    s_out +=
+        "timestamp, electrical_position, command_iq, command_id, measured_iq, measured_id, command_vq, command_vd,"
+        " vbus, ibus\n";
     s_read = motor_txt_->writeread("fast_log");
-    for(int i=0; i<FAST_LOG_LENGTH; i++) {
-        if (s_read.length() >= (i+1)*sizeof(FastLog)) {
-            FastLog log = *(FastLog *) (s_read.c_str() + i*sizeof(FastLog));
-            s_out += 
+    for (int i = 0; i < FAST_LOG_LENGTH; i++) {
+        if (s_read.length() >= (i + 1) * sizeof(FastLog)) {
+            FastLog log = *(FastLog*)(s_read.c_str() + i * sizeof(FastLog));
+            s_out +=
                 std::to_string(log.timestamp) + ", " +
                 std::to_string(log.electrical_position) + ", " +
                 std::to_string(log.command_iq) + ", " +
@@ -71,13 +72,14 @@ std::string Motor::get_fast_log() {
 
 std::string Motor::get_fast_log2() {
     std::string s_read, s_out;
-    s_out += "timestamp, electrical_position, measured_ia, measured_ib, measured_ic, command_va, command_vb, command_vc,"
-             " motor_encoder_flags, mode\n";
+    s_out +=
+        "timestamp, electrical_position, measured_ia, measured_ib, measured_ic, command_va, command_vb, command_vc,"
+        " motor_encoder_flags, mode\n";
     s_read = motor_txt_->writeread("fast_log2");
-    for(int i=0; i<FAST_LOG_LENGTH; i++) {
-        if (s_read.length() >= (i+1)*sizeof(FastLog2)) {
-            FastLog2 log = *(FastLog2 *) (s_read.c_str() + i*sizeof(FastLog2));
-            s_out += 
+    for (int i = 0; i < FAST_LOG_LENGTH; i++) {
+        if (s_read.length() >= (i + 1) * sizeof(FastLog2)) {
+            FastLog2 log = *(FastLog2*)(s_read.c_str() + i * sizeof(FastLog2));
+            s_out +=
                 std::to_string(log.timestamp) + ", " +
                 std::to_string(log.electrical_position) + ", " +
                 std::to_string(log.measured_ia) + ", " +
@@ -94,7 +96,7 @@ std::string Motor::get_fast_log2() {
 }
 
 std::string Motor::get_log() {
-    std::string s_read {}, s_out {};
+    std::string s_read{}, s_out{};
     motor_txt_->writeread("log_reset");
 
     while (true) {
@@ -112,7 +114,7 @@ std::string Motor::get_log() {
 std::vector<std::string> Motor::get_api_options() {
     std::vector<std::string> v;
     uint16_t length = std::stoi((*this)["api_length"].get());
-    for (uint16_t i=0; i<length; i++) {
+    for (uint16_t i = 0; i < length; i++) {
         v.push_back((*this)["api_name=" + std::to_string(i)].get());
     }
     return v;
@@ -120,8 +122,8 @@ std::vector<std::string> Motor::get_api_options() {
 
 std::vector<std::string> SimulatedMotor::get_api_options() {
     std::vector<std::string> v;
-    std::map<std::string, std::string> &dict = static_cast<SimulatedTextFile*>(motor_txt_.get())->dict_;
-    for(std::map<std::string, std::string>::iterator it = dict.begin(); it != dict.end(); ++it) {
+    std::map<std::string, std::string>& dict = static_cast<SimulatedTextFile*>(motor_txt_.get())->dict_;
+    for (std::map<std::string, std::string>::iterator it = dict.begin(); it != dict.end(); ++it) {
         v.push_back(it->first);
     }
     return v;
@@ -174,13 +176,13 @@ SimulatedMotor::~SimulatedMotor() { close(); }
 static std::vector<std::string> mode_color_list = MOTOR_MODE_COLORS;
 static std::vector<std::string> mode_upper_color_list = MOTOR_MODE_UPPER_COLORS;
 
-std::string &mode_color(ModeDesired mode) {
+std::string& mode_color(ModeDesired mode) {
     if (mode < mode_color_list.size()) {
         return mode_color_list[mode];
-    } else if (mode <= 255 && mode > 255-mode_upper_color_list.size()) {
-        return mode_upper_color_list[mode-(255-mode_upper_color_list.size()+1)];
+    } else if (mode <= 255 && mode > 255 - mode_upper_color_list.size()) {
+        return mode_upper_color_list[mode - (255 - mode_upper_color_list.size() + 1)];
     } else {
-        return mode_upper_color_list[mode_upper_color_list.size()-1];
+        return mode_upper_color_list[mode_upper_color_list.size() - 1];
     }
 }
 

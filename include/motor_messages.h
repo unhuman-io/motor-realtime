@@ -8,4 +8,4 @@ typedef MotorCommand Command;
 typedef MotorStatus Status;
 typedef MotorMode ModeDesired;
 }  // namespace obot
-#define RESET   BOARD_RESET
+#define RESET BOARD_RESET

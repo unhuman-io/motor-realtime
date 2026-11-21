@@ -5,38 +5,41 @@
 #include <functional>
 
 namespace std {
-    class thread;
+class thread;
 }
 
 namespace obot {
 
 class RealtimeThread {
  public:
-	RealtimeThread(uint32_t frequency_hz, std::function<void ()> update_fun = [](){}, bool debug = false) 
-        : update_fun_(update_fun), debug_(debug) {
+    RealtimeThread(uint32_t frequency_hz, std::function<void()> update_fun = []() {}, bool debug = false) :
+        update_fun_(update_fun),
+        debug_(debug) {
         set_frequency(frequency_hz);
-	}
+    }
     virtual ~RealtimeThread() {}
     void set_frequency(uint32_t frequency_hz) {
-        period_ns_ = static_cast<uint32_t>(1.0e9/frequency_hz);
-        max_jitter_ns_ = static_cast<uint32_t>(.1*period_ns_);
+        period_ns_ = static_cast<uint32_t>(1.0e9 / frequency_hz);
+        max_jitter_ns_ = static_cast<uint32_t>(.1 * period_ns_);
     }
     uint32_t get_frequency() const {
-        return 1.0e9/period_ns_;
+        return 1.0e9 / period_ns_;
     }
     void run();
-	void done();
+    void done();
+
  protected:
     virtual void update() { update_fun_(); }
     virtual void jitter_error(int32_t time_jitter_ns);
     std::chrono::steady_clock::time_point start_time_;
+
  private:
     void run_deadline();
-    std::thread *thread_;
-	uint32_t period_ns_;
+    std::thread* thread_;
+    uint32_t period_ns_;
     int32_t max_jitter_ns_;
     std::atomic<bool> done_{false};
-    std::function<void ()> update_fun_;
+    std::function<void()> update_fun_;
     std::promise<void> exit_;
     uint32_t jitter_error_ = 0;
     bool debug_;

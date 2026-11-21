@@ -10,15 +10,13 @@ namespace py = pybind11;
 
 using namespace obot;
 
-static std::string hex(uint32_t u)
-{
+static std::string hex(uint32_t u) {
     char s[9];
     std::snprintf(s, 9, "%08x", u);
     return s;
 }
 
-static py::dict motor_error_dict(const MotorError &e)
-{
+static py::dict motor_error_dict(const MotorError& e) {
     py::dict d;
     d["sequence"] = e.sequence;
     d["bus_voltage_low"] = e.bus_voltage_low;
@@ -88,7 +86,7 @@ static MotorError dict_to_motor_error(py::dict d) {
     return e;
 }
 
-py::object cast_rr_data(const RoundRobinData &rrd) {
+py::object cast_rr_data(const RoundRobinData& rrd) {
     if (rrd.type == RoundRobinType::FLOAT) {
         return py::cast(rrd.data);
     } else if (rrd.type == RoundRobinType::UINT32_T) {
@@ -100,11 +98,10 @@ py::object cast_rr_data(const RoundRobinData &rrd) {
     }
 }
 
-PYBIND11_MODULE(motor, m)
-{
+PYBIND11_MODULE(motor, m) {
     m.doc() = "Motor interface";
 
-    m.def("version", []{ return RT_VERSION_STRING; });
+    m.def("version", [] { return RT_VERSION_STRING; });
 
     py::enum_<ModeDesired>(m, "ModeDesired")
         .value("Open", ModeDesired::OPEN)
@@ -138,11 +135,11 @@ PYBIND11_MODULE(motor, m)
         .export_values();
 
     m.def("mode_color", &mode_color)
-     .def("max_api_packet_size", []{ return MAX_API_LONG_DATA_SIZE; })
-     // Set before get_motors_can(); Motor.set_timeout_ms() only reaches motors that
-     // already exist, so it cannot widen discovery.
-     .def("set_can_default_timeout_ms", &MotorCAN::set_default_timeout_ms, py::arg("timeout_ms"))
-     .def("get_can_default_timeout_ms", &MotorCAN::get_default_timeout_ms);
+        .def("max_api_packet_size", [] { return MAX_API_LONG_DATA_SIZE; })
+        // Set before get_motors_can(); Motor.set_timeout_ms() only reaches motors that
+        // already exist, so it cannot widen discovery.
+        .def("set_can_default_timeout_ms", &MotorCAN::set_default_timeout_ms, py::arg("timeout_ms"))
+        .def("get_can_default_timeout_ms", &MotorCAN::get_default_timeout_ms);
 
     py::enum_<TuningMode>(m, "TuningMode")
         .value("Sine", TuningMode::SINE)
@@ -158,7 +155,7 @@ PYBIND11_MODULE(motor, m)
         .def_readwrite("bias", &CurrentTuningCommand::bias)
         .def_readwrite("frequency", &CurrentTuningCommand::frequency);
 
-    
+
     py::class_<PositionTuningCommand>(m, "PositionTuningCommand")
         .def_readwrite("amplitude", &PositionTuningCommand::amplitude)
         .def_readwrite("mode", &PositionTuningCommand::mode)
@@ -189,7 +186,7 @@ PYBIND11_MODULE(motor, m)
         .def_readwrite("velocity", &StepperVelocityCommand::velocity)
         .def_readwrite("current", &StepperVelocityCommand::current)
         .def_readwrite("stepper_mode", &StepperVelocityCommand::stepper_mode);
-        
+
     py::class_<TextAPIItem>(m, "TextAPIItem")
         .def("__repr__", &TextAPIItem::get)
         .def("get", &TextAPIItem::get)
@@ -204,30 +201,23 @@ PYBIND11_MODULE(motor, m)
         .def_readonly("data_u32", &RoundRobinData::data_u32)
         .def_readonly("data_i32", &RoundRobinData::data_i32)
         .def("data", cast_rr_data)
-        .def("__repr__", [](const RoundRobinData &rrd)
-             { return "<RoundRobinData index: " + std::to_string(rrd.index) + " type: " + std::to_string(rrd.type) +
-                " data: " + py::str(cast_rr_data(rrd)).cast<std::string>() + ">"; });
-        
+        .def("__repr__", [](const RoundRobinData& rrd) { return "<RoundRobinData index: " + std::to_string(rrd.index) + " type: " + std::to_string(rrd.type) +
+                                                                " data: " + py::str(cast_rr_data(rrd)).cast<std::string>() + ">"; });
+
 
     py::class_<MotorError>(m, "MotorError")
         .def_readonly("all", &MotorError::all)
-        .def_property_readonly("bits", [](const MotorError &e)
-                               { return motor_error_dict(e); })
-        .def("__repr__", [](const MotorError &e)
-             { return "<MotorError: " + hex(e.all) + ">"; });
+        .def_property_readonly("bits", [](const MotorError& e) { return motor_error_dict(e); })
+        .def("__repr__", [](const MotorError& e) { return "<MotorError: " + hex(e.all) + ">"; });
 
     py::class_<MotorFlags>(m, "MotorFlags")
-        .def_property_readonly("mode", [](MotorFlags &f)
-                               { return static_cast<MotorMode>(f.mode); })
+        .def_property_readonly("mode", [](MotorFlags& f) { return static_cast<MotorMode>(f.mode); })
         .def_readonly("error", &MotorFlags::error)
-        .def("__repr__", [](const MotorFlags &f)
-             { return "<MotorFlags: " + std::to_string(f.mode) + ">"; });
+        .def("__repr__", [](const MotorFlags& f) { return "<MotorFlags: " + std::to_string(f.mode) + ">"; });
 
     py::class_<MotorStatusLarge>(m, "MotorStatusLarge")
-        .def_property_readonly("reserved", [](const MotorStatusLarge &s)
-                     { return std::vector<float>(s.reserved, s.reserved + sizeof(s.reserved)/sizeof(s.reserved[0])); })
-        .def("__repr__", [](const MotorStatusLarge &s)
-             { return "<MotorStatusLarge at: " + std::to_string(s.mcu_timestamp) + ">"; });
+        .def_property_readonly("reserved", [](const MotorStatusLarge& s) { return std::vector<float>(s.reserved, s.reserved + sizeof(s.reserved) / sizeof(s.reserved[0])); })
+        .def("__repr__", [](const MotorStatusLarge& s) { return "<MotorStatusLarge at: " + std::to_string(s.mcu_timestamp) + ">"; });
 
     py::class_<Status>(m, "Status")
         .def_readonly("mcu_timestamp", &Status::mcu_timestamp)
@@ -244,8 +234,7 @@ PYBIND11_MODULE(motor, m)
         .def_readonly("rr_data", &Status::rr_data)
         .def_readonly("flags", &Status::flags)
         .def_readonly("large", &Status::large)
-        .def("__repr__", [](const Status &s)
-             { return "<Status at: " + std::to_string(s.mcu_timestamp) + ">"; });
+        .def("__repr__", [](const Status& s) { return "<Status at: " + std::to_string(s.mcu_timestamp) + ">"; });
 
     py::class_<Command>(m, "Command")
         .def(py::init<uint32_t, ModeDesired, float, float, float, float>(),
@@ -266,11 +255,10 @@ PYBIND11_MODULE(motor, m)
         .def_readwrite("position_tuning", &Command::position_tuning)
         .def_readwrite("stepper_velocity", &Command::stepper_velocity)
         .def_readwrite("tuning_command", &Command::tuning_command)
-        .def("__repr__", [](const Command &c)
-             { return "<Command: " + std::to_string(c.host_timestamp) + ">"; });
-             
+        .def("__repr__", [](const Command& c) { return "<Command: " + std::to_string(c.host_timestamp) + ">"; });
+
     py::class_<Motor, std::shared_ptr<Motor>>(m, "Motor")
-        .def(py::init<const std::string &>())
+        .def(py::init<const std::string&>())
         .def("name", &Motor::name)
         .def("serial_number", &Motor::serial_number)
         .def("path", &Motor::base_path)
@@ -283,13 +271,11 @@ PYBIND11_MODULE(motor, m)
         .def("get_log", &Motor::get_log)
         .def("get_fast_log", &Motor::get_fast_log)
         .def("get_fast_log2", &Motor::get_fast_log2)
-        .def("__repr__", [](const Motor &m){ return "<Motor " + m.name() + ">"; })
+        .def("__repr__", [](const Motor& m) { return "<Motor " + m.name() + ">"; })
         .def("__getitem__", &Motor::operator[])
-        .def("__setitem__", [](Motor &m, const std::string key, const std::string value)
-             { m[key].set(value); })
+        .def("__setitem__", [](Motor& m, const std::string key, const std::string value) { m[key].set(value); })
         .def("get_api_options", &Motor::get_api_options)
-        .def("error_mask", [](Motor &m)
-             { 
+        .def("error_mask", [](Motor& m) { 
             MotorError mask;
             std::string error_mask;
             try {
@@ -299,7 +285,7 @@ PYBIND11_MODULE(motor, m)
                 throw RuntimeException("Invalid error mask received from motor: " + error_mask);
             }
             return motor_error_dict(mask); })
-        .def("set_error_mask", [](Motor &m, py::dict d){ 
+        .def("set_error_mask", [](Motor& m, py::dict d) { 
             MotorError e = dict_to_motor_error(d);
             std::stringstream s;
             s << std::hex << e.all;
@@ -312,10 +298,8 @@ PYBIND11_MODULE(motor, m)
 
     py::class_<MotorManager>(m, "MotorManager")
         // todo decide if it should connect by default in c++ also
-        .def(py::init([](bool u)
-                      { auto m = new MotorManager(u); m->get_connected_motors(); return m; }), py::arg("user_space_driver") = false)
-        .def("__repr__", [](const MotorManager &m)
-             { 
+        .def(py::init([](bool u) { auto m = new MotorManager(u); m->get_connected_motors(); return m; }), py::arg("user_space_driver") = false)
+        .def("__repr__", [](const MotorManager& m) { 
             std::string s;
             for (auto motor : m.motors()) {
                 s += motor->name() + " ";
@@ -345,7 +329,7 @@ PYBIND11_MODULE(motor, m)
         .def("set_auto_count", &MotorManager::set_auto_count, py::arg("on") = true)
         .def("clear_commands", &MotorManager::clear_commands)
         .def("set_command_count", &MotorManager::set_command_count)
-        .def("set_command_mode", static_cast<void (MotorManager::*)(const std::vector<uint8_t> &)>(&MotorManager::set_command_mode))
+        .def("set_command_mode", static_cast<void (MotorManager::*)(const std::vector<uint8_t>&)>(&MotorManager::set_command_mode))
         .def("set_command_mode", static_cast<void (MotorManager::*)(uint8_t)>(&MotorManager::set_command_mode))
         .def("set_command_current", &MotorManager::set_command_current)
         .def("set_command_position", &MotorManager::set_command_position)
@@ -356,7 +340,7 @@ PYBIND11_MODULE(motor, m)
         .def("set_command_stepper_velocity", &MotorManager::set_command_stepper_velocity, py::arg("current"), py::arg("velocity"), py::arg("voltage") = 0, py::arg("stepper_mode") = StepperMode::STEPPER_CURRENT)
         .def("set_command_position_tuning", &MotorManager::set_command_position_tuning)
         .def("set_command_current_tuning", &MotorManager::set_command_current_tuning)
-        .def("get_motors_by_ip", [](MotorManager &m, std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated) {
+        .def("get_motors_by_ip", [](MotorManager& m, std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated) {
             std::string config_dir = get_config_dir();
             auto json = py::module::import("json");
             std::string json_ip_file = config_dir + "device_ip_map.json";
@@ -383,9 +367,8 @@ PYBIND11_MODULE(motor, m)
             } else {
                 py::print("Error: json file " + json_ip_file + " not accessible");
             }
-            return m.get_motors_by_ip(ips, connect, print_unconnected, allow_simulated);
-        }, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false)
-        .def("get_motors_by_eth_l2", [](MotorManager &m, std::vector<std::string> l2_string, bool connect, bool print_unconnected, bool allow_simulated) {
+            return m.get_motors_by_ip(ips, connect, print_unconnected, allow_simulated); }, py::arg("ips"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false)
+        .def("get_motors_by_eth_l2", [](MotorManager& m, std::vector<std::string> l2_string, bool connect, bool print_unconnected, bool allow_simulated) {
             std::string config_dir = get_config_dir();
             auto json = py::module::import("json");
             std::string json_mac_file = config_dir + "device_mac_map.json";
@@ -402,12 +385,9 @@ PYBIND11_MODULE(motor, m)
             } else {
                 py::print("Error: json file " + json_mac_file + " not accessible");
             }
-            return m.get_motors_by_eth_l2(l2_string, connect, print_unconnected, allow_simulated);
-        }, py::arg("l2_string"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false);
+            return m.get_motors_by_eth_l2(l2_string, connect, print_unconnected, allow_simulated); }, py::arg("l2_string"), py::arg("connect") = true, py::arg("print_unconnected") = false, py::arg("allow_simulated") = false);
 
     m.def("get_config_dir", &get_config_dir);
-    m.def("diff_mcu_time", [](uint32_t t1, uint32_t t2)
-          { return t1 - t2; });
-    m.def("diff_encoder", [](int32_t p1, int32_t p2)
-          { return (int32_t)((uint32_t)p1 - (uint32_t)p2); });
+    m.def("diff_mcu_time", [](uint32_t t1, uint32_t t2) { return t1 - t2; });
+    m.def("diff_encoder", [](int32_t p1, int32_t p2) { return (int32_t)((uint32_t)p1 - (uint32_t)p2); });
 }

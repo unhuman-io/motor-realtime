@@ -19,20 +19,19 @@ namespace obot {
 
 // Returns a vector of strings that contain the dev file locations,
 // e.g. /dev/skel0
-static std::vector<std::string> udev (bool user_space_driver=false)
-{
-	struct udev_enumerate *enumerate;
-	struct udev_list_entry *devices, *dev_list_entry;
-    
-	/* Create the udev object */
-	struct udev *udev = udev_new();
-	if (!udev) {
-		printf("Can't create udev\n");
-		exit(1);
-	}
-	
-	/* Create a list of the devices in the 'hidraw' subsystem. */
-	enumerate = udev_enumerate_new(udev);
+static std::vector<std::string> udev(bool user_space_driver = false) {
+    struct udev_enumerate* enumerate;
+    struct udev_list_entry *devices, *dev_list_entry;
+
+    /* Create the udev object */
+    struct udev* udev = udev_new();
+    if (!udev) {
+        printf("Can't create udev\n");
+        exit(1);
+    }
+
+    /* Create a list of the devices in the 'hidraw' subsystem. */
+    enumerate = udev_enumerate_new(udev);
     if (user_space_driver) {
         udev_enumerate_add_match_sysattr(enumerate, "idVendor", "3293");
         udev_enumerate_add_match_sysattr(enumerate, "idProduct", "0100");
@@ -40,34 +39,34 @@ static std::vector<std::string> udev (bool user_space_driver=false)
         udev_enumerate_add_match_sysname(enumerate, "usbrt*");
         udev_enumerate_add_match_sysname(enumerate, "mtr*");
     }
-    
-	udev_enumerate_scan_devices(enumerate);
-	devices = udev_enumerate_get_list_entry(enumerate);
+
+    udev_enumerate_scan_devices(enumerate);
+    devices = udev_enumerate_get_list_entry(enumerate);
 
     std::vector<std::string> dev_paths;
-	udev_list_entry_foreach(dev_list_entry, devices) {
-		// path in /sys/devices/pci*
-		const char *path = udev_list_entry_get_name(dev_list_entry);
-		struct udev_device *dev = udev_device_new_from_syspath(udev, path);
+    udev_list_entry_foreach(dev_list_entry, devices) {
+        // path in /sys/devices/pci*
+        const char* path = udev_list_entry_get_name(dev_list_entry);
+        struct udev_device* dev = udev_device_new_from_syspath(udev, path);
         // const char * devpath = udev_device_get_devpath(dev);
 
         // TODO better way of identifying other than interface number 0
-		//if (std::string("00") == udev_device_get_sysattr_value(dev, "device/bInterfaceNumber")) {
-			const char * devpath = udev_device_get_devnode(dev);
-            if (devpath) {
-                dev_paths.push_back(devpath);
-            }
-		//}
-		
+        //if (std::string("00") == udev_device_get_sysattr_value(dev, "device/bInterfaceNumber")) {
+        const char* devpath = udev_device_get_devnode(dev);
+        if (devpath) {
+            dev_paths.push_back(devpath);
+        }
+        //}
 
-		udev_device_unref(dev);
-	}
-	/* Free the enumerator object */
-	udev_enumerate_unref(enumerate);
 
-	udev_unref(udev);
+        udev_device_unref(dev);
+    }
+    /* Free the enumerator object */
+    udev_enumerate_unref(enumerate);
 
-	return dev_paths;       
+    udev_unref(udev);
+
+    return dev_paths;
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool connect) {
@@ -81,7 +80,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
             } else {
                 m.push_back(std::make_shared<Motor>(dev_path));
             }
-        } catch (RuntimeException &e) {
+        } catch (RuntimeException& e) {
             // There is a runtime_error if the motor is disconnected during this function
             std::cout << "get_connected_motors error: " << e.what() << std::endl;
         }
@@ -95,9 +94,9 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_connected_motors(bool conn
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect, bool allow_simulated) {
     auto connected_motors = get_connected_motors(connect);
     std::vector<std::shared_ptr<Motor>> m(names.size());
-    for (uint8_t i=0; i<names.size(); i++) {
+    for (uint8_t i = 0; i < names.size(); i++) {
         std::vector<std::shared_ptr<Motor>> found_motors;
-        std::copy_if(connected_motors.begin(), connected_motors.end(), std::back_inserter(found_motors), [&names, &i, &name_fun](std::shared_ptr<Motor> motor){ return names[i] == (motor.get()->*name_fun)(); });
+        std::copy_if(connected_motors.begin(), connected_motors.end(), std::back_inserter(found_motors), [&names, &i, &name_fun](std::shared_ptr<Motor> motor) { return names[i] == (motor.get()->*name_fun)(); });
         if (found_motors.size() == 1) {
             m[i] = found_motors[0];
         } else {
@@ -136,10 +135,10 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_devpath(std::vec
 
 void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
     if (check_messages_version_) {
-        for (auto &motor : motors) {
+        for (auto& motor : motors) {
             if (motor->check_messages_version(check_messages_version_) == false) {
-                  throw RuntimeException("Motor messages version mismatch " + motor->name() + 
-                     ": " + motor->messages_version()  + ", motor-realtime: " + MOTOR_MESSAGES_VERSION);
+                throw RuntimeException("Motor messages version mismatch " + motor->name() +
+                                       ": " + motor->messages_version() + ", motor-realtime: " + MOTOR_MESSAGES_VERSION);
             }
         }
     }
@@ -147,7 +146,7 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
     commands_.resize(motors_.size());
     statuses_.resize(motors_.size());
     pollfds_.resize(motors_.size());
-    for (uint8_t i=0; i<pollfds_.size(); i++) {
+    for (uint8_t i = 0; i < pollfds_.size(); i++) {
         pollfds_[i].fd = motors_.at(i)->fd();
         pollfds_[i].events = POLLIN;
     }
@@ -157,7 +156,7 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std::vector<std::string> devpaths, bool raw, uint32_t baud_rate, bool connect, bool allow_simulated) {
     std::vector<std::shared_ptr<Motor>> m(devpaths.size());
-    for (uint8_t i=0; i<devpaths.size(); i++) {
+    for (uint8_t i = 0; i < devpaths.size(); i++) {
         if (raw) {
             m[i] = std::make_shared<MotorUARTRaw>(devpaths[i], baud_rate);
         } else {
@@ -173,20 +172,19 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_ip(std::vector<std::string> ips, bool connect, bool print_unconnected, bool allow_simulated, std::vector<std::string> ip_aliases) {
     std::vector<std::shared_ptr<Motor>> m(ips.size());
     std::vector<std::future<std::shared_ptr<MotorIP>>> futures(ips.size());
-    for (uint8_t i=0; i<ips.size(); i++) {
+    for (uint8_t i = 0; i < ips.size(); i++) {
         std::string& ip = ips[i];
         std::string ip_alias;
         if (ip_aliases.size() > i) {
             ip_alias = ip_aliases[i];
         }
-        futures[i] = std::async(std::launch::async, [&ip, ip_alias]
-        {
+        futures[i] = std::async(std::launch::async, [&ip, ip_alias] {
             std::shared_ptr<MotorIP> motor = std::make_shared<MotorIP>(ip, ip_alias);
             return motor;
         });
     }
     int j = 0;
-    for (uint8_t i=0; i<ips.size(); i++) {
+    for (uint8_t i = 0; i < ips.size(); i++) {
         std::shared_ptr<MotorIP> motor = futures[i].get();
         if (motor->connected()) {
             m[j++] = motor;
@@ -211,7 +209,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
     std::vector<std::shared_ptr<Motor>> m(interface_macs.size());
     std::vector<std::future<std::shared_ptr<MotorEthL2>>> futures(interface_macs.size());
     std::vector<std::string> new_interface_macs;
-    for (uint8_t i=0; i<interface_macs.size(); i++) {
+    for (uint8_t i = 0; i < interface_macs.size(); i++) {
         std::string& interface_mac = interface_macs[i];
         if (int n = interface_mac.find(":"); n != std::string::npos) {
             new_interface_macs.emplace_back(interface_mac);
@@ -219,7 +217,8 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
             // only interface or any given, broadcast 03:ff:ff:ff:ff:ff to enumerate all
             std::vector<std::string> additional_interface_macs = MotorEthL2::enumerate_eth_l2_devices(interface_mac);
             if (additional_interface_macs.size() == 0) {
-                std::cerr << "No eth l2 devices found for: " << interface_mac << std::endl;;
+                std::cerr << "No eth l2 devices found for: " << interface_mac << std::endl;
+                ;
             } else {
                 new_interface_macs.insert(new_interface_macs.end(), additional_interface_macs.begin(), additional_interface_macs.end());
             }
@@ -229,15 +228,14 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
     }
     futures.resize(new_interface_macs.size());
     m.resize(new_interface_macs.size());
-    for (int i=0; i<new_interface_macs.size(); i++) {
+    for (int i = 0; i < new_interface_macs.size(); i++) {
         std::string& interface_mac = new_interface_macs[i];
-        futures[i] = std::async(std::launch::async, [&interface_mac]
-        {
+        futures[i] = std::async(std::launch::async, [&interface_mac] {
             return std::make_shared<MotorEthL2>(interface_mac);
         });
     }
     int j = 0;
-    for (uint8_t i=0; i<new_interface_macs.size(); i++) {
+    for (uint8_t i = 0; i < new_interface_macs.size(); i++) {
         try {
             std::shared_ptr<MotorEthL2> motor = futures[i].get();
             if (motor->connected()) {
@@ -247,7 +245,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
                     std::cerr << "Motor Eth L2 not connected" << std::endl;
                 }
             }
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             if (print_unconnected) {
                 std::cerr << new_interface_macs[i] << " exception: " << e.what() << std::endl;
             }
@@ -263,12 +261,13 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_by_eth_l2(std::vect
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_can(std::vector<std::string> can_interfaces, bool connect, bool allow_simulated) {
     std::vector<std::shared_ptr<Motor>> m;
     std::vector<std::string> new_interfaces;
-    for (std::string &interface : can_interfaces) {
+    for (std::string& interface : can_interfaces) {
         int n = interface.find(":");
         if (n == std::string::npos) {
             std::vector<std::string> additional_interfaces = MotorCAN::enumerate_can_devices(interface);
             if (additional_interfaces.size() == 0) {
-                std::cerr << "No can devices found for: " << interface << std::endl;;
+                std::cerr << "No can devices found for: " << interface << std::endl;
+                ;
             } else {
                 new_interfaces.insert(new_interfaces.end(), additional_interfaces.begin(), additional_interfaces.end());
             }
@@ -276,7 +275,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_can(std::vector<std
             new_interfaces.emplace_back(interface);
         }
     }
-    for (std::string &interface : new_interfaces) {
+    for (std::string& interface : new_interfaces) {
         m.emplace_back(std::make_shared<MotorCAN>(interface));
     }
     if (connect) {
@@ -286,7 +285,7 @@ std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_can(std::vector<std
 }
 
 void MotorManager::start_nonblocking_read() {
-    for (uint8_t i=0; i<motors_.size(); i++) {
+    for (uint8_t i = 0; i < motors_.size(); i++) {
         if (motors_[i]->is_nonblocking()) {
             auto size = motors_[i]->read();
             if (size != -1) {
@@ -299,15 +298,15 @@ void MotorManager::start_nonblocking_read() {
     }
 }
 
-std::vector<Status> &MotorManager::read() {
+std::vector<Status>& MotorManager::read() {
     bool should_throw = false;
     std::string err_msg;
-    for (uint8_t i=0; i<motors_.size(); i++) {
+    for (uint8_t i = 0; i < motors_.size(); i++) {
         auto size = motors_[i]->read();
         if (size == -1) {
             if (motors_[i]->is_nonblocking() && errno == EAGAIN) {
                 // no data read at this time
-               nonblock_not_ready_error_count_[i]++;
+                nonblock_not_ready_error_count_[i]++;
             } else {
                 read_error_count_[i]++;
                 // no data, error is in errno
@@ -326,7 +325,7 @@ std::vector<Status> &MotorManager::read() {
                                 std::cerr << "found motor " << motors_[i]->base_path() << ": " << motors[0]->name() << std::endl;
                                 motors_[i] = motors[0];
                             }
-                        } catch (RuntimeException &e) {
+                        } catch (RuntimeException& e) {
                             std::cerr << e.what() << std::endl;
                         }
                     }
@@ -347,11 +346,11 @@ std::vector<Status> &MotorManager::read() {
 std::vector<Status> MotorManager::read_average(uint32_t num_average) {
     poll();
     std::vector<Status> statuses = read();
-    for (uint32_t i=0; i<num_average-1; i++) {
+    for (uint32_t i = 0; i < num_average - 1; i++) {
         poll();
         auto tmp = read();
-        for (int j=0; j<statuses.size(); j++) {
-            Status &status = statuses[j];
+        for (int j = 0; j < statuses.size(); j++) {
+            Status& status = statuses[j];
             status.motor_position += tmp[j].motor_position;
             status.joint_position += tmp[j].joint_position;
             status.iq += tmp[j].iq;
@@ -361,8 +360,8 @@ std::vector<Status> MotorManager::read_average(uint32_t num_average) {
             status.joint_velocity += tmp[j].joint_velocity;
         }
     }
-    for (int j=0; j<statuses.size(); j++) {
-        Status &status = statuses[j];
+    for (int j = 0; j < statuses.size(); j++) {
+        Status& status = statuses[j];
         status.motor_position /= num_average;
         status.joint_position /= num_average;
         status.iq /= num_average;
@@ -375,7 +374,7 @@ std::vector<Status> MotorManager::read_average(uint32_t num_average) {
 }
 
 void MotorManager::lock() {
-    for (uint8_t i=0; i<motors_.size(); i++) {
+    for (uint8_t i = 0; i < motors_.size(); i++) {
         int err = motors_[i]->lock();
         if (err) {
             throw RuntimeException("Error locking: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
@@ -383,15 +382,15 @@ void MotorManager::lock() {
     }
 }
 
-void MotorManager::write(std::vector<Command> &commands) {
+void MotorManager::write(std::vector<Command>& commands) {
     count_++;
     if (auto_count_) {
         set_command_count(count_);
-        for (uint8_t i=0; i<commands.size(); i++) {
+        for (uint8_t i = 0; i < commands.size(); i++) {
             commands[i].host_timestamp = count_;
         }
     }
-    for (uint8_t i=0; i<motors_.size(); i++) {
+    for (uint8_t i = 0; i < motors_.size(); i++) {
         *motors_[i]->command() = commands[i];
         if (motors_[i]->write() < 0) {
             throw RuntimeException("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
@@ -400,76 +399,76 @@ void MotorManager::write(std::vector<Command> &commands) {
 }
 
 void MotorManager::aread() {
-    for (uint8_t i=0; i<motors_.size(); i++) {
+    for (uint8_t i = 0; i < motors_.size(); i++) {
         motors_[i]->aread();
     }
 }
 
-void MotorManager::set_commands(const std::vector<Command> &commands) {
-    for (uint8_t i=0; i<commands_.size(); i++) {
+void MotorManager::set_commands(const std::vector<Command>& commands) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i] = commands[i];
     }
 }
 
 void MotorManager::clear_commands() {
-    for (uint8_t i=0; i<commands_.size(); i++) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         std::memset(&commands_[i], 0, sizeof(commands_[i]));
     }
 }
 
 void MotorManager::set_command_count(int32_t count) {
-    for (auto &c : commands_) {
+    for (auto& c : commands_) {
         c.host_timestamp = count;
     }
 }
 
 void MotorManager::set_command_mode(uint8_t mode) {
-    for (auto &c : commands_) {
+    for (auto& c : commands_) {
         c.mode_desired = mode;
     }
 }
 
-void MotorManager::set_command_mode(const std::vector<uint8_t> &mode) {
-    for (uint8_t i=0; i<commands_.size(); i++) {
+void MotorManager::set_command_mode(const std::vector<uint8_t>& mode) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i].mode_desired = mode[i];
     }
 }
-    
-void MotorManager::set_command_current(const std::vector<float> &current) {
-    for (uint8_t i=0; i<commands_.size(); i++) {
+
+void MotorManager::set_command_current(const std::vector<float>& current) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i].current_desired = current[i];
     }
 }
 
-void MotorManager::set_command_position(const std::vector<float> &position) {
-    for (uint8_t i=0; i<commands_.size(); i++) {
+void MotorManager::set_command_position(const std::vector<float>& position) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i].position_desired = position[i];
     }
 }
 
-void MotorManager::set_command_velocity(const std::vector<float> &velocity) {
-    for (uint8_t i=0; i<commands_.size(); i++) {
+void MotorManager::set_command_velocity(const std::vector<float>& velocity) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i].velocity_desired = velocity[i];
     }
 }
 
-void MotorManager::set_command_torque(const std::vector<float> &torque) {
-    for (uint8_t i=0; i<commands_.size(); i++) {
+void MotorManager::set_command_torque(const std::vector<float>& torque) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i].torque_desired = torque[i];
     }
 }
 
-void MotorManager::set_command_reserved(const std::vector<float> &reserved) {
-    for (uint8_t i=0; i<commands_.size(); i++) {
+void MotorManager::set_command_reserved(const std::vector<float>& reserved) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i].reserved = reserved[i];
     }
 }
 
-void MotorManager::set_command_stepper_tuning(TuningMode mode, double amplitude, double frequency, 
-    double bias, double kv) {
+void MotorManager::set_command_stepper_tuning(TuningMode mode, double amplitude, double frequency,
+                                              double bias, double kv) {
     clear_commands();
     set_command_mode(ModeDesired::STEPPER_TUNING);
-    for (uint8_t i=0; i<commands_.size(); i++) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i].stepper_tuning.amplitude = amplitude;
         commands_[i].stepper_tuning.mode = mode;
         commands_[i].stepper_tuning.bias = bias;
@@ -478,10 +477,10 @@ void MotorManager::set_command_stepper_tuning(TuningMode mode, double amplitude,
     }
 }
 
-void MotorManager::set_command_stepper_velocity(double current,  double velocity, double voltage, StepperMode mode) {
+void MotorManager::set_command_stepper_velocity(double current, double velocity, double voltage, StepperMode mode) {
     clear_commands();
     set_command_mode(ModeDesired::STEPPER_VELOCITY);
-    for (uint8_t i=0; i<commands_.size(); i++) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i].stepper_velocity.current = current;
         commands_[i].stepper_velocity.stepper_mode = mode;
         commands_[i].stepper_velocity.voltage = voltage;
@@ -489,11 +488,11 @@ void MotorManager::set_command_stepper_velocity(double current,  double velocity
     }
 }
 
-void MotorManager::set_command_position_tuning(TuningMode mode, double amplitude, double frequency, 
-    double bias) {
+void MotorManager::set_command_position_tuning(TuningMode mode, double amplitude, double frequency,
+                                               double bias) {
     clear_commands();
     set_command_mode(ModeDesired::POSITION_TUNING);
-    for (uint8_t i=0; i<commands_.size(); i++) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i].position_tuning.amplitude = amplitude;
         commands_[i].position_tuning.mode = mode;
         commands_[i].position_tuning.bias = bias;
@@ -501,11 +500,11 @@ void MotorManager::set_command_position_tuning(TuningMode mode, double amplitude
     }
 }
 
-void MotorManager::set_command_current_tuning(TuningMode mode, double amplitude, double frequency, 
-    double bias) {
+void MotorManager::set_command_current_tuning(TuningMode mode, double amplitude, double frequency,
+                                              double bias) {
     clear_commands();
     set_command_mode(ModeDesired::CURRENT_TUNING);
-    for (uint8_t i=0; i<commands_.size(); i++) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         commands_[i].current_tuning.amplitude = amplitude;
         commands_[i].current_tuning.mode = mode;
         commands_[i].current_tuning.bias = bias;
@@ -521,31 +520,31 @@ int MotorManager::serialize_command_size() const {
     return sizeof(commands_.size()) + commands_.size() * sizeof(commands_[0]);
 }
 
-int MotorManager::serialize_saved_commands(char *data) const {
-    char *datastart = data;
+int MotorManager::serialize_saved_commands(char* data) const {
+    char* datastart = data;
     auto size = commands_.size();
     std::memcpy(data, &size, sizeof(size));
     data += sizeof(size);
-    for (uint8_t i=0; i<commands_.size(); i++) {
+    for (uint8_t i = 0; i < commands_.size(); i++) {
         std::memcpy(data, &commands_[i], sizeof(commands_[0]));
         data += sizeof(commands_[0]);
     }
     return data - datastart;
 }
 
-bool MotorManager::deserialize_saved_commands(char *data) {
-   auto size = commands_.size();
-   decltype(commands_.size()) size_in;
-   std::memcpy(&size_in, data, sizeof(size_in));
-   if (size_in == size) {
+bool MotorManager::deserialize_saved_commands(char* data) {
+    auto size = commands_.size();
+    decltype(commands_.size()) size_in;
+    std::memcpy(&size_in, data, sizeof(size_in));
+    if (size_in == size) {
         data += sizeof(size_in);
-        for (uint8_t i=0; i<commands_.size(); i++) {
+        for (uint8_t i = 0; i < commands_.size(); i++) {
             std::memcpy(&commands_[i], data, sizeof(commands_[0]));
             data += sizeof(commands_[0]);
         }
         return true;
-   }
-   return false;
+    }
+    return false;
 }
 
 int MotorManager::poll(uint32_t timeout_ms) {
@@ -570,7 +569,7 @@ int MotorManager::multipoll(uint32_t timeout_ns) {
             return -ETIMEDOUT;
         } else if (retval < 0) {
             return retval;
-        } 
+        }
     } while (static_cast<uint8_t>(retval) < pollfds_.size());
     return retval;
 }
@@ -578,40 +577,40 @@ int MotorManager::multipoll(uint32_t timeout_ns) {
 std::string MotorManager::command_headers() const {
     std::stringstream ss;
     int length = motors_.size();
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "host_timestamp" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "mode_desired" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "misc" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "current_desired" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "position_desired" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "velocity_desired" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "torque_desired" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "torque_dot_desired" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "reserved" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "reserved21" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "reserved22" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "reserved23" << i << ", ";
     }
     return ss.str();
@@ -621,63 +620,63 @@ std::string MotorManager::status_headers(bool mini, bool print_reserved) const {
     std::stringstream ss;
     int length = motors_.size();
     if (!mini) {
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "mcu_timestamp" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "host_timestamp_received" << i << ", ";
         }
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "motor_position" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "joint_position" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "iq" << i << ", ";
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         ss << "torque" << i << ", ";
     }
     if (!mini) {
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "motor_encoder" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "rr_index" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "rr_data" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "reserved" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "motor_velocity" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "joint_velocity" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "iq_desired" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "mode" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "error" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "misc" << i << ", ";
         }
-        for (int i=0;i<length;i++) {
+        for (int i = 0; i < length; i++) {
             ss << "mode_error_text" << i << ", ";
         }
     }
-    for (int i=0;i<length;i++) {
+    for (int i = 0; i < length; i++) {
         if (print_reserved) {
-            for (int j=0;j<sizeof(MotorStatus::large.reserved)/sizeof(MotorStatus::large.reserved[0]);j++) {
+            for (int j = 0; j < sizeof(MotorStatus::large.reserved) / sizeof(MotorStatus::large.reserved[0]); j++) {
                 ss << "reserved" << j << i << ", ";
             }
         }
@@ -689,17 +688,6 @@ std::string MotorManager::status_headers(bool mini, bool print_reserved) const {
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
 const std::map<const ModeDesired, const std::string> MotorManager::mode_map{
-        {ModeDesired::OPEN, "open"}, {ModeDesired::DAMPED, "damped"}, {ModeDesired::CURRENT, "current"}, 
-        {ModeDesired::POSITION, "position"}, {ModeDesired::TORQUE, "torque"}, {ModeDesired::IMPEDANCE, "impedance"}, 
-        {ModeDesired::VELOCITY, "velocity"}, {ModeDesired::STATE, "state"}, {ModeDesired::CURRENT_TUNING, "current_tuning"},
-        {ModeDesired::POSITION_TUNING, "position_tuning"}, {ModeDesired::VOLTAGE, "voltage"}, 
-        {ModeDesired::PHASE_LOCK, "phase_lock"}, {ModeDesired::STEPPER_TUNING, "stepper_tuning"},
-        {ModeDesired::STEPPER_VELOCITY, "stepper_velocity"}, {ModeDesired::HARDWARE_BRAKE, "hardware_brake"},
-        {ModeDesired::JOINT_POSITION, "joint_position"}, {ModeDesired::ADMITTANCE, "admittance"}, 
-        {ModeDesired::FIND_LIMITS, "find_limits"}, {ModeDesired::TUNING, "tuning"},
-        {ModeDesired::DRIVER_ENABLE, "driver_enable"}, {ModeDesired::DRIVER_DISABLE, "driver_disable"},
-        {ModeDesired::CLEAR_FAULTS, "clear_faults"},
-        {ModeDesired::FAULT, "fault"}, {ModeDesired::SLEEP, "sleep"},
-        {ModeDesired::CRASH, "crash"}, {ModeDesired::BOARD_RESET, "reset"}};
+    {ModeDesired::OPEN, "open"}, {ModeDesired::DAMPED, "damped"}, {ModeDesired::CURRENT, "current"}, {ModeDesired::POSITION, "position"}, {ModeDesired::TORQUE, "torque"}, {ModeDesired::IMPEDANCE, "impedance"}, {ModeDesired::VELOCITY, "velocity"}, {ModeDesired::STATE, "state"}, {ModeDesired::CURRENT_TUNING, "current_tuning"}, {ModeDesired::POSITION_TUNING, "position_tuning"}, {ModeDesired::VOLTAGE, "voltage"}, {ModeDesired::PHASE_LOCK, "phase_lock"}, {ModeDesired::STEPPER_TUNING, "stepper_tuning"}, {ModeDesired::STEPPER_VELOCITY, "stepper_velocity"}, {ModeDesired::HARDWARE_BRAKE, "hardware_brake"}, {ModeDesired::JOINT_POSITION, "joint_position"}, {ModeDesired::ADMITTANCE, "admittance"}, {ModeDesired::FIND_LIMITS, "find_limits"}, {ModeDesired::TUNING, "tuning"}, {ModeDesired::DRIVER_ENABLE, "driver_enable"}, {ModeDesired::DRIVER_DISABLE, "driver_disable"}, {ModeDesired::CLEAR_FAULTS, "clear_faults"}, {ModeDesired::FAULT, "fault"}, {ModeDesired::SLEEP, "sleep"}, {ModeDesired::CRASH, "crash"}, {ModeDesired::BOARD_RESET, "reset"}};
 
 }  // namespace obot

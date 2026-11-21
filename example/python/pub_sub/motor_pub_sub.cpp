@@ -6,8 +6,7 @@
 namespace py = pybind11;
 using namespace obot;
 
-PYBIND11_MODULE(motor_pub_sub, m)
-{
+PYBIND11_MODULE(motor_pub_sub, m) {
     m.doc() = "Motor publisher and subscriber example";
 
     struct Data {
@@ -15,7 +14,7 @@ PYBIND11_MODULE(motor_pub_sub, m)
         double pos_y;
         double pos_z;
     };
-    struct Command{
+    struct Command {
         double force_x;
         double force_y;
         double force_z;

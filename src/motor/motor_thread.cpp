@@ -2,20 +2,22 @@
 
 namespace obot {
 
-MotorThread::MotorThread(uint32_t frequency_hz, bool user_space_driver)
-    : RealtimeThread(frequency_hz), motor_manager_(user_space_driver), user_space_driver_(user_space_driver) {
+MotorThread::MotorThread(uint32_t frequency_hz, bool user_space_driver) :
+    RealtimeThread(frequency_hz),
+    motor_manager_(user_space_driver),
+    user_space_driver_(user_space_driver) {
 }
 
 void MotorThread::init() {
     std::cout << "Connecting to motors:" << std::endl;
     for (auto m : motor_manager_.motors()) {
-        std:: cout << m->name() << std::endl;
+        std::cout << m->name() << std::endl;
     }
     post_init();
-    for (int i=0; i<motor_manager_.size(); i++) {
+    for (int i = 0; i < motor_manager_.size(); i++) {
         cpu_frequency_hz_[i] = motor_manager_.motors()[i]->get_cpu_frequency();
     }
-    std::memcpy(data_.statuses, motor_manager_.read().data(), sizeof(MotorStatus)*motor_manager_.size());
+    std::memcpy(data_.statuses, motor_manager_.read().data(), sizeof(MotorStatus) * motor_manager_.size());
     cstack_.push(data_);
 }
 
@@ -43,23 +45,23 @@ void MotorThread::update() {
     }
 
     // blocking io to get the data already set up and wait if not ready yet
-    std::memcpy(data_.statuses, motor_manager_.read().data(), sizeof(MotorStatus)*motor_manager_.size());
+    std::memcpy(data_.statuses, motor_manager_.read().data(), sizeof(MotorStatus) * motor_manager_.size());
     data_.read_time = std::chrono::steady_clock::now();
 
     Data last_data = cstack_.top();
-    for (int i=0; i < motor_manager_.size(); i++) {
-        data_.controller_dt_s[i] = (data_.statuses[i].mcu_timestamp - last_data.statuses[i].mcu_timestamp)/cpu_frequency_hz_[i];
+    for (int i = 0; i < motor_manager_.size(); i++) {
+        data_.controller_dt_s[i] = (data_.statuses[i].mcu_timestamp - last_data.statuses[i].mcu_timestamp) / cpu_frequency_hz_[i];
     }
 
     controller_update();
     data_.control_time = std::chrono::steady_clock::now();
 
     motor_manager_.write_saved_commands();
-    std::memcpy(data_.commands, motor_manager_.commands().data(), sizeof(MotorCommand)*motor_manager_.size());
+    std::memcpy(data_.commands, motor_manager_.commands().data(), sizeof(MotorCommand) * motor_manager_.size());
     data_.write_time = std::chrono::steady_clock::now();
 
     RealtimeThread::update();
-    
+
     post_update();
     cstack_.push(data_);
     data_.last_time_end = std::chrono::steady_clock::now();

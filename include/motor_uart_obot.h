@@ -14,7 +14,7 @@ class MotorUARTObot : public Motor {
  public:
     MotorUARTObot(std::string dev_path, uint32_t baud_rate = 4000000);
     virtual ~MotorUARTObot() override;
-    
+
     virtual void set_timeout_ms(int timeout_ms) override;
     void set_baud_rate(uint32_t baud_rate = 4000000);
 

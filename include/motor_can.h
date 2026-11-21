@@ -13,7 +13,10 @@ class MotorCAN : public Motor {
     void open();
     virtual ssize_t read() override;
     virtual ssize_t write() override;
-    virtual ssize_t aread() override { send_read_request_ = false; return 0; }
+    virtual ssize_t aread() override {
+        send_read_request_ = false;
+        return 0;
+    }
 
     virtual void set_timeout_ms(int timeout_ms) override;
     virtual int get_timeout_ms() const override { return timeout_ms_; }

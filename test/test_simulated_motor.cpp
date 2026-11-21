@@ -13,7 +13,7 @@ int main() {
     MotorManager m;
     m.get_motors_by_name({"sim"}, true, true);
     assert(typeid(*(m.motors()[0].get())) == typeid(SimulatedMotor));
-    (dynamic_cast<SimulatedMotor *>(m.motors()[0].get()))->set_gear_ratio(100);
+    (dynamic_cast<SimulatedMotor*>(m.motors()[0].get()))->set_gear_ratio(100);
     m.set_auto_count();
     assert(m.read()[0].iq == 0);
     std::cout << m.read() << std::endl;
@@ -41,7 +41,7 @@ int main() {
     std::cout << status << std::endl;
     float motor_position = status[0].motor_position;
     float joint_position = status[0].joint_position;
-    assert(std::abs(joint_position*100 - motor_position) < .001);
+    assert(std::abs(joint_position * 100 - motor_position) < .001);
     m.set_command_velocity({1});
     m.write_saved_commands();
     std::this_thread::sleep_for(std::chrono::seconds(1));

@@ -31,11 +31,11 @@ class TextFile {
  public:
     virtual ~TextFile();
     virtual void flush() {}
-    virtual ssize_t read(char * /* data */, unsigned int /* length */) { return 0; }
-    virtual ssize_t write(const char * /* data */, unsigned int /* length */) { return 0; }
-    virtual ssize_t writeread(const char * /* *data_out */, unsigned int /* length_out */, char * /* data_in */, unsigned int /* length_in */) { return 0; }
+    virtual ssize_t read(char* /* data */, unsigned int /* length */) { return 0; }
+    virtual ssize_t write(const char* /* data */, unsigned int /* length */) { return 0; }
+    virtual ssize_t writeread(const char* /* *data_out */, unsigned int /* length_out */, char* /* data_in */, unsigned int /* length_in */) { return 0; }
     std::string writeread(const std::string str) {
-        char str_in[MAX_API_LONG_DATA_SIZE+1]; // 3x for some long packets
+        char str_in[MAX_API_LONG_DATA_SIZE + 1]; // 3x for some long packets
         ssize_t s = writeread(str.c_str(), str.size(), str_in, MAX_API_LONG_DATA_SIZE);
         if (s < 0) {
             throw RuntimeException("text writeread failure " + std::to_string(errno) + ": " + strerror(errno));
@@ -48,22 +48,22 @@ class TextFile {
 
 class SimulatedTextFile : public TextFile {
  public:
-    virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override  {
+    virtual ssize_t writeread(const char* data_out, unsigned int length_out, char* data_in, unsigned int length_in) override {
         std::string key = data_out;
         std::string value = dict_[key];
         ssize_t len = std::min(length_in, static_cast<unsigned int>(value.size()));
         std::memcpy(data_in, value.c_str(), len);
         return len;
     }
+
  private:
-    std::map<std::string, std::string> dict_ = {{"cpu_frequency", "1000000000"}, {"error_mask", "0"}, {"log", "log end"}, 
-        {"fast log", "ok\ntimestamp,"}, {"messages_version", MOTOR_MESSAGES_VERSION}};
+    std::map<std::string, std::string> dict_ = {{"cpu_frequency", "1000000000"}, {"error_mask", "0"}, {"log", "log end"}, {"fast log", "ok\ntimestamp,"}, {"messages_version", MOTOR_MESSAGES_VERSION}};
     friend class SimulatedMotor;
 };
 
 class SysfsFile : public TextFile {
  public:
-    SysfsFile (std::string path) {
+    SysfsFile(std::string path) {
         path_ = path;
         fd_ = ::open(path_.c_str(), O_RDWR);
         if (fd_ < 0) {
@@ -73,10 +73,10 @@ class SysfsFile : public TextFile {
     virtual ~SysfsFile() override;
     virtual void flush() override {
         char c[64];
-        while(read(c, 64));
+        while (read(c, 64));
     }
     // locked/blocked to one caller so that a read is a response to write
-    virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
+    virtual ssize_t writeread(const char* data_out, unsigned int length_out, char* data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
         if (int retval = lockf(fd_, F_LOCK, 0); retval < 0) {
             throw RuntimeErrnoException("error locking");
@@ -92,8 +92,9 @@ class SysfsFile : public TextFile {
         }
         return retval;
     }
+
  private:
-    virtual ssize_t read(char *data, unsigned int length) override {
+    virtual ssize_t read(char* data, unsigned int length) override {
         // sysfs file needs to closed and opened or lseek to beginning.
         ::lseek(fd_, 0, SEEK_SET);
         auto retval = ::read(fd_, data, length);
@@ -103,7 +104,7 @@ class SysfsFile : public TextFile {
         }
         return retval;
     }
-    virtual ssize_t write(const char *data, unsigned int length) override {
+    virtual ssize_t write(const char* data, unsigned int length) override {
         auto retval = ::write(fd_, data, length);
         if (retval < 0) {
             throw RuntimeException("Sysfs write error " + std::to_string(errno) + ": " + strerror(errno));
@@ -117,13 +118,13 @@ class SysfsFile : public TextFile {
 class USBFile : public TextFile {
  public:
     // file fd should be opened already - it can only have one open reference
-    USBFile (int fd, uint8_t ep_num = 1) { 
+    USBFile(int fd, uint8_t ep_num = 1) {
         ep_num_ = ep_num;
         fd_ = fd;
     }
     virtual ~USBFile() override;
     // locked/blocked to one caller so that a read is a response to write
-    virtual ssize_t writeread(const char *data_out, unsigned int length_out, char *data_in, unsigned int length_in) override {
+    virtual ssize_t writeread(const char* data_out, unsigned int length_out, char* data_in, unsigned int length_in) override {
         ::lseek(fd_, 0, SEEK_SET);
         if (int retval = lockf(fd_, F_LOCK, 0); retval < 0) {
             throw RuntimeErrnoException("error locking");
@@ -140,14 +141,14 @@ class USBFile : public TextFile {
         return retval;
     }
     uint32_t timeout_ms_ = 100;
+
  private:
-    ssize_t read(char *data, unsigned int length) override { 
+    ssize_t read(char* data, unsigned int length) override {
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_IN,
             .len = length,
             .timeout = timeout_ms_,
-            .data = data
-        };
+            .data = data};
 
         int retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
@@ -182,7 +183,7 @@ class USBFile : public TextFile {
                     }
                 } else if (data[1] == 2) {
                     // long packet
-                    uint16_t total_length = (uint8_t) data[4] | (data[5] << 8);
+                    uint16_t total_length = (uint8_t)data[4] | (data[5] << 8);
                     // todo: use packet_number
                     // uint16_t packet_number = (uint8_t) data[6] | (data[7] << 8);
                     const uint8_t header_size = 8;
@@ -195,7 +196,7 @@ class USBFile : public TextFile {
                     memmove(data, data + header_size, total_count_received);
                     while (total_length > total_count_received) {
                         // assemble multiple packets
-                        char * data_ptr = data + total_count_received;
+                        char* data_ptr = data + total_count_received;
                         transfer.data = data_ptr;
                         retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
                         if (retval < 0) {
@@ -206,7 +207,7 @@ class USBFile : public TextFile {
                             }
                         }
                         total_count_received += retval - header_size;
-                        memmove(data_ptr, data_ptr+header_size, retval-header_size);
+                        memmove(data_ptr, data_ptr + header_size, retval - header_size);
                         // ignoring packet_number
                     }
                     retval = total_count_received;
@@ -216,15 +217,14 @@ class USBFile : public TextFile {
 
         return retval;
     }
-    virtual ssize_t write(const char *data, unsigned int length) override { 
+    virtual ssize_t write(const char* data, unsigned int length) override {
         char buf[64];
         std::memcpy(buf, data, length);
         struct usbdevfs_bulktransfer transfer = {
             .ep = ep_num_ | USB_DIR_OUT,
             .len = length,
             .timeout = timeout_ms_,
-            .data = buf
-        };
+            .data = buf};
 
         int retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
         if (retval < 0) {
@@ -238,7 +238,9 @@ class USBFile : public TextFile {
 
 class TextAPIItem {
  public:
-    TextAPIItem(TextFile *motor_txt, std::string name) : motor_txt_(motor_txt), name_(name) {}
+    TextAPIItem(TextFile* motor_txt, std::string name) :
+        motor_txt_(motor_txt),
+        name_(name) {}
 
     std::string set(std::string s) {
         std::string s2 = name_ + "=" + s;
@@ -249,31 +251,32 @@ class TextAPIItem {
                 throw RuntimeException("text api set error " + std::to_string(errno) + ": " + strerror(errno));
             } else {
                 return "";
-            } 
+            }
         }
         c[nbytes] = 0;
         return c;
     }
-    std::string get() const {     
-        char c[MAX_API_LONG_DATA_SIZE+1] = {};
+    std::string get() const {
+        char c[MAX_API_LONG_DATA_SIZE + 1] = {};
         auto nbytes = motor_txt_->writeread(name_.c_str(), name_.size(), c, MAX_API_LONG_DATA_SIZE);
         if (nbytes < 0) {
             if (!no_throw_) {
                 throw RuntimeException("text api get error " + std::to_string(errno) + ": " + strerror(errno));
             } else {
                 return "";
-            } 
+            }
         }
         c[nbytes] = 0;
-        
+
         return c;
     }
     void operator=(const std::string s) {
         set(s);
     }
     bool no_throw_ = true;
+
  private:
-    TextFile *motor_txt_;
+    TextFile* motor_txt_;
     std::string name_;
 };
 
@@ -286,7 +289,7 @@ inline double& operator<<(double& d, TextAPIItem const& item) {
     return d;
 }
 
-static int get_lock_pid(int fd, pid_t *pid) {
+static int get_lock_pid(int fd, pid_t* pid) {
     struct flock lock;
     lock.l_type = F_WRLCK;
     lock.l_start = 0;
@@ -301,26 +304,31 @@ static int get_lock_pid(int fd, pid_t *pid) {
 
 class Motor : public MotorDescription {
  public:
-    enum MessagesCheck {NONE, MAJOR, MINOR};
+    enum MessagesCheck { NONE,
+                         MAJOR,
+                         MINOR };
     Motor() {}
     Motor(std::string dev_path);
     virtual ~Motor();
     virtual ssize_t read() { return ::read(fd_, &status_, sizeof(status_)); }
-    virtual ssize_t write() { if (!no_write_) {
-        return ::write(fd_, &command_, sizeof(command_));
-     } else {
-        std::cerr << "motor " + name() + " locked";
-        pid_t pid;
-        int err = get_lock_pid(fd_, &pid);
-        if (err == 0) {
-            std::cerr << " by process: " << pid;
+    virtual ssize_t write() {
+        if (!no_write_) {
+            return ::write(fd_, &command_, sizeof(command_));
+        } else {
+            std::cerr << "motor " + name() + " locked";
+            pid_t pid;
+            int err = get_lock_pid(fd_, &pid);
+            if (err == 0) {
+                std::cerr << " by process: " << pid;
+            }
+            std::cerr << ", not writeable" << std::endl;
+            ;
+            return -1;
         }
-        std::cerr << ", not writeable" << std::endl;;
-        return -1;
-     } }
-    virtual int lock() { 
+    }
+    virtual int lock() {
         ::lseek(fd_, 0, SEEK_SET);
-        int err = lockf(fd_, F_TLOCK, 0); 
+        int err = lockf(fd_, F_TLOCK, 0);
         if (err) {
             std::cerr << "error locking " + name();
             pid_t pid;
@@ -332,31 +340,36 @@ class Motor : public MotorDescription {
         }
         return err;
     }
-    virtual int set_nonblock() { nonblock_ = true;
-        return fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK); }
-    virtual int clear_nonblock() { nonblock_ = false;
-        return fcntl(fd_, F_SETFL, fd_flags_ & ~O_NONBLOCK); }
+    virtual int set_nonblock() {
+        nonblock_ = true;
+        return fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
+    }
+    virtual int clear_nonblock() {
+        nonblock_ = false;
+        return fcntl(fd_, F_SETFL, fd_flags_ & ~O_NONBLOCK);
+    }
     virtual void set_cmd_status_req() { cmd_status_req_ = true; }
     bool is_nonblocking() const { return nonblock_; }
-    virtual ssize_t aread() { int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
-			ssize_t read_error = read(); 
-            int fcntl_error2 = fcntl(fd_, F_SETFL, fd_flags_);
-            if (fcntl_error < 0 || fcntl_error2 < 0) {
-                std::cout << "Aread fcntl error" << std::endl;
+    virtual ssize_t aread() {
+        int fcntl_error = fcntl(fd_, F_SETFL, fd_flags_ | O_NONBLOCK);
+        ssize_t read_error = read();
+        int fcntl_error2 = fcntl(fd_, F_SETFL, fd_flags_);
+        if (fcntl_error < 0 || fcntl_error2 < 0) {
+            std::cout << "Aread fcntl error" << std::endl;
+        }
+        if (read_error != -1) {
+            std::cout << "Nonzero aread" << std::endl;
+        } else {
+            if (errno != EAGAIN) {
+                std::cout << "Aread error " << errno << std::endl;
             }
-            if (read_error != -1) {
-                std::cout << "Nonzero aread" << std::endl;
-            } else {
-                if (errno != EAGAIN) {
-                    std::cout << "Aread error " << errno << std::endl;
-                }
-            }
-            return read_error; }
-    virtual bool check_messages_version(MessagesCheck check = MAJOR) { 
+        }
+        return read_error;
+    }
+    virtual bool check_messages_version(MessagesCheck check = MAJOR) {
         if (check == MAJOR) {
             std::string realtime_messages_version = MOTOR_MESSAGES_VERSION;
-            return realtime_messages_version.substr(0, realtime_messages_version.find('.'))
-                == messages_version_.substr(0, messages_version_.find('.'));
+            return realtime_messages_version.substr(0, realtime_messages_version.find('.')) == messages_version_.substr(0, messages_version_.find('.'));
         } else if (check == MINOR) {
             return MOTOR_MESSAGES_VERSION == messages_version_;
         } else {
@@ -366,23 +379,27 @@ class Motor : public MotorDescription {
     virtual void set_timeout_ms(int timeout_ms);
     virtual int get_timeout_ms() const;
     // note will probably not be the final interface
-    TextAPIItem operator[](const std::string s) { TextAPIItem t(motor_txt_.get(), s); return t; }
+    TextAPIItem operator[](const std::string s) {
+        TextAPIItem t(motor_txt_.get(), s);
+        return t;
+    }
     int fd() const { return fd_; }
-    const Status * status() const { return &status_; }
-    Command * command() { return &command_; }
+    const Status* status() const { return &status_; }
+    Command* command() { return &command_; }
     TextFile* motor_text() { return motor_txt_.get(); }
     std::string get_fast_log();
     std::string get_fast_log2();
     std::string get_log();
     virtual std::vector<std::string> get_api_options();
     uint32_t get_cpu_frequency() { return std::stoi((*this)["cpu_frequency"].get()); }
+
  protected:
-    int open() { 
-        fd_ = ::open(dev_path_.c_str(), O_RDWR); 
+    int open() {
+        fd_ = ::open(dev_path_.c_str(), O_RDWR);
         if (lockf(fd_, F_TEST, 0)) {
             no_write_ = true;
         }
-        fd_flags_ = fcntl(fd_, F_GETFL); 
+        fd_flags_ = fcntl(fd_, F_GETFL);
         return fd_;
     }
     // Close only a descriptor this Motor actually opened.
@@ -418,83 +435,84 @@ class Motor : public MotorDescription {
 
 class SimulatedMotor : public Motor {
  public:
-   SimulatedMotor(std::string name) { 
-       name_ = name;
-       fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
-       motor_txt_ = std::move(std::unique_ptr<SimulatedTextFile>(new SimulatedTextFile()));
-       clock_gettime(CLOCK_MONOTONIC, &last_time_);
-       board_name_ = "simulated";
-       config_ = "simulated";
-       messages_version_ = operator[]("messages_version").get();
+    SimulatedMotor(std::string name) {
+        name_ = name;
+        fd_ = ::open("/dev/zero", O_RDONLY); // so that poll can see something
+        motor_txt_ = std::move(std::unique_ptr<SimulatedTextFile>(new SimulatedTextFile()));
+        clock_gettime(CLOCK_MONOTONIC, &last_time_);
+        board_name_ = "simulated";
+        config_ = "simulated";
+        messages_version_ = operator[]("messages_version").get();
     }
-   virtual ~SimulatedMotor() override;
-   virtual ssize_t read() override {  
-       timespec time;
-       clock_gettime(CLOCK_MONOTONIC, &time);
-       double dt = clock_diff(time, last_time_);
-       status_.mcu_timestamp += dt*1e9;
-       last_time_ = time;
-       t_seconds_ += dt;
-       switch (active_command_.mode_desired) {
-           case VELOCITY:
-                status_.motor_position += velocity_*dt;
-                status_.joint_position = status_.motor_position/gear_ratio_;
+    virtual ~SimulatedMotor() override;
+    virtual ssize_t read() override {
+        timespec time;
+        clock_gettime(CLOCK_MONOTONIC, &time);
+        double dt = clock_diff(time, last_time_);
+        status_.mcu_timestamp += dt * 1e9;
+        last_time_ = time;
+        t_seconds_ += dt;
+        switch (active_command_.mode_desired) {
+            case VELOCITY:
+                status_.motor_position += velocity_ * dt;
+                status_.joint_position = status_.motor_position / gear_ratio_;
                 status_.motor_velocity = velocity_;
-                status_.joint_velocity = velocity_/gear_ratio_;
-                break;           
-           case CURRENT_TUNING:
-                status_.iq = active_command_.current_tuning.bias + 
-                    active_command_.current_tuning.amplitude*std::sin(active_command_.current_tuning.frequency*2*M_PI*t_seconds_);
-           case CURRENT:
-                status_.torque = kt_*gear_ratio_*status_.iq;
-                // intentional pass through
-           case TORQUE:
-                velocity_ += status_.torque/inertia_;
-                status_.motor_position += velocity_*dt;
-                status_.joint_position = status_.motor_position/gear_ratio_;
-                status_.motor_velocity = velocity_;
-                status_.joint_velocity = velocity_/gear_ratio_;
+                status_.joint_velocity = velocity_ / gear_ratio_;
                 break;
-       }
-       return sizeof(status_);
-   }
-   virtual ssize_t write() override {
-       status_.host_timestamp_received = command_.host_timestamp;
-       if (command_.mode_desired == POSITION || command_.mode_desired == CURRENT ||
-           command_.mode_desired == TORQUE) {
-           status_.iq = command_.current_desired;
-       } else {
-           status_.iq = 0;
-       }
-       switch (command_.mode_desired) {
-           case POSITION:
-               velocity_ = 0;
-               status_.motor_position = command_.position_desired;
-               status_.joint_position = command_.position_desired/gear_ratio_;
-               break;
-           case VELOCITY:
-               velocity_ = command_.velocity_desired;
-               //clock_gettime(CLOCK_MONOTONIC, &last_time_);
-               break;
-           case TORQUE:
-               status_.torque = command_.torque_desired;
-               break;
-           case CURRENT_TUNING:
-               break;
-           default:
-               break; 
-       }
-       active_command_ = command_;
-       return sizeof(command_); 
-   }
-   void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
-   virtual std::vector<std::string> get_api_options() override;
-   virtual void set_timeout_ms(int) override {}
-   virtual int get_timeout_ms() const override { return 0; }
+            case CURRENT_TUNING:
+                status_.iq = active_command_.current_tuning.bias +
+                             active_command_.current_tuning.amplitude * std::sin(active_command_.current_tuning.frequency * 2 * M_PI * t_seconds_);
+            case CURRENT:
+                status_.torque = kt_ * gear_ratio_ * status_.iq;
+                // intentional pass through
+            case TORQUE:
+                velocity_ += status_.torque / inertia_;
+                status_.motor_position += velocity_ * dt;
+                status_.joint_position = status_.motor_position / gear_ratio_;
+                status_.motor_velocity = velocity_;
+                status_.joint_velocity = velocity_ / gear_ratio_;
+                break;
+        }
+        return sizeof(status_);
+    }
+    virtual ssize_t write() override {
+        status_.host_timestamp_received = command_.host_timestamp;
+        if (command_.mode_desired == POSITION || command_.mode_desired == CURRENT ||
+            command_.mode_desired == TORQUE) {
+            status_.iq = command_.current_desired;
+        } else {
+            status_.iq = 0;
+        }
+        switch (command_.mode_desired) {
+            case POSITION:
+                velocity_ = 0;
+                status_.motor_position = command_.position_desired;
+                status_.joint_position = command_.position_desired / gear_ratio_;
+                break;
+            case VELOCITY:
+                velocity_ = command_.velocity_desired;
+                //clock_gettime(CLOCK_MONOTONIC, &last_time_);
+                break;
+            case TORQUE:
+                status_.torque = command_.torque_desired;
+                break;
+            case CURRENT_TUNING:
+                break;
+            default:
+                break;
+        }
+        active_command_ = command_;
+        return sizeof(command_);
+    }
+    void set_gear_ratio(double gear_ratio) { gear_ratio_ = gear_ratio; }
+    virtual std::vector<std::string> get_api_options() override;
+    virtual void set_timeout_ms(int) override {}
+    virtual int get_timeout_ms() const override { return 0; }
+
  private:
     // a - b in seconds
-    double clock_diff(timespec &a, timespec &b) {
-        return a.tv_sec - b.tv_sec + a.tv_nsec*1e-9 - b.tv_nsec*1e-9;
+    double clock_diff(timespec& a, timespec& b) {
+        return a.tv_sec - b.tv_sec + a.tv_nsec * 1e-9 - b.tv_nsec * 1e-9;
     }
     double gear_ratio_ = 1;
     double kt_ = 1;
@@ -507,21 +525,21 @@ class SimulatedMotor : public Motor {
 
 class UserSpaceMotor : public Motor {
  public:
-    UserSpaceMotor(std::string dev_path, uint8_t ep_num = 2) { 
+    UserSpaceMotor(std::string dev_path, uint8_t ep_num = 2) {
         ep_num_ = ep_num;
         aread_transfer_.endpoint |= ep_num;
         dev_path_ = dev_path;
-        struct udev *udev = udev_new();
+        struct udev* udev = udev_new();
         struct stat st;
         if (stat(dev_path.c_str(), &st) < 0) {
             throw RuntimeException("Motor stat error " + std::to_string(errno) + ": " + strerror(errno));
         }
-        struct udev_device *dev = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
-        const char * sysname = udev_device_get_sysname(dev);
+        struct udev_device* dev = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
+        const char* sysname = udev_device_get_sysname(dev);
 
         std::string interface_name = sysname;
         interface_name += ":1.0/interface";
-        const char * name = udev_device_get_sysattr_value(dev, interface_name.c_str());
+        const char* name = udev_device_get_sysattr_value(dev, interface_name.c_str());
         if (name != nullptr) {
             name_ = name;
         } else {
@@ -529,21 +547,21 @@ class UserSpaceMotor : public Motor {
         }
 
         // dev = udev_device_get_parent_with_subsystem_devtype(
-		//        dev,
-		//        "usb",
-		//        "usb_device");
-        serial_number_ = udev_device_get_sysattr_value(dev, "serial"); 
-        base_path_ = basename(const_cast<char *>(udev_device_get_syspath(dev)));
-        const char * version = udev_device_get_sysattr_value(dev, "configuration");
+        //        dev,
+        //        "usb",
+        //        "usb_device");
+        serial_number_ = udev_device_get_sysattr_value(dev, "serial");
+        base_path_ = basename(const_cast<char*>(udev_device_get_syspath(dev)));
+        const char* version = udev_device_get_sysattr_value(dev, "configuration");
         if (version != nullptr) {
             version_ = version;
         } else {
             version_ = "";
         }
         devnum_ = std::stoi(udev_device_get_sysattr_value(dev, "devnum"));
-        
+
         udev_device_unref(dev);
-        udev_unref(udev);  
+        udev_unref(udev);
         open();
         motor_txt_ = std::move(std::unique_ptr<USBFile>(new USBFile(fd_, 1)));
 
@@ -566,12 +584,11 @@ class UserSpaceMotor : public Motor {
                 .ep = static_cast<uint8_t>(ep_num_ | USB_DIR_IN),
                 .len = sizeof(status_),
                 .timeout = timeout_ms_,
-                .data = &status_
-            };
+                .data = &status_};
 
             retval = ::ioctl(fd_, USBDEVFS_BULK, &transfer);
         } else {
-            usbdevfs_urb *transfer =  nullptr;
+            usbdevfs_urb* transfer = nullptr;
             Timer t(10000000);
             do {
                 retval = ::ioctl(fd_, USBDEVFS_REAPURBNDELAY, &transfer);
@@ -586,7 +603,7 @@ class UserSpaceMotor : public Motor {
         }
         return retval;
     }
-    virtual ssize_t write() override { 
+    virtual ssize_t write() override {
         struct usbdevfs_urb transfer = {
             .type = USBDEVFS_URB_TYPE_BULK,
             .endpoint = static_cast<uint8_t>(ep_num_ | USB_DIR_OUT),
@@ -612,13 +629,14 @@ class UserSpaceMotor : public Motor {
     }
     virtual void set_timeout_ms(int timeout_ms) override {
         timeout_ms_ = timeout_ms;
-        static_cast<USBFile *>(motor_txt_.get())->timeout_ms_ = timeout_ms;
+        static_cast<USBFile*>(motor_txt_.get())->timeout_ms_ = timeout_ms;
     }
     virtual int get_timeout_ms() const override { return timeout_ms_; }
+
  private:
     int open() {
         int retval = Motor::open();
-        struct usbdevfs_disconnect_claim claim = { 0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt" };
+        struct usbdevfs_disconnect_claim claim = {0, USBDEVFS_DISCONNECT_CLAIM_IF_DRIVER, "usb_rt"};
         int ioval = ::ioctl(fd_, USBDEVFS_DISCONNECT_CLAIM, &claim); // will take control from driver if one is installed
         if (ioval < 0) {
             throw RuntimeException("Motor open error " + std::to_string(errno) + ": " + strerror(errno));
@@ -627,11 +645,11 @@ class UserSpaceMotor : public Motor {
     }
     int close() {
         int interface_num = 0;
-        int ioval = ::ioctl(fd_, USBDEVFS_RELEASEINTERFACE, &interface_num); 
+        int ioval = ::ioctl(fd_, USBDEVFS_RELEASEINTERFACE, &interface_num);
         if (ioval < 0) {
             throw RuntimeException("Motor release interface error " + std::to_string(errno) + ": " + strerror(errno));
         }
-        struct usbdevfs_ioctl connect = { .ifno = 0, .ioctl_code=USBDEVFS_CONNECT };
+        struct usbdevfs_ioctl connect = {.ifno = 0, .ioctl_code = USBDEVFS_CONNECT};
         ioval = ::ioctl(fd_, USBDEVFS_IOCTL, &connect); // allow kernel driver to reconnect
         if (ioval < 0) {
             throw RuntimeException("Motor close error " + std::to_string(errno) + ": " + strerror(errno));
@@ -652,7 +670,7 @@ class UserSpaceMotor : public Motor {
     };
 };
 
-std::string &mode_color(ModeDesired mode);
+std::string& mode_color(ModeDesired mode);
 
 }  // namespace obot
 
