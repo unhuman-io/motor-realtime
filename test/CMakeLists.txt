@@ -1,7 +1,23 @@
+add_executable(test_multipoll test_multipoll.cpp)
+target_link_libraries(test_multipoll motor_manager)
+add_test(NAME test_multipoll COMMAND test_multipoll)
+
 add_executable(test_simulated_motor test_simulated_motor.cpp)
 target_link_libraries(test_simulated_motor motor_manager)
 add_test(NAME test_simulated_motor COMMAND test_simulated_motor)
 
+add_executable(test_realtime_thread test_realtime_thread.cpp)
+target_link_libraries(test_realtime_thread motor_manager)
+add_test(NAME test_realtime_thread COMMAND test_realtime_thread)
+
 add_executable(test_motor test_motor.cpp)
 target_link_libraries(test_motor motor_manager)
 add_test(NAME test_motor COMMAND test_motor)
+
+add_executable(test_motor_manager_errors test_motor_manager_errors.cpp)
+target_link_libraries(test_motor_manager_errors motor_manager)
+add_test(NAME test_motor_manager_errors COMMAND test_motor_manager_errors)
+
+add_executable(test_motor_thread test_motor_thread.cpp)
+target_link_libraries(test_motor_thread motor_manager)
+add_test(NAME test_motor_thread COMMAND test_motor_thread)
