@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 
 #include <linux/can.h>
 #include <linux/can/raw.h>
@@ -31,6 +32,13 @@ class CANFile : public TextFile {
         // lock file to prevent multiple instances at the same time
         lock_file_ = "/tmp/obot." + ifname + ":" + std::to_string(devnum) + ".lock";
         fd_lock_ = ::open(lock_file_.c_str(), O_CREAT | O_RDWR, 0666);
+        if (fd_lock_ >= 0) {
+            // The lock is shared by every program that talks to this node, whoever runs
+            // it. Without this the file keeps the creator's umask, and a service running
+            // as another user cannot open the node after root has used motor_util on it.
+            // (Fails, harmlessly, for a file that someone else created.)
+            (void)!::fchmod(fd_lock_, 0666);
+        }
         if (fd_lock_ < 0) {
             throw RuntimeException("Error opening lock file " + lock_file_ + ":" + std::to_string(errno) + ": " + strerror(errno));
         }
