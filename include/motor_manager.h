@@ -75,6 +75,10 @@ class MotorManager {
     void set_auto_count(bool on = true) { auto_count_ = on; }
     uint32_t get_auto_count() const { return count_; }
     void set_reconnect(bool reconnect = true) { reconnect_ = reconnect; }
+    // For programs that have to keep running when a motor is late or gone (a robot's
+    // control loop): read() and write() then never throw. What went wrong is in
+    // get_read_error_count(), get_write_error_count() and get_status_fresh().
+    void set_throw_on_error(bool throw_on_error = true) { throw_on_error_ = throw_on_error; }
     void set_commands(const std::vector<Command>& commands);
     void clear_commands();
     void set_command_count(int32_t count);
@@ -100,11 +104,23 @@ class MotorManager {
     bool deserialize_saved_commands(char* data);
     const std::vector<int>& get_read_error_count() const { return read_error_count_; }
     const std::vector<int>& get_nonblock_not_ready_error_count() const { return nonblock_not_ready_error_count_; }
+    // Consecutive writes that failed, per motor; 0 after one that worked.
+    const std::vector<int>& get_write_error_count() const { return write_error_count_; }
+    // Per motor, whether the last read() brought a status that was not seen before: one
+    // with another time from the motor or answering another command. A motor keeps its
+    // last status when nothing new has arrived, and what Motor::read() returns for that
+    // differs between transports, so this is how to tell.
+    const std::vector<uint8_t>& get_status_fresh() const { return status_fresh_; }
 
  private:
     std::vector<std::shared_ptr<Motor>> get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<int> read_error_count_;
+    std::vector<int> write_error_count_;
+    std::vector<uint8_t> status_fresh_;
+    std::vector<uint8_t> status_seen_;
+    std::vector<pollfd> pollfds_waiting_;
+    bool throw_on_error_ = true;
     std::vector<int> nonblock_not_ready_error_count_;
     std::vector<Command> commands_;
     std::vector<Status> statuses_;
