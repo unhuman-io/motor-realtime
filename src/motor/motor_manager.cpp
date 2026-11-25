@@ -6,6 +6,7 @@
 #include "motor_uart_obot.h"
 #include "motor_can.h"
 
+#include <exception>
 #include <libudev.h>
 
 #include <cstring>
@@ -418,30 +419,33 @@ void MotorManager::write(std::vector<Command>& commands) {
         }
     }
     // Every motor gets its command, also when writing to one of them fails: the others
-    // must not be left without (their host timeout would stop them too).
+    // must not be left without (their host timeout would stop them too). The error is
+    // thrown after that.
     std::string err_msg;
+    std::exception_ptr thrown;
     for (uint8_t i = 0; i < motors_.size(); i++) {
         *motors_[i]->command() = commands[i];
         bool ok = false;
-        std::string err;
         try {
             ok = motors_[i]->write() >= 0;
             if (!ok) {
-                err = std::to_string(errno) + ": " + strerror(errno);
+                err_msg.append(err_msg.empty() ? "" : "\n");
+                err_msg.append("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
             }
-        } catch (RuntimeException& e) {
-            if (throw_on_error_) {
-                err = e.what();
-            }
-        }
-        if (ok) {
-            write_error_count_[i] = 0;
-        } else {
-            write_error_count_[i]++;
-            if (throw_on_error_) {
-                err_msg.append("Error writing: " + motors_[i]->name() + " error " + err + "\n");
+        } catch (...) {
+            // a motor whose write() throws: the first such exception is passed on as it is
+            if (!thrown) {
+                thrown = std::current_exception();
             }
         }
+        write_error_count_[i] = ok ? 0 : write_error_count_[i] + 1;
+    }
+    if (!throw_on_error_) {
+        // counted above
+        return;
+    }
+    if (thrown) {
+        std::rethrow_exception(thrown);
     }
     if (!err_msg.empty()) {
         throw RuntimeException(err_msg);

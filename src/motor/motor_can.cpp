@@ -36,6 +36,7 @@ class CANFile : public TextFile {
             // The lock is shared by every program that talks to this node, whoever runs
             // it. Without this the file keeps the creator's umask, and a service running
             // as another user cannot open the node after root has used motor_util on it.
+            // (Fails, harmlessly, for a file that someone else created.)
             (void)!::fchmod(fd_lock_, 0666);
         }
         if (fd_lock_ < 0) {
@@ -363,7 +364,6 @@ void MotorCAN::set_timeout_ms(int timeout_ms) {
 
 void MotorCAN::open() {
     fd_ = open_socket(dev_path_);
-    fd_flags_ = fcntl(fd_, F_GETFL);
 }
 
 int MotorCAN::open_socket(std::string if_name) {
@@ -404,9 +404,7 @@ int MotorCAN::open_socket(std::string if_name) {
 
 ssize_t MotorCAN::read() {
     int current_timeout = 0;
-    if (nonblock_) {
-        // only what has arrived, see set_nonblock()
-    } else if (send_read_request_ && !cmd_status_req_) {
+    if (send_read_request_ && !cmd_status_req_) {
         struct canfd_frame frame = {
             .can_id = (3 << 7) | devnum_,
             .len = 0,
@@ -422,6 +420,10 @@ ssize_t MotorCAN::read() {
     } else if (cmd_status_req_) {
         // also keep the timeout
         current_timeout = timeout_ms_;
+    }
+    if (nonblock_) {
+        // only what has arrived, see set_nonblock()
+        current_timeout = 0;
     }
 
     struct canfd_frame frame;

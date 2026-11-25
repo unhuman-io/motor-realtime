@@ -119,7 +119,6 @@ class MotorManager {
     std::vector<int> write_error_count_;
     std::vector<uint8_t> status_fresh_;
     std::vector<uint8_t> status_seen_;
-    std::vector<pollfd> pollfds_waiting_;
     bool throw_on_error_ = true;
     std::vector<int> nonblock_not_ready_error_count_;
     std::vector<Command> commands_;
@@ -130,6 +129,7 @@ class MotorManager {
     bool reconnect_ = false;
     FrequencyLimiter reconnect_rate_ = std::chrono::milliseconds(100);
     std::vector<pollfd> pollfds_;
+    std::vector<pollfd> pollfds_waiting_;   // multipoll: those not ready yet
     Motor::MessagesCheck check_messages_version_;
 };
 

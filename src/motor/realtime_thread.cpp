@@ -76,6 +76,7 @@ int sched_getattr(pid_t pid,
 
 void RealtimeThread::run() {
     done_ = false;
+    // before the thread exists: done() may be called before the thread has got anywhere
     exit_ = std::promise<void>();
     started_ = std::promise<void>();
     setup_errors_.clear();
@@ -85,12 +86,14 @@ void RealtimeThread::run() {
 
 void RealtimeThread::done() {
     if (thread_ == nullptr) {
+        // never started, or stopped already
         return;
     }
     done_.store(true);
     if (exit_.get_future().wait_for(std::chrono::nanoseconds(period_ns_) * 20) == std::future_status::timeout) {
         std::cerr << "Difficulty stopping realtime thread" << std::endl;
-        // it may be stuck in update(); deleting a thread that was not joined ends the program
+        // It may be stuck in update(). A thread that is neither joined nor detached ends
+        // the program when it is deleted.
         thread_->detach();
     } else {
         thread_->join();

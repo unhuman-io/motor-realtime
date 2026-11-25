@@ -1,6 +1,6 @@
-// MotorManager and MotorThread with a motor that stops answering and cannot be written to:
-// the errors are reported, the other motor is not affected, and in fault tolerant mode
-// the thread keeps running.
+// MotorThread in fault tolerant mode with a motor that stops answering and cannot be
+// written to: the thread keeps its rate, the other motor is not affected, and
+// controller_update() is told. (MotorManager's part of that: test_motor_manager_errors.)
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -58,52 +58,6 @@ class TestThread : public MotorThread {
     }
 };
 
-static void test_manager() {
-    auto flaky = std::make_shared<FlakyMotor>("flaky");
-    auto good = std::make_shared<FlakyMotor>("good");
-    MotorManager m;
-    m.set_motors({flaky, good});
-    assert(m.multipoll(1000 * 1000) == 2);
-
-    // A motor that cannot be written to: the error is thrown, after the other motor has
-    // got its command too.
-    flaky->broken = true;
-    m.set_command_mode(VELOCITY);
-    bool thrown = false;
-    try {
-        m.write_saved_commands();
-    } catch (RuntimeException& e) {
-        thrown = std::string(e.what()).find("flaky") != std::string::npos;
-    }
-    assert(thrown);
-    assert(good->writes == 1);
-    assert(m.get_write_error_count()[0] == 1);
-    assert(m.get_write_error_count()[1] == 0);
-
-    // Without throwing: the same is only counted.
-    m.set_throw_on_error(false);
-    m.write_saved_commands();
-    assert(good->writes == 2);
-    assert(m.get_write_error_count()[0] == 2);
-    flaky->broken = false;
-    m.write_saved_commands();
-    assert(m.get_write_error_count()[0] == 0);
-
-    // A status is fresh when it is new, and not when the motor had nothing.
-    flaky->set_nonblock();
-    good->set_nonblock();
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    m.read();
-    assert(m.get_status_fresh()[0] == 1);
-    assert(m.get_status_fresh()[1] == 1);
-    flaky->silent = true;
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    m.read();
-    assert(m.get_status_fresh()[0] == 0);
-    assert(m.get_status_fresh()[1] == 1);
-    assert(m.get_nonblock_not_ready_error_count()[0] == 1);
-}
-
 static void test_thread() {
     auto flaky = std::make_shared<FlakyMotor>("flaky");
     auto good = std::make_shared<FlakyMotor>("good");
@@ -154,7 +108,6 @@ static void test_thread() {
 }
 
 int main() {
-    test_manager();
     test_thread();
     return 0;
 }
