@@ -272,20 +272,6 @@ jobs:
       with:
         name: packages-${{ matrix.distro }}-aarch64
         path: packages
-    - uses: pyTooling/Actions/releaser@v6.7.0
-      if: contains(github.ref, 'develop')
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        files: |
-          ./packages/*
-        tag: develop
-    - uses: pyTooling/Actions/releaser@v6.7.0
-      if: contains(github.ref, 'main')
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        files: |
-          ./packages/*
-        tag: main
     - name: build the static programs
       if: ${{ !matrix.package_only }}
       run: |
@@ -303,24 +289,45 @@ jobs:
       with:
         name: artifacts-${{ matrix.distro }}-aarch64
         path: artifacts_${{ matrix.distro }}_aarch64.tgz
+
+  release_aarch64:
+    # Adds what build_aarch64 made to the release. On an x86 runner, not in the job that
+    # builds: the releaser action is a container that exists for amd64 only and cannot
+    # run on the arm64 runner.
+    needs: build_aarch64
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: packages-*-aarch64
+        path: packages
+        merge-multiple: true
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: artifacts-*-aarch64
+        merge-multiple: true
+    - run: ls -l packages artifacts_*_aarch64.tgz
     - uses: pyTooling/Actions/releaser@v6.7.0
-      if: ${{ !matrix.package_only && contains(github.ref, 'develop') }}
+      if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
-          ./artifacts_${{ matrix.distro }}_aarch64.tgz
+          ./packages/*
+          ./artifacts_*_aarch64.tgz
         tag: develop
     - uses: pyTooling/Actions/releaser@v6.7.0
-      if: ${{ !matrix.package_only && contains(github.ref, 'main') }}
+      if: contains(github.ref, 'main')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
-          ./artifacts_${{ matrix.distro }}_aarch64.tgz
+          ./packages/*
+          ./artifacts_*_aarch64.tgz
         tag: main
 
   merge_artifacts:
     runs-on: ubuntu-latest
-    needs: [build, build_arm, build_aarch64]
+    # after the release job: it reads the artifacts that are merged, and deleted, here
+    needs: [build, build_arm, build_aarch64, release_aarch64]
     steps:
     - name: Merge packages
       uses: actions/upload-artifact/merge@v4
