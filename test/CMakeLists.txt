@@ -17,3 +17,7 @@ add_test(NAME test_motor COMMAND test_motor)
 add_executable(test_motor_manager_errors test_motor_manager_errors.cpp)
 target_link_libraries(test_motor_manager_errors motor_manager)
 add_test(NAME test_motor_manager_errors COMMAND test_motor_manager_errors)
+
+add_executable(test_motor_thread test_motor_thread.cpp)
+target_link_libraries(test_motor_thread motor_manager)
+add_test(NAME test_motor_thread COMMAND test_motor_thread)

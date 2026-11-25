@@ -9,14 +9,33 @@ MotorThread::MotorThread(uint32_t frequency_hz, bool user_space_driver) :
 }
 
 void MotorThread::init() {
+    if (motor_manager_.size() > MAX_MOTORS) {
+        throw RuntimeException("MotorThread: " + std::to_string(motor_manager_.size()) + " motors, MAX_MOTORS is " + std::to_string(MAX_MOTORS));
+    }
     std::cout << "Connecting to motors:" << std::endl;
     for (auto m : motor_manager_.motors()) {
         std::cout << m->name() << std::endl;
     }
     post_init();
     for (int i = 0; i < motor_manager_.size(); i++) {
-        cpu_frequency_hz_[i] = motor_manager_.motors()[i]->get_cpu_frequency();
+        try {
+            cpu_frequency_hz_[i] = motor_manager_.motors()[i]->get_cpu_frequency();
+        } catch (std::exception& e) {
+            if (!fault_tolerant_) {
+                throw;
+            }
+            // a motor without the text api: controller_dt_s stays 0 for it
+            cpu_frequency_hz_[i] = 0;
+        }
     }
+    if (fault_tolerant_) {
+        motor_manager_.set_throw_on_error(false);
+        for (auto m : motor_manager_.motors()) {
+            m->set_cmd_status_req();
+            m->set_nonblock();
+        }
+    }
+    data_ = {};
     std::memcpy(data_.statuses, motor_manager_.read().data(), sizeof(MotorStatus) * motor_manager_.size());
     cstack_.push(data_);
 }
@@ -37,7 +56,8 @@ void MotorThread::update() {
     if (use_poll_) {
         int retval = motor_manager_.multipoll(poll_timeout_ns_);
         if (retval != motor_manager_.size()) {
-            if (!user_space_driver_) {
+            // fault tolerant: the motors that have not answered show up as not fresh below
+            if (!user_space_driver_ && !fault_tolerant_) {
                 // user space driver currently doesn't deal with poll
                 throw RuntimeException("MotorThread poll error " + std::to_string(retval) + " " + strerror(-retval));
             }
@@ -50,7 +70,9 @@ void MotorThread::update() {
 
     Data last_data = cstack_.top();
     for (int i = 0; i < motor_manager_.size(); i++) {
-        data_.controller_dt_s[i] = (data_.statuses[i].mcu_timestamp - last_data.statuses[i].mcu_timestamp) / cpu_frequency_hz_[i];
+        data_.status_fresh[i] = motor_manager_.get_status_fresh()[i];
+        data_.write_failed[i] = motor_manager_.get_write_error_count()[i] > 0;
+        data_.controller_dt_s[i] = cpu_frequency_hz_[i] > 0 ? (data_.statuses[i].mcu_timestamp - last_data.statuses[i].mcu_timestamp) / cpu_frequency_hz_[i] : 0;
     }
 
     controller_update();
