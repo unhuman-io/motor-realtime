@@ -74,6 +74,7 @@ class SysfsFile : public TextFile {
     virtual void flush() override {
         char c[64];
         while (read(c, 64));
+        reopen_if_at_end();
     }
     // locked/blocked to one caller so that a read is a response to write
     virtual ssize_t writeread(const char* data_out, unsigned int length_out, char* data_in, unsigned int length_in) override {
@@ -90,6 +91,7 @@ class SysfsFile : public TextFile {
         if (int retval = lockf(fd_, F_ULOCK, 0); retval < 0) {
             throw RuntimeErrnoException("error unlocking");
         }
+        reopen_if_at_end();
         return retval;
     }
 
@@ -102,8 +104,31 @@ class SysfsFile : public TextFile {
         if (retval < 0) {
             throw RuntimeException("Sysfs read error " + std::to_string(errno) + ": " + strerror(errno));
         }
+        if (retval == 0) {
+            at_end_ = true;
+        }
         return retval;
     }
+    // An empty reply (an unknown name, a value that is an empty string) leaves the file at
+    // its end, and on kernels before 5.10 seeking back to the start does not undo that
+    // when nothing was read: the kernel's seq_file only rewinds if the position changes,
+    // and it is still 0. Every later read on this descriptor then returns nothing without
+    // the device being asked, so that all replies after an empty one looked empty too.
+    // A new descriptor starts clean. (Done after the lock is released: closing any
+    // descriptor of a file drops this process's lockf locks on it.)
+    void reopen_if_at_end() {
+        if (!at_end_) {
+            return;
+        }
+        at_end_ = false;
+        int fd = ::open(path_.c_str(), O_RDWR);
+        if (fd < 0) {
+            throw RuntimeException("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + path_.c_str());
+        }
+        ::close(fd_);
+        fd_ = fd;
+    }
+    bool at_end_ = false;
     virtual ssize_t write(const char* data, unsigned int length) override {
         auto retval = ::write(fd_, data, length);
         if (retval < 0) {
