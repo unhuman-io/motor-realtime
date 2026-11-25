@@ -6,6 +6,7 @@
 #include "motor_uart_obot.h"
 #include "motor_can.h"
 
+#include <exception>
 #include <libudev.h>
 
 #include <cstring>
@@ -152,6 +153,7 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
     }
     read_error_count_.resize(motors_.size(), 0);
     nonblock_not_ready_error_count_.resize(motors_.size(), 0);
+    write_error_count_.assign(motors_.size(), 0);
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std::vector<std::string> devpaths, bool raw, uint32_t baud_rate, bool connect, bool allow_simulated) {
@@ -390,11 +392,33 @@ void MotorManager::write(std::vector<Command>& commands) {
             commands[i].host_timestamp = count_;
         }
     }
+    // Every motor gets its command, also when writing to one of them fails: the others
+    // must not be left without (their host timeout would stop them too). The error is
+    // thrown after that.
+    std::string err_msg;
+    std::exception_ptr thrown;
     for (uint8_t i = 0; i < motors_.size(); i++) {
         *motors_[i]->command() = commands[i];
-        if (motors_[i]->write() < 0) {
-            throw RuntimeException("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+        bool ok = false;
+        try {
+            ok = motors_[i]->write() >= 0;
+            if (!ok) {
+                err_msg.append(err_msg.empty() ? "" : "\n");
+                err_msg.append("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+            }
+        } catch (...) {
+            // a motor whose write() throws: the first such exception is passed on as it is
+            if (!thrown) {
+                thrown = std::current_exception();
+            }
         }
+        write_error_count_[i] = ok ? 0 : write_error_count_[i] + 1;
+    }
+    if (thrown) {
+        std::rethrow_exception(thrown);
+    }
+    if (!err_msg.empty()) {
+        throw RuntimeException(err_msg);
     }
 }
 

@@ -100,11 +100,14 @@ class MotorManager {
     bool deserialize_saved_commands(char* data);
     const std::vector<int>& get_read_error_count() const { return read_error_count_; }
     const std::vector<int>& get_nonblock_not_ready_error_count() const { return nonblock_not_ready_error_count_; }
+    // Consecutive writes that failed, per motor; 0 after one that worked.
+    const std::vector<int>& get_write_error_count() const { return write_error_count_; }
 
  private:
     std::vector<std::shared_ptr<Motor>> get_motors_by_name_function(std::vector<std::string> names, std::string (Motor::*name_fun)() const, bool connect = true, bool allow_simulated = false);
     std::vector<std::shared_ptr<Motor>> motors_;
     std::vector<int> read_error_count_;
+    std::vector<int> write_error_count_;
     std::vector<int> nonblock_not_ready_error_count_;
     std::vector<Command> commands_;
     std::vector<Status> statuses_;
