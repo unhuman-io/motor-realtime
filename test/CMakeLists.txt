@@ -13,3 +13,7 @@ add_test(NAME test_realtime_thread COMMAND test_realtime_thread)
 add_executable(test_motor test_motor.cpp)
 target_link_libraries(test_motor motor_manager)
 add_test(NAME test_motor COMMAND test_motor)
+
+add_executable(test_motor_manager_errors test_motor_manager_errors.cpp)
+target_link_libraries(test_motor_manager_errors motor_manager)
+add_test(NAME test_motor_manager_errors COMMAND test_motor_manager_errors)

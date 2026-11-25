@@ -6,6 +6,7 @@
 #include "motor_uart_obot.h"
 #include "motor_can.h"
 
+#include <exception>
 #include <libudev.h>
 
 #include <cstring>
@@ -153,6 +154,9 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
     pollfds_waiting_ = pollfds_;
     read_error_count_.resize(motors_.size(), 0);
     nonblock_not_ready_error_count_.resize(motors_.size(), 0);
+    write_error_count_.assign(motors_.size(), 0);
+    status_fresh_.assign(motors_.size(), 0);
+    status_seen_.assign(motors_.size(), 0);
 }
 
 std::vector<std::shared_ptr<Motor>> MotorManager::get_motors_uart_by_devpath(std::vector<std::string> devpaths, bool raw, uint32_t baud_rate, bool connect, bool allow_simulated) {
@@ -303,7 +307,16 @@ std::vector<Status>& MotorManager::read() {
     bool should_throw = false;
     std::string err_msg;
     for (uint8_t i = 0; i < motors_.size(); i++) {
-        auto size = motors_[i]->read();
+        ssize_t size;
+        try {
+            size = motors_[i]->read();
+        } catch (RuntimeException&) {
+            if (throw_on_error_) {
+                throw;
+            }
+            size = -1;
+            errno = EIO;
+        }
         if (size == -1) {
             if (motors_[i]->is_nonblocking() && errno == EAGAIN) {
                 // no data read at this time
@@ -311,10 +324,16 @@ std::vector<Status>& MotorManager::read() {
             } else {
                 read_error_count_[i]++;
                 // no data, error is in errno
+                if (!throw_on_error_ && !reconnect_) {
+                    // counted above; the caller looks at the counts and at get_status_fresh()
+                    status_fresh_[i] = 0;
+                    continue;
+                }
                 std::string err = "No data read from: " + motors_[i]->name() + ": " + std::to_string(errno) + ": " + strerror(errno);
                 if (!reconnect_) {
                     err_msg.append(err + "\n");
                     should_throw = true;
+                    status_fresh_[i] = 0;
                     continue;
                 } else {
                     if (reconnect_rate_.run()) {
@@ -336,7 +355,15 @@ std::vector<Status>& MotorManager::read() {
             nonblock_not_ready_error_count_[i] = 0;
             read_error_count_[i] = 0;
         }
-        statuses_[i] = *motors_[i]->status();
+        const Status& status = *motors_[i]->status();
+        const bool changed = status.mcu_timestamp != statuses_[i].mcu_timestamp ||
+                             status.host_timestamp_received != statuses_[i].host_timestamp_received;
+        // the first status of a motor is new even if it happens to carry zeros
+        status_fresh_[i] = changed || (!status_seen_[i] && size > 0);
+        if (size > 0 || changed) {
+            status_seen_[i] = 1;
+        }
+        statuses_[i] = status;
     }
     if (should_throw) {
         throw RuntimeException(err_msg);
@@ -391,11 +418,37 @@ void MotorManager::write(std::vector<Command>& commands) {
             commands[i].host_timestamp = count_;
         }
     }
+    // Every motor gets its command, also when writing to one of them fails: the others
+    // must not be left without (their host timeout would stop them too). The error is
+    // thrown after that.
+    std::string err_msg;
+    std::exception_ptr thrown;
     for (uint8_t i = 0; i < motors_.size(); i++) {
         *motors_[i]->command() = commands[i];
-        if (motors_[i]->write() < 0) {
-            throw RuntimeException("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+        bool ok = false;
+        try {
+            ok = motors_[i]->write() >= 0;
+            if (!ok) {
+                err_msg.append(err_msg.empty() ? "" : "\n");
+                err_msg.append("Error writing: " + motors_[i]->name() + " error " + std::to_string(errno) + ": " + strerror(errno));
+            }
+        } catch (...) {
+            // a motor whose write() throws: the first such exception is passed on as it is
+            if (!thrown) {
+                thrown = std::current_exception();
+            }
         }
+        write_error_count_[i] = ok ? 0 : write_error_count_[i] + 1;
+    }
+    if (!throw_on_error_) {
+        // counted above
+        return;
+    }
+    if (thrown) {
+        std::rethrow_exception(thrown);
+    }
+    if (!err_msg.empty()) {
+        throw RuntimeException(err_msg);
     }
 }
 
