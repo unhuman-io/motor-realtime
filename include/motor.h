@@ -74,6 +74,7 @@ class SysfsFile : public TextFile {
     virtual void flush() override {
         char c[64];
         while (read(c, 64));
+        reopen_if_at_end();
     }
     // locked/blocked to one caller so that a read is a response to write
     virtual ssize_t writeread(const char* data_out, unsigned int length_out, char* data_in, unsigned int length_in) override {
@@ -90,6 +91,7 @@ class SysfsFile : public TextFile {
         if (int retval = lockf(fd_, F_ULOCK, 0); retval < 0) {
             throw RuntimeErrnoException("error unlocking");
         }
+        reopen_if_at_end();
         return retval;
     }
 
@@ -102,8 +104,15 @@ class SysfsFile : public TextFile {
         if (retval < 0) {
             throw RuntimeException("Sysfs read error " + std::to_string(errno) + ": " + strerror(errno));
         }
+        if (retval == 0) {
+            at_end_ = true;
+        }
         return retval;
     }
+    // Only does something in a build with SYSFS_REOPEN_AFTER_EMPTY_READ (a cmake option,
+    // for Linux before 4.10 such as the Jetson Nano's 4.9), see motor.cpp.
+    void reopen_if_at_end();
+    bool at_end_ = false;
     virtual ssize_t write(const char* data, unsigned int length) override {
         auto retval = ::write(fd_, data, length);
         if (retval < 0) {

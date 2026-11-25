@@ -4,6 +4,9 @@ add_library(motor_manager motor_manager.cpp motor.cpp motor_ip.cpp motor_uart.cp
             can_time_sync.cpp)
 target_link_libraries(motor_manager PUBLIC udev pthread cli11 obot-protocol)
 target_include_directories(motor_manager PUBLIC ${PROJECT_SOURCE_DIR}/include)
+if(SYSFS_REOPEN_AFTER_EMPTY_READ)
+    target_compile_definitions(motor_manager PRIVATE SYSFS_REOPEN_AFTER_EMPTY_READ)
+endif()
 set(MOTOR_MANAGER_PUBLIC_HEADERS 
     ${PROJECT_SOURCE_DIR}/include/motor_manager.h
     ${PROJECT_SOURCE_DIR}/include/motor_messages.h
