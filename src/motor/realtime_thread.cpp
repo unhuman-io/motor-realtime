@@ -74,18 +74,28 @@ int sched_getattr(pid_t pid,
 
 void RealtimeThread::run() {
     done_ = false;
+    // before the thread exists: done() may be called before the thread has got anywhere
+    exit_ = std::promise<void>();
     thread_ = new std::thread([this] { run_deadline(); });
 }
 
 void RealtimeThread::done() {
+    if (thread_ == nullptr) {
+        // never started, or stopped already
+        return;
+    }
     done_.store(true);
     if (exit_.get_future().wait_for(std::chrono::nanoseconds(period_ns_) * 20) == std::future_status::timeout) {
         std::cerr << "Difficulty stopping realtime thread" << std::endl;
+        // It may be stuck in update(). A thread that is neither joined nor detached ends
+        // the program when it is deleted.
+        thread_->detach();
     } else {
         thread_->join();
         //printf("Realtime thread joined\n");
     }
     delete thread_;
+    thread_ = nullptr;
 }
 
 void RealtimeThread::jitter_error(int32_t time_jitter_ns) {
@@ -93,7 +103,6 @@ void RealtimeThread::jitter_error(int32_t time_jitter_ns) {
 }
 void RealtimeThread::run_deadline() {
     //printf("realtime thread started period_ns = %d, [%ld]\n", period_ns_, gettid());
-    exit_ = std::promise<void>();
 
     struct sched_attr attr;
     attr.size = sizeof(attr);

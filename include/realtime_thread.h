@@ -35,7 +35,7 @@ class RealtimeThread {
 
  private:
     void run_deadline();
-    std::thread* thread_;
+    std::thread* thread_ = nullptr;
     uint32_t period_ns_;
     int32_t max_jitter_ns_;
     std::atomic<bool> done_{false};
