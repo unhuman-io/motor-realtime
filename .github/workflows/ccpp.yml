@@ -113,6 +113,8 @@ jobs:
         include:
           - arch: aarch64
             distro: ubuntu18.04
+            # the package the Jetson Nano installs (L4T R32: Ubuntu 18.04, Linux 4.9)
+            cmake_options: -DSYSFS_REOPEN_AFTER_EMPTY_READ=ON
           - arch: aarch64
             distro: ubuntu20.04
           - arch: aarch64
@@ -139,7 +141,7 @@ jobs:
           --volume "${PWD}/packages:/packages"
         run: |
           git config --global --add safe.directory /home/runner/work/motor-realtime/motor-realtime
-          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_API=1 .
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_API=1 ${{ matrix.cmake_options }} .
           make -j`nproc`
           make package
         install: |

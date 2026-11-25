@@ -160,6 +160,30 @@ int Motor::get_timeout_ms() const {
 
 TextFile::~TextFile() {}
 
+// Linux before 4.10: an empty reply (an unknown name, a value that is an empty string)
+// leaves the sysfs file at its end, and seeking back to the start does not undo that when
+// nothing was read, because the kernel's seq_file only rewound if the position changed and
+// it is still 0. Every later read on the descriptor then returns nothing without the
+// device being asked, so that all replies after an empty one look empty too. From 4.10 on
+// a read at position 0 rewinds by itself.
+// A build for such a kernel (cmake -DSYSFS_REOPEN_AFTER_EMPTY_READ=ON) takes a new
+// descriptor after an empty read. (After the lock is released: closing any descriptor of
+// a file drops this process's lockf locks on it.) Other builds do nothing here.
+void SysfsFile::reopen_if_at_end() {
+#ifdef SYSFS_REOPEN_AFTER_EMPTY_READ
+    if (!at_end_) {
+        return;
+    }
+    at_end_ = false;
+    int fd = ::open(path_.c_str(), O_RDWR);
+    if (fd < 0) {
+        throw RuntimeException("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + path_.c_str());
+    }
+    ::close(fd_);
+    fd_ = fd;
+#endif
+}
+
 SysfsFile::~SysfsFile() {
     int retval = ::close(fd_);
     if (retval) {

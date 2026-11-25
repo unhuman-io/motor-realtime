@@ -53,6 +53,10 @@ option(BUILD_PYTHON_API "build a python api module" OFF)
 option(BUILD_MOTOR_UTIL "build motor util command line program" ON)
 option(INSTALL_COMPLETION "install bash completion script" ON)
 option(INSTALL_MOTOR_EMBEDDED "install motor embedded" ON)
+# For Linux before 4.10 (the Jetson Nano's L4T R32 is 4.9): there a sysfs file that was read
+# as empty stays at its end, so the text api goes silent after one empty reply. With this
+# the library opens the file again after such a read. Not needed from 4.10 on.
+option(SYSFS_REOPEN_AFTER_EMPTY_READ "work around text api replies going empty on Linux before 4.10" OFF)
 
 # the RPATH to be used when installing, but only if it's not a system directory
 list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)

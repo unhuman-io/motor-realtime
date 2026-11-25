@@ -1,7 +1,6 @@
 #ifndef MOTOR_H
 #define MOTOR_H
 
-#include <sys/utsname.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <iostream>
@@ -110,43 +109,9 @@ class SysfsFile : public TextFile {
         }
         return retval;
     }
-    // Linux before 4.10 only: an empty reply (an unknown name, a value that is an empty
-    // string) leaves the file at its end, and seeking back to the start does not undo
-    // that when nothing was read, because the kernel's seq_file only rewound if the
-    // position changed and it is still 0. Every later read on this descriptor then
-    // returns nothing without the device being asked, so that all replies after an empty
-    // one looked empty too. A new descriptor starts clean. From 4.10 on a read at
-    // position 0 rewinds by itself and nothing is reopened.
-    // (Done after the lock is released: closing any descriptor of a file drops this
-    // process's lockf locks on it.)
-    void reopen_if_at_end() {
-        if (!at_end_) {
-            return;
-        }
-        at_end_ = false;
-        if (!kernel_before_4_10()) {
-            return;
-        }
-        int fd = ::open(path_.c_str(), O_RDWR);
-        if (fd < 0) {
-            throw RuntimeException("Sysfs open error " + std::to_string(errno) + ": " + strerror(errno) + ", " + path_.c_str());
-        }
-        ::close(fd_);
-        fd_ = fd;
-    }
-    // The kernel this runs on, not the one it was built on: a package is installed on
-    // machines with other kernels than its build machine's.
-    static bool kernel_before_4_10() {
-        static const bool before = []() {
-            struct utsname u;
-            int major = 0, minor = 0;
-            if (uname(&u) != 0 || sscanf(u.release, "%d.%d", &major, &minor) != 2) {
-                return false;
-            }
-            return major < 4 || (major == 4 && minor < 10);
-        }();
-        return before;
-    }
+    // Only does something in a build with SYSFS_REOPEN_AFTER_EMPTY_READ (a cmake option,
+    // for Linux before 4.10 such as the Jetson Nano's 4.9), see motor.cpp.
+    void reopen_if_at_end();
     bool at_end_ = false;
     virtual ssize_t write(const char* data, unsigned int length) override {
         auto retval = ::write(fd_, data, length);
