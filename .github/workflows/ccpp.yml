@@ -111,12 +111,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: aarch64
-            distro: ubuntu18.04
-          - arch: aarch64
-            distro: ubuntu20.04
-          - arch: aarch64
-            distro: ubuntu_latest
+          # aarch64 is built natively in build_aarch64 below; only the 32 bit boards, for
+          # which GitHub has no runner, are still emulated here
           - arch: armv6
             distro: buster
           - arch: armv7
@@ -150,12 +146,6 @@ jobs:
             apt-get remove -y cmake-data
             apt-get install -y cmake-data=3.13.4-1 cmake=3.13.4-1
           fi
-    - name: rename latest
-      if: ${{ matrix.distro == 'ubuntu_latest' }}
-      run: for f in packages/*.deb; do mv $f ${f%.deb}_ubuntu-24.04.deb; done
-    - name: rename 20.04
-      if: ${{ matrix.distro == 'ubuntu20.04' }}
-      run: for f in packages/*.deb; do mv $f ${f%.deb}_ubuntu-20.04.deb; done
     - name: Archive production artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -223,53 +213,107 @@ jobs:
           ./artifacts_${{ matrix.distro }}_${{ matrix.arch }}.tgz
         tag: main
 
-  build_jetson_nano:
-    # The package for a Jetson Nano: L4T R32 is Ubuntu 18.04 on Linux 4.9, which needs
-    # SYSFS_REOPEN_AFTER_EMPTY_READ. It is built in an Ubuntu 18.04 container on one of
-    # GitHub's arm64 runners, so it compiles natively instead of under emulation.
+  build_aarch64:
+    # aarch64 packages, each built in a container of its distribution on one of GitHub's
+    # arm64 runners: native, where run-on-arch emulates the processor (about a minute
+    # here against a quarter of an hour).
     runs-on: ubuntu-24.04-arm
-    name: Build for Jetson Nano
+    name: ${{ matrix.name }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Build on ubuntu18.04 aarch64
+            distro: ubuntu18.04
+            image: ubuntu:18.04
+          - name: Build on ubuntu20.04 aarch64
+            distro: ubuntu20.04
+            image: ubuntu:20.04
+            package_suffix: _ubuntu-20.04
+          - name: Build on ubuntu_latest aarch64
+            distro: ubuntu_latest
+            image: ubuntu:24.04
+            package_suffix: _ubuntu-24.04
+          # For a Jetson Nano: L4T R32 is Ubuntu 18.04 on Linux 4.9, which needs
+          # SYSFS_REOPEN_AFTER_EMPTY_READ. Only the package is built for it.
+          - name: Build for Jetson Nano
+            distro: jetson-nano
+            image: ubuntu:18.04
+            package_suffix: _jetson-nano
+            cmake_options: -DSYSFS_REOPEN_AFTER_EMPTY_READ=ON
+            package_only: true
     steps:
     - uses: actions/checkout@master
       with:
         submodules: true
         fetch-depth: 0
-    - name: build in an Ubuntu 18.04 container
+    - name: container with the build tools
       run: |
-        docker run --rm --volume "${PWD}:${PWD}" --workdir "${PWD}" ubuntu:18.04 bash -ec '
-          apt-get update -q -y
-          apt-get install -q -y cmake build-essential libudev-dev git python3-dev
-          git config --global --add safe.directory "*"
-          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_API=1 -DSYSFS_REOPEN_AFTER_EMPTY_READ=ON .
+        docker build -t builder - <<EOF
+        FROM ${{ matrix.image }}
+        ENV DEBIAN_FRONTEND=noninteractive
+        RUN apt-get update -q -y && apt-get install -q -y cmake build-essential libudev-dev git python3-dev
+        RUN git config --global --add safe.directory "*"
+        EOF
+    - name: build the package
+      run: |
+        docker run --rm --volume "${PWD}:${PWD}" --workdir "${PWD}" builder bash -ec '
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_API=1 ${{ matrix.cmake_options }} .
           make -j`nproc`
           make package'
         sudo chown -R "$(id -u):$(id -g)" .
-        for f in packages/*.deb; do mv $f ${f%.deb}_jetson-nano.deb; done
+        if [ -n "${{ matrix.package_suffix }}" ]; then
+          for f in packages/*.deb; do mv $f ${f%.deb}${{ matrix.package_suffix }}.deb; done
+        fi
         ls -l packages
     - name: Archive production artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: packages-jetson-nano-aarch64
+        name: packages-${{ matrix.distro }}-aarch64
         path: packages
+    - name: build the static programs
+      if: ${{ !matrix.package_only }}
+      run: |
+        # Debug and not RelWithDebInfo: that fixed a missing pthread_create in the
+        # aarch64 ubuntu18.04 build
+        docker run --rm --volume "${PWD}:${PWD}" --workdir "${PWD}" builder bash -ec '
+          cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=artifacts -DINSTALL_COMPLETION=off .
+          make -j`nproc` VERBOSE=1
+          make install'
+        sudo chown -R "$(id -u):$(id -g)" .
+        tar -czf artifacts_${{ matrix.distro }}_aarch64.tgz artifacts/
+    - name: Archive production artifacts2
+      if: ${{ !matrix.package_only }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: artifacts-${{ matrix.distro }}-aarch64
+        path: artifacts_${{ matrix.distro }}_aarch64.tgz
 
-  release_jetson_nano:
-    # Adds the Jetson Nano package to the release. On an x86 runner, not in the job that
-    # builds it: the releaser action is a container that exists for amd64 only and cannot
+  release_aarch64:
+    # Adds what build_aarch64 made to the release. On an x86 runner, not in the job that
+    # builds: the releaser action is a container that exists for amd64 only and cannot
     # run on the arm64 runner.
-    needs: build_jetson_nano
+    needs: build_aarch64
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v4
       with:
-        name: packages-jetson-nano-aarch64
+        pattern: packages-*-aarch64
         path: packages
-    - run: ls -l packages
+        merge-multiple: true
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: artifacts-*-aarch64
+        merge-multiple: true
+    - run: ls -l packages artifacts_*_aarch64.tgz
     - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'develop')
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./packages/*
+          ./artifacts_*_aarch64.tgz
         tag: develop
     - uses: pyTooling/Actions/releaser@v6.7.0
       if: contains(github.ref, 'main')
@@ -277,12 +321,13 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
           ./packages/*
+          ./artifacts_*_aarch64.tgz
         tag: main
 
   merge_artifacts:
     runs-on: ubuntu-latest
-    # after the release jobs: they read the artifacts that are merged, and deleted, here
-    needs: [build, build_arm, build_jetson_nano, release_jetson_nano]
+    # after the release job: it reads the artifacts that are merged, and deleted, here
+    needs: [build, build_arm, build_aarch64, release_aarch64]
     steps:
     - name: Merge packages
       uses: actions/upload-artifact/merge@v4
