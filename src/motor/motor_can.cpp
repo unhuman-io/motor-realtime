@@ -413,6 +413,10 @@ ssize_t MotorCAN::read() {
         // also keep the timeout
         current_timeout = timeout_ms_;
     }
+    if (nonblock_) {
+        // only what has arrived, see set_nonblock()
+        current_timeout = 0;
+    }
 
     struct canfd_frame frame;
     pollfd tmp;
@@ -421,6 +425,7 @@ ssize_t MotorCAN::read() {
 
     int poll_result;
     int nbytes = 0;
+    bool status_received = false;
     do {
         poll_result = ::poll(&tmp, 1, current_timeout /* ms */);
         current_timeout = 0;
@@ -430,10 +435,15 @@ ssize_t MotorCAN::read() {
                 if (frame.can_id == ((3 << 7) | devnum_)) {
                     int length = std::min((size_t)frame.len, sizeof(status_));
                     std::memcpy(&status_, frame.data, length);
+                    status_received = true;
                 }
             }
         }
     } while (poll_result > 0);
+    if (nonblock_ && !status_received) {
+        errno = EAGAIN;
+        return -1;
+    }
     return nbytes;
 }
 
