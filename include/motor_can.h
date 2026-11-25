@@ -18,6 +18,19 @@ class MotorCAN : public Motor {
         return 0;
     }
 
+    // Nonblocking, as for a motor on USB: read() does not wait for a status. It takes what
+    // has arrived and returns -1 with errno EAGAIN if that is nothing. Unless the node
+    // answers every command with a status (set_cmd_status_req()), read() still asks it
+    // for one; the answer is there for the next read().
+    virtual int set_nonblock() override {
+        nonblock_ = true;
+        return 0;
+    }
+    virtual int clear_nonblock() override {
+        nonblock_ = false;
+        return 0;
+    }
+
     virtual void set_timeout_ms(int timeout_ms) override;
     virtual int get_timeout_ms() const override { return timeout_ms_; }
 
