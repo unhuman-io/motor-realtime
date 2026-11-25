@@ -150,6 +150,7 @@ void MotorManager::set_motors(std::vector<std::shared_ptr<Motor>> motors) {
         pollfds_[i].fd = motors_.at(i)->fd();
         pollfds_[i].events = POLLIN;
     }
+    pollfds_waiting_ = pollfds_;
     read_error_count_.resize(motors_.size(), 0);
     nonblock_not_ready_error_count_.resize(motors_.size(), 0);
 }
@@ -558,20 +559,32 @@ int MotorManager::multipoll(uint32_t timeout_ns) {
     struct timespec timeout = {};
     Timer t(timeout_ns);
 
-    int retval;
-    do {
-        timeout.tv_nsec = t.get_time_remaining_ns();
-        if (timeout.tv_nsec == 0) {
+    // Motors that are ready are taken out of the set that is waited for (poll ignores a
+    // negative fd). Polling all of them again would return at once for as long as one is
+    // ready and another is not, and spin until the timeout.
+    pollfds_waiting_ = pollfds_;
+    size_t ready = 0;
+    while (ready < pollfds_waiting_.size()) {
+        const uint32_t remaining_ns = t.get_time_remaining_ns();
+        if (remaining_ns == 0) {
             return -ETIMEDOUT;
         }
-        retval = ::ppoll(pollfds_.data(), pollfds_.size(), &timeout, nullptr);
+        timeout.tv_sec = remaining_ns / 1000000000;
+        timeout.tv_nsec = remaining_ns % 1000000000;
+        int retval = ::ppoll(pollfds_waiting_.data(), pollfds_waiting_.size(), &timeout, nullptr);
         if (retval == 0) {
             return -ETIMEDOUT;
         } else if (retval < 0) {
             return retval;
         }
-    } while (static_cast<uint8_t>(retval) < pollfds_.size());
-    return retval;
+        for (auto& p : pollfds_waiting_) {
+            if (p.fd >= 0 && p.revents != 0) {
+                p.fd = -1;
+                ready++;
+            }
+        }
+    }
+    return static_cast<int>(ready);
 }
 
 std::string MotorManager::command_headers() const {
