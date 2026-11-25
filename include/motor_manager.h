@@ -114,6 +114,7 @@ class MotorManager {
     bool reconnect_ = false;
     FrequencyLimiter reconnect_rate_ = std::chrono::milliseconds(100);
     std::vector<pollfd> pollfds_;
+    std::vector<pollfd> pollfds_waiting_;   // multipoll: those not ready yet
     Motor::MessagesCheck check_messages_version_;
 };
 
